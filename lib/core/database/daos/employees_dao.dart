@@ -1,0 +1,39 @@
+import 'package:drift/drift.dart';
+import '../../utils/pin_hasher.dart';
+import '../database.dart';
+
+part 'employees_dao.g.dart';
+
+@DriftAccessor(tables: [Employees])
+class EmployeesDao extends DatabaseAccessor<AppDatabase>
+    with _$EmployeesDaoMixin {
+  EmployeesDao(super.db);
+
+  Future<List<Employee>> getAllEmployees() =>
+      (select(employees)
+            ..orderBy([(e) => OrderingTerm.asc(e.name)]))
+          .get();
+
+  Stream<List<Employee>> watchAllEmployees() =>
+      (select(employees)
+            ..orderBy([(e) => OrderingTerm.asc(e.name)]))
+          .watch();
+
+  Future<Employee?> findByPin(String pin) =>
+      (select(employees)
+            ..where((e) => e.pin.equals(hashPin(pin)) & e.active.equals(true)))
+          .getSingleOrNull();
+
+  Future<int> insertEmployee(EmployeesCompanion employee) =>
+      into(employees).insert(employee);
+
+  Future<bool> updateEmployee(EmployeesCompanion employee) =>
+      update(employees).replace(employee);
+
+  Future<void> toggleActive(int id, bool active) =>
+      (update(employees)..where((e) => e.id.equals(id)))
+          .write(EmployeesCompanion(active: Value(active)));
+
+  Future<int> deleteEmployee(int id) =>
+      (delete(employees)..where((e) => e.id.equals(id))).go();
+}

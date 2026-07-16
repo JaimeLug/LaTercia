@@ -1,0 +1,28 @@
+# FASE 6.2 — Servicio systemd de usuario para arrancar La Tercia POS en kiosko.
+#
+# Instalación (en la estación Linux, como el usuario del kiosko):
+#   mkdir -p ~/.config/systemd/user
+#   cp latercia-kiosk.service ~/.config/systemd/user/
+#   # ajusta ExecStart a la ruta real del binario (ver setup.md)
+#   systemctl --user daemon-reload
+#   systemctl --user enable --now latercia-kiosk.service
+#
+# Requiere sesión gráfica iniciada (autologin del usuario). Restart=always
+# reinicia la app si crashea (6.4, tolerancia a fallos).
+
+[Unit]
+Description=La Tercia POS (kiosko)
+After=graphical-session.target
+PartOf=graphical-session.target
+
+[Service]
+Type=simple
+# Ajusta esta ruta a donde instalaste el bundle de `flutter build linux`.
+ExecStart=/opt/latercia/latercia
+Restart=always
+RestartSec=2
+# Evita que systemd lo mate por "arranque muy rápido" tras varios crashes.
+StartLimitIntervalSec=0
+
+[Install]
+WantedBy=graphical-session.target

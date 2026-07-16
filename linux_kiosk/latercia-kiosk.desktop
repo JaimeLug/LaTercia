@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=La Tercia POS
+Comment=Punto de venta en modo kiosko
+# Ajusta a la ruta real del binario instalado.
+Exec=/opt/latercia/latercia
+Terminal=false
+X-GNOME-Autostart-enabled=true
+# Alternativa al servicio systemd: copiar a ~/.config/autostart/ para que
+# arranque al iniciar sesión gráfica. Usa UNO de los dos (systemd O autostart),
+# no ambos. El servicio systemd es preferible porque reinicia tras crashes.
