@@ -7,6 +7,7 @@ import '../../../core/providers/database_provider.dart';
 import '../../../core/providers/settings_provider.dart';
 import '../../../core/services/print_service.dart';
 import '../../../core/utils/backup_helper.dart';
+import '../../../core/utils/power_service.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
@@ -619,6 +620,30 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               contentPadding: EdgeInsets.zero,
             ),
           ]),
+          _section('Equipo', [
+            const Text(
+              'Apaga o reinicia la computadora (útil en modo kiosko, sin escritorio a la vista).',
+              style: TextStyle(fontSize: 12.5, color: Colors.black54),
+            ),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                OutlinedButton.icon(
+                  icon: const Icon(Icons.restart_alt),
+                  label: const Text('Reiniciar equipo'),
+                  onPressed: () => _confirmPower(context, reboot: true),
+                ),
+                const SizedBox(width: 12),
+                OutlinedButton.icon(
+                  icon: const Icon(Icons.power_settings_new),
+                  label: const Text('Apagar equipo'),
+                  style: OutlinedButton.styleFrom(
+                      foregroundColor: Theme.of(context).colorScheme.error),
+                  onPressed: () => _confirmPower(context, reboot: false),
+                ),
+              ],
+            ),
+          ]),
           const SizedBox(height: 24),
           SizedBox(
             height: 52,
@@ -632,6 +657,39 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         ],
       ),
     );
+  }
+
+  Future<void> _confirmPower(BuildContext context,
+      {required bool reboot}) async {
+    final verb = reboot ? 'Reiniciar' : 'Apagar';
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: Text('¿$verb el equipo?'),
+        content: Text(reboot
+            ? 'La computadora se reiniciará ahora.'
+            : 'La computadora se apagará ahora.'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancelar')),
+          FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: Text(verb)),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    final done = reboot
+        ? await const PowerService().reboot()
+        : await const PowerService().shutdown();
+    if (!done && context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+            content: Text(
+                'No se pudo $verb el equipo (permisos del sistema). Revisa el log.')),
+      );
+    }
   }
 
   Widget _section(String title, List<Widget> children) {

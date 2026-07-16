@@ -10,12 +10,30 @@ Recomendado: distro con Wayland y GNOME, o un compositor de una-sola-app como
 
 ## 1. Compilar
 
-Requisitos de build de Flutter Linux (una vez):
+Requisitos de build de Flutter Linux (una vez). **Corre `apt update` primero**
+(una VM recién instalada trae el índice de paquetes vacío):
 ```bash
-sudo apt install -y clang cmake ninja-build pkg-config libgtk-3-dev \
-  liblzma-dev libstdc++-12-dev
+sudo apt update
+# Toolchain + GTK (build de escritorio):
+sudo apt install -y clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev
+# GStreamer -dev: lo necesita el plugin audioplayers para COMPILAR:
+sudo apt install -y libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev
+# (opcional) plugins para REPRODUCIR los sonidos del KDS en runtime:
+sudo apt install -y gstreamer1.0-plugins-base gstreamer1.0-plugins-good
 flutter config --enable-linux-desktop
 ```
+Ojo: nombres con **guion** antes de `dev` (`...1.0-dev`), y **sin** `\` de
+continuación en una sola línea si copias a mano (evita paquetes mal partidos).
+
+**Andamiaje de plataforma Linux (una vez):** el proyecto nació con runner de
+Windows; hay que generar el de Linux (carpeta `linux/`). Ya está commiteado en
+el repo, pero si `flutter build linux` dice *"No Linux desktop project
+configured"*, genéralo con:
+```bash
+flutter create --platforms=linux .
+```
+Solo agrega `linux/` (runner GTK/CMake), no toca `lib/`. El binario se llama
+`latercia`.
 
 Compilar en release:
 ```bash
@@ -76,13 +94,49 @@ Eso pone pantalla completa y **bloquea el cierre** de la ventana (mecanismo en
 `KioskController`). Para salir: apagá el flag en Configuración y la ventana se
 libera al instante (escape seguro, sin tener que matar el proceso).
 
-Para un kiosko "duro" (sin escritorio ni forma de salir del compositor),
-arrancá la app dentro de `cage`:
+## 5b. Modo "electrodoméstico": arrancar SOLO la app al encender
+
+Para que la PC encienda y lo **único** que aparezca sea La Tercia (sin
+escritorio, sin barras, sin forma de salir al SO) — como si el POS fuera el
+sistema operativo — usá **`cage`** (compositor de una sola app) + **autologin**.
+Lubuntu 24.04 usa **SDDM** como gestor de login.
+
+**1) Instalá cage:**
 ```bash
 sudo apt install -y cage
-# como sesión: cage /opt/latercia/latercia
 ```
-`cage` muestra una sola app a pantalla completa sin barras ni acceso al SO.
+
+**2) Creá una "sesión" que arranque la app en cage.** Como root, creá el archivo
+`/usr/share/wayland-sessions/latercia-kiosk.desktop` con:
+```ini
+[Desktop Entry]
+Name=La Tercia Kiosko
+Comment=POS en modo electrodoméstico
+Exec=cage -- /opt/latercia/latercia
+Type=Application
+```
+(Ajustá la ruta del binario. Para probar sin instalar en /opt, apuntá al bundle:
+`/home/jaimel/LaTercia/build/linux/x64/release/bundle/latercia`.)
+
+**3) Autologin a esa sesión.** Creá `/etc/sddm.conf.d/autologin.conf`:
+```ini
+[Autologin]
+User=jaimel
+Session=latercia-kiosk
+```
+
+**4) Reiniciá.** La PC arranca → SDDM autologin → `cage` lanza la app a pantalla
+completa. No hay escritorio ni forma de cerrarla. La bienvenida ("Bienvenido…")
+la muestra la propia app.
+
+**Salir/apagar en este modo:** ya no hay menú del SO, así que:
+- **Apagar/Reiniciar** desde **Configuración → Equipo** (botones en la app).
+- Para **mantenimiento** (volver al escritorio normal), desde otra TTY:
+  `Ctrl+Alt+F3` → login → `sudo rm /etc/sddm.conf.d/autologin.conf` → reiniciar.
+
+> Con cage no hace falta el flag "Modo kiosko" de la app (cage ya la deja a
+> pantalla completa y sin cierre). El flag interno sigue siendo útil para el
+> modo más simple (autostart sobre el escritorio) de la sección 4/5.
 
 ## 6. Checklist de verificación en la VM (6.3)
 
@@ -95,3 +149,6 @@ sudo apt install -y cage
 - [ ] Modo kiosko ON: pantalla completa + no se puede cerrar; OFF lo libera.
 - [ ] Arranca solo tras reiniciar la VM (systemd/autostart + autologin).
 - [ ] Si la app crashea, systemd la reinicia (probá `killall latercia`).
+- [ ] Botones **Configuración → Equipo → Apagar/Reiniciar** funcionan.
+- [ ] Modo electrodoméstico (§5b): al reiniciar arranca directo en la app con
+      cage, sin escritorio ni forma de salir.
