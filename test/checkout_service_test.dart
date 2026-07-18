@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:latercia/core/database/database.dart';
 import 'package:latercia/core/models/order_with_items.dart';
 import 'package:latercia/core/providers/orders_provider.dart';
+import 'package:latercia/core/database/daos/recipes_dao.dart';
 import 'package:latercia/core/services/checkout_service.dart';
 import 'package:latercia/core/services/refund_service.dart';
 import 'package:latercia/core/services/shift_service.dart';
@@ -95,6 +96,122 @@ void main() {
 
     final activeOrders = await db.ordersDao.getActiveOrders();
     expect(activeOrders.any((o) => o.id == result.order.id), isTrue);
+  });
+
+  // ─── Envío por zona (FASE 8) ────────────────────────────────────────────
+
+  test('el checkout persiste la zona y el cargo de envío en la orden',
+      () async {
+    final product = await trackedProduct(stock: 10);
+
+    final result = await checkout.checkout(
+      cartItems: [CartItem(product: product, quantity: 1)],
+      type: 'delivery',
+      employeeId: 1,
+      subtotal: 50,
+      deliveryZone: 'Progreso 2',
+      deliveryFee: 25,
+      total: 75,
+      paymentMethod: 'efectivo',
+      amountTendered: 75,
+    );
+
+    expect(result.order.deliveryZone, 'Progreso 2');
+    expect(result.order.deliveryFee, 25);
+    expect(result.order.total, 75, reason: 'el cargo ya viene sumado en total');
+  });
+
+  test('una orden sin envío (mesa/para llevar) queda con deliveryFee en 0',
+      () async {
+    final product = await trackedProduct(stock: 10);
+
+    final result = await checkout.checkout(
+      cartItems: [CartItem(product: product, quantity: 1)],
+      type: 'mesa',
+      employeeId: 1,
+      tableId: 1,
+      subtotal: 50,
+      total: 50,
+      paymentMethod: 'efectivo',
+      amountTendered: 50,
+    );
+
+    expect(result.order.deliveryZone, isNull);
+    expect(result.order.deliveryFee, 0);
+  });
+
+  // ─── Insumos y recetas (FASE 7) ────────────────────────────────────────
+
+  test('con insumos_activo=true, un producto con receta descuenta el insumo '
+      'en vez del stock simple del producto', () async {
+    final cats = await db.categoriesDao.getAllCategories();
+    final ingredientId = await db.ingredientsDao.insertIngredient(
+      IngredientsCompanion.insert(name: 'Café molido', unit: 'g'),
+    );
+    await db.ingredientsDao.adjustStock(ingredientId, 1000, 'ajuste', null);
+    final productId = await db.productsDao.insertProduct(
+      ProductsCompanion.insert(
+        name: 'Latte',
+        price: 45,
+        categoryId: cats.first.id,
+        usesRecipe: const Value(true),
+      ),
+    );
+    await db.recipesDao.setRecipe(
+        productId, [RecipeLineDraft(ingredientId: ingredientId, quantity: 18)]);
+    await db.settingsDao.setValue('insumos_activo', 'true');
+    final product =
+        (await db.productsDao.getAllProducts()).firstWhere((p) => p.id == productId);
+
+    await checkout.checkout(
+      cartItems: [CartItem(product: product, quantity: 2)],
+      type: 'mesa',
+      employeeId: 1,
+      subtotal: 90,
+      total: 90,
+      paymentMethod: 'efectivo',
+      amountTendered: 90,
+    );
+
+    final ingredient = (await db.ingredientsDao.getAllIngredients())
+        .firstWhere((i) => i.id == ingredientId);
+    expect(ingredient.stockQuantity, 1000 - 18 * 2);
+  });
+
+  test('con insumos_activo=false, un producto con receta cargada NO toca '
+      'insumos (el flag manda, no solo si el producto tiene receta)', () async {
+    final cats = await db.categoriesDao.getAllCategories();
+    final ingredientId = await db.ingredientsDao.insertIngredient(
+      IngredientsCompanion.insert(name: 'Café molido', unit: 'g'),
+    );
+    await db.ingredientsDao.adjustStock(ingredientId, 1000, 'ajuste', null);
+    final productId = await db.productsDao.insertProduct(
+      ProductsCompanion.insert(
+        name: 'Latte',
+        price: 45,
+        categoryId: cats.first.id,
+        usesRecipe: const Value(true),
+      ),
+    );
+    await db.recipesDao.setRecipe(
+        productId, [RecipeLineDraft(ingredientId: ingredientId, quantity: 18)]);
+    await db.settingsDao.setValue('insumos_activo', 'false');
+    final product =
+        (await db.productsDao.getAllProducts()).firstWhere((p) => p.id == productId);
+
+    await checkout.checkout(
+      cartItems: [CartItem(product: product, quantity: 2)],
+      type: 'mesa',
+      employeeId: 1,
+      subtotal: 90,
+      total: 90,
+      paymentMethod: 'efectivo',
+      amountTendered: 90,
+    );
+
+    final ingredient = (await db.ingredientsDao.getAllIngredients())
+        .firstWhere((i) => i.id == ingredientId);
+    expect(ingredient.stockQuantity, 1000, reason: 'flag apagado — sin tocar insumos');
   });
 
   // ─── Atomicity ─────────────────────────────────────────────────────────

@@ -4,6 +4,7 @@ import 'dart:io';
 
 import '../models/order_with_items.dart';
 import '../utils/app_logger.dart';
+import 'kds_button_service.dart' show KdsButton, parseKdsButton;
 import 'kds_link.dart';
 
 /// FASE 5.1 — Cliente WebSocket que corre en la ventana KDS separada. Se conecta
@@ -22,6 +23,11 @@ class KdsClient {
 
   void Function(List<OrderWithItems> orders, bool canRecall)? onSnapshot;
   void Function(bool connected)? onConnectionChanged;
+
+  /// Botones de la botonera física reenviados por el POS (dueño real del
+  /// socket del ESP32) — así la ventana KDS separada también los recibe.
+  final _botonController = StreamController<KdsButton>.broadcast();
+  Stream<KdsButton> get botonPresionado => _botonController.stream;
 
   bool get isConnected => _connected;
 
@@ -64,6 +70,9 @@ class KdsClient {
       final m = jsonDecode(data as String) as Map<String, dynamic>;
       if (m['type'] == 'orders') {
         onSnapshot?.call(decodeOrders(m), m['canRecall'] == true);
+      } else if (m['type'] == 'boton') {
+        final btn = parseKdsButton((m['boton'] as String?) ?? '');
+        if (btn != null) _botonController.add(btn);
       }
     } catch (e, st) {
       appLogger.warn('Mensaje KDS inválido del servidor.', e, st);
@@ -101,5 +110,10 @@ class KdsClient {
       await _ws?.close();
     } catch (_) {}
     _ws = null;
+  }
+
+  Future<void> dispose() async {
+    await stop();
+    await _botonController.close();
   }
 }

@@ -43,10 +43,10 @@
 - [x] **3.2 (S)** **Gaveta de dinero** `[FLAG: gaveta_activa, default OFF]`: pulso ESC/POS `DLE DC4`/`ESC p` vía la impresora. Botón "Abrir gaveta" (permiso 2.5) + apertura automática al cobrar en efectivo `[FLAG: gaveta_auto_efectivo, default ON si gaveta activa]`. Cada apertura → audit_log.
 - [x] **3.3 (S)** **Reimpresión** (G9): botón en Órdenes (admin), marca "— REIMPRESIÓN —", registra en audit_log.
 - [x] **3.4 (S)** **Recall en KDS**: deshacer la última orden marcada "listo" (ventana 60 s), botón en header. *Prerequisito de la botonera.*
-- [ ] **3.5 (L)** **Botonera Arduino Uno** `[FLAG: botonera_activa, default OFF]`: *(POSPUESTA — requiere hardware para verificar. Microcontrolador: **Arduino Uno** en vez de ESP32 — el usuario ya tiene varios, costo ~0. Implica USB-serial cableado (CDC vía ATmega16U2), sin variante inalámbrica.)*
-  - `lib/core/services/kds_pad_service.dart` con `flutter_libserialport`: autodetección de puerto (hello `kds-pad-v1`), frames JSON `{seq,btn,ev,ts}` + ACK, dedupe por `seq`, heartbeat 2 s, reconexión con backoff (1→2→4→10 s), indicador de estado en header del KDS.
-  - Firmware Arduino Uno (sketch C++ en `firmware/kds_pad/`): baud 115200, debounce 30 ms, ring buffer 32 eventos (OJO 2 KB RAM), reenvío sin ACK, watchdog (`avr/wdt.h`).
-  - Mapeo bump bar: botón N = tarjeta N (marcar listo), botón dedicado Recall. Configurable en Settings.
+- [x] **3.5 (L)** **Botonera ESP32 (WiFi/WebSocket)** `[hardware/software integrados 2026-07-16]`: *(CAMBIO DE PLAN: el Arduino Uno se quemó (corto en pin D4) → se migró a **ESP32 NodeMCU-32S**, y de paso se pasó de USB-serial cableado a **WiFi + WebSocket** — el usuario ya construyó, programó y probó el hardware al 100% en red local antes de esta integración. Ver `documentacion-botonera-esp32.md` del usuario.)*
+  - `lib/core/services/kds_button_service.dart`: servidor WS de texto plano en **puerto fijo 8080** (coincide con el firmware ya grabado, sin token — server APARTE del WS JSON+token de la Fase 5.1, que sincroniza POS↔KDS; esta botonera es solo un mando de una vía). Best-effort: si el puerto ya está tomado por otra ventana KDS, se queda en silencio sin crashear (single-writer natural: el hardware solo le habla a una "cocina" a la vez). 4 tests.
+  - `KdsScreen`: arranca el servicio en `initState`, cursor de "tarjeta seleccionada" (resaltado dorado) navegable con ANTERIOR/SIGUIENTE sobre la cuadrícula activa (mismo orden que se ve en pantalla); PREP/LISTO actúan sobre la seleccionada; RECALL llama `recallLastReady()`; TIEMPO alterna la vista all-day (5.3) — diseño de navegación decidido con el usuario (el KDS es cuadrícula, no "una orden actual" como asumía el doc original).
+  - Mapeo de botones físicos→GPIO y diseño mecánico (caja 3D, postes, keyhole) documentados en el archivo fuente del usuario, sin cambios de software pendientes salvo el adaptador de montaje del NodeMCU-32S (no es este proyecto Flutter).
 
 **Criterio de salida:** venta imprime ticket real; comanda impresa en cocina; botonera marca/recall órdenes con la app reiniciándose o el cable desconectándose sin perder pulsaciones.
 
@@ -67,7 +67,7 @@
 ---
 
 ## FASE 5 — Escalabilidad y pulido
-- [x] **5.1 (L)** **Un solo dueño de BD**: servidor WebSocket local en el proceso POS (`dart:io HttpServer`, bind 127.0.0.1, token); la ventana KDS separada pasa a viewer WS (latencia <50 ms, sin polling ni locking multi-proceso). El KDS embebido queda igual. *(La botonera es Arduino Uno cableado por USB-serial, no inalámbrica, así que este WS es independiente de ella.)* *(Hecho con **WS + fallback a BD** (decisión del usuario): `KdsServer` (puerto efímero 127.0.0.1 + token por sesión, publica endpoint en `kds_endpoint.json`, broadcast de snapshots, ejecuta comandos vía callbacks al OrdersNotifier del POS); `KdsClient` (lee endpoint, reconecta con backoff 1→2→4→10s); `kds_link.dart` (serialización con `toJson`/`fromJson` de drift + comandos). `OrdersNotifier` gana modo cliente: conectado ⇒ estado por push WS y comandos (listo/estado/recall) por WS (sin tocar BD); desconectado ⇒ vuelve al polling de BD. POS arranca el server en `_Root.initState` y retransmite en cada cambio; el proceso KDS override `ordersProvider` con `KdsClient`. 5 tests (round-trip, token, broadcast, comando). **Falta verificación runtime con las 2 ventanas** (no testeable desde aquí, como la botonera).)*
+- [x] **5.1 (L)** **Un solo dueño de BD**: servidor WebSocket local en el proceso POS (`dart:io HttpServer`, bind 127.0.0.1, token); la ventana KDS separada pasa a viewer WS (latencia <50 ms, sin polling ni locking multi-proceso). El KDS embebido queda igual. *(La botonera terminó siendo ESP32 por WiFi, servidor aparte en :8080 — ver 3.5 — así que este WS sigue siendo independiente de ella.)* *(Hecho con **WS + fallback a BD** (decisión del usuario): `KdsServer` (puerto efímero 127.0.0.1 + token por sesión, publica endpoint en `kds_endpoint.json`, broadcast de snapshots, ejecuta comandos vía callbacks al OrdersNotifier del POS); `KdsClient` (lee endpoint, reconecta con backoff 1→2→4→10s); `kds_link.dart` (serialización con `toJson`/`fromJson` de drift + comandos). `OrdersNotifier` gana modo cliente: conectado ⇒ estado por push WS y comandos (listo/estado/recall) por WS (sin tocar BD); desconectado ⇒ vuelve al polling de BD. POS arranca el server en `_Root.initState` y retransmite en cada cambio; el proceso KDS override `ordersProvider` con `KdsClient`. 5 tests (round-trip, token, broadcast, comando). **Falta verificación runtime con las 2 ventanas** (no testeable desde aquí, como la botonera).)*
 - [x] **5.2 (M)** **Backups automáticos** `[FLAG: backup_auto, default ON, diario]`: copia con checkpoint a `%APPDATA%/latercia/backups/` con retención N días + al cerrar turno. *(Hecho: `BackupService` (checkpoint+copy timestamped, poda por retención, `last_backup_at`, `baseDir` inyectable para test); auto diario al entrar al POS + al cerrar turno; UI en Configuración→Respaldo (toggle + retención); flags `backup_auto`/`backup_retention_days`. 4 tests.)*
 - [x] **5.3 (M)** **KDS alto tráfico**: vista all-day consolidada ("7× Frappé de Café") + paginación de tarjetas (nunca encoger, legibilidad a 2 m). *(Hecho: `_buildAllDay` (consolida cantidades pendientes por producto, texto grande) + toggle en header; `_buildPaginatedGrid` con `LayoutBuilder` (tarjetas de tamaño fijo, lo que no cabe pasa de página) + barra Página X/Y + auto-rotación cada 12s.)*
 - [x] **5.4 (S)** Indicadores de salud en Admin: estado impresora/botonera/último backup/tamaño de log. *(Hecho: `SystemHealthCard` + `systemHealthProvider` en el Dashboard: impresora (de settings), botonera (no configurada), último backup (fecha+tamaño, warn si >2 días), tamaño de logs (`AppLogger.logsSizeBytes`).)*
@@ -90,13 +90,15 @@
 ---
 
 ## Resumen de flags nuevos en Configuración
-`caja_requiere_turno` (ON) · `auto_lock_min` (5) · `lock_tras_venta` (OFF) · `impresion_activa` (OFF) · `gaveta_activa` (OFF) · `gaveta_auto_efectivo` (ON) · `botonera_activa` (OFF) · `tax_included` (ON=IVA incluido) · `propinas_activas` (OFF) · `split_activo` (OFF) · `backup_auto` (ON)
+`caja_requiere_turno` (ON) · `auto_lock_min` (5) · `lock_tras_venta` (OFF) · `impresion_activa` (OFF) · `gaveta_activa` (OFF) · `gaveta_auto_efectivo` (ON) · `tax_included` (ON=IVA incluido) · `propinas_activas` (OFF) · `split_activo` (OFF) · `backup_auto` (ON) · `modo_kiosko` (OFF)
+
+*(Nota: la botonera ESP32 no usa un flag de Settings — el servidor de la botonera arranca solo al montar la pantalla del KDS, sin toggle.)*
 
 ## Orden y dependencias
 ```
 F1 (base) → F2 (caja+auditoría) → F3 (hardware) → F4 (ventas) → F5 (escala) → F6 (Linux/kiosko, lo último)
               └─ 2.1 audit_log es prerequisito de 3.2 gaveta y 4.4 reembolsos
-              └─ 3.4 recall es prerequisito de 3.5 botonera (Arduino Uno)
+              └─ 3.4 recall es prerequisito de 3.5 botonera (ESP32/WiFi)
               └─ 3.1 impresora es prerequisito de 3.2 gaveta y 3.3 reimpresión
               └─ 3.5 botonera y toda la F6 comparten la etapa de hardware físico + VM
               └─ 5.1 KDS-por-WS simplifica el arranque kiosko de 6.2

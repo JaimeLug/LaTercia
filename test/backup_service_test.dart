@@ -13,15 +13,21 @@ void main() {
 
   setUp(() async {
     tempBase = await Directory.systemTemp.createTemp('latercia_backup_test');
-    // Base de datos respaldada por archivo real (no en memoria), en la ruta que
-    // BackupService espera: <base>/latercia/latercia.db.
-    final dbDir = Directory(p.join(tempBase.path, 'latercia'));
-    await dbDir.create(recursive: true);
+    // Base de datos respaldada por archivo real (no en memoria), en la ruta
+    // que BackupService espera de [dbDir]: <dbDirTemp>/latercia.sqlite —
+    // misma convención que la BD real (getApplicationDocumentsDirectory,
+    // sin subcarpeta), en un temp aparte del de backups/logs ([baseDir]).
+    final dbDirTemp = Directory(p.join(tempBase.path, 'docs'));
+    await dbDirTemp.create(recursive: true);
     db = AppDatabase.forTesting(
-        NativeDatabase(File(p.join(dbDir.path, 'latercia.db'))));
+        NativeDatabase(File(p.join(dbDirTemp.path, 'latercia.sqlite'))));
     // Fuerza la creación del archivo ejecutando una consulta.
     await db.settingsDao.getAllSettings();
-    backup = BackupService(db, baseDir: () async => tempBase);
+    backup = BackupService(
+      db,
+      baseDir: () async => tempBase,
+      dbDir: () async => dbDirTemp,
+    );
   });
 
   tearDown(() async {

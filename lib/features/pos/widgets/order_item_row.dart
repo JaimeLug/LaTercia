@@ -73,7 +73,9 @@ class _OrderItemRowState extends State<OrderItemRow> {
                       Padding(
                         padding: const EdgeInsets.only(top: 2),
                         child: Text(
-                          '↳ ${m.name}',
+                          item.includedModifierIds.contains(m.id)
+                              ? '↳ ${m.name} (incluido)'
+                              : '↳ ${m.name}',
                           style: const TextStyle(
                             fontSize: 11,
                             color: LaTerciaColors.tan,

@@ -5,6 +5,7 @@ import 'package:drift/drift.dart' show Value;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:latercia/core/database/database.dart';
+import 'package:latercia/core/services/kds_button_service.dart';
 import 'package:latercia/core/services/kds_link.dart';
 import 'package:latercia/core/services/kds_server.dart';
 
@@ -106,6 +107,21 @@ void main() {
       // Espera a que el server procese el mensaje.
       await Future<void>.delayed(const Duration(milliseconds: 100));
       expect(readied, 42);
+      await ws.close();
+    });
+
+    test(
+        'broadcastBoton reenvía el botón a las ventanas KDS separadas '
+        '(3.5 — el ESP32 solo puede hablarle al proceso POS)', () async {
+      final ws = await connect();
+      final firstMsg = ws.first;
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      server.broadcastBoton(KdsButton.listo);
+
+      final raw = await firstMsg.timeout(const Duration(seconds: 2));
+      final m = jsonDecode(raw as String) as Map<String, dynamic>;
+      expect(m['type'], 'boton');
+      expect(m['boton'], 'LISTO');
       await ws.close();
     });
   });

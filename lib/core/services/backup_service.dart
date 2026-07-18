@@ -19,13 +19,25 @@ typedef BackupInfo = ({DateTime modified, int sizeBytes, String path});
 /// Corre a diario (una vez por día calendario) y al cerrar turno. Todo
 /// best-effort: nunca lanza hacia el caller ni bloquea el flujo de venta.
 class BackupService {
-  /// [baseDir] resuelve la carpeta de datos de la app (por defecto
-  /// `getApplicationSupportDirectory`); los tests la inyectan a un temp.
-  BackupService(this._db, {Future<Directory> Function()? baseDir})
-      : _baseDir = baseDir;
+  /// [baseDir] resuelve la carpeta de datos de la app, donde viven backups y
+  /// logs (por defecto `getApplicationSupportDirectory`). [dbDir] resuelve la
+  /// carpeta donde vive el archivo **real** de la BD (por defecto
+  /// `getApplicationDocumentsDirectory` — así es como `driftDatabase(name:
+  /// 'latercia', ...)` la resuelve, ver `_openConnection` en `database.dart`).
+  /// Son dos carpetas DISTINTAS a propósito — antes ambas asumían la misma
+  /// (soporte de la app), y los backups automáticos fallaban en silencio
+  /// (best-effort) sin respaldar nada real porque la BD nunca estuvo ahí.
+  /// Los tests inyectan ambas a temps aislados.
+  BackupService(
+    this._db, {
+    Future<Directory> Function()? baseDir,
+    Future<Directory> Function()? dbDir,
+  })  : _baseDir = baseDir,
+        _dbDir = dbDir;
 
   final AppDatabase _db;
   final Future<Directory> Function()? _baseDir;
+  final Future<Directory> Function()? _dbDir;
 
   static const _defaultRetentionDays = 14;
 
@@ -36,8 +48,9 @@ class BackupService {
   }
 
   Future<String> _dbPath() async {
-    final appDir = await _appDir();
-    return p.join(appDir.path, 'latercia', 'latercia.db');
+    final override = _dbDir;
+    final dir = await (override ?? getApplicationDocumentsDirectory)();
+    return p.join(dir.path, 'latercia.sqlite');
   }
 
   Future<Directory> backupsDir() async {

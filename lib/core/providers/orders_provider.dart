@@ -92,6 +92,8 @@ class OrdersNotifier extends StateNotifier<List<OrderWithItems>> {
     double subtotal = 0,
     double discountAmount = 0,
     double taxAmount = 0,
+    String? deliveryZone,
+    double deliveryFee = 0,
     double total = 0,
   }) async {
     // The whole operation (order + items + inventory) must be all-or-nothing:
@@ -116,6 +118,8 @@ class OrdersNotifier extends StateNotifier<List<OrderWithItems>> {
           subtotal: Value(subtotal),
           discountAmount: Value(discountAmount),
           taxAmount: Value(taxAmount),
+          deliveryZone: Value(deliveryZone),
+          deliveryFee: Value(deliveryFee),
           total: Value(total),
           status: const Value('pendiente'),
           paymentStatus: const Value('pendiente'),
@@ -132,7 +136,11 @@ class OrdersNotifier extends StateNotifier<List<OrderWithItems>> {
       final itemCompanions = cartItems.map((ci) {
         final modJson = jsonEncode(
           ci.modifiers
-              .map((m) => {'name': m.name, 'priceDelta': m.priceDelta})
+              .map((m) => {
+                    'name': m.name,
+                    'priceDelta': m.priceDelta,
+                    'included': ci.includedModifierIds.contains(m.id),
+                  })
               .toList(),
         );
         return OrderItemsCompanion.insert(
@@ -150,7 +158,8 @@ class OrdersNotifier extends StateNotifier<List<OrderWithItems>> {
 
       // Decrement inventory
       for (final ci in cartItems) {
-        await _db.inventoryDao.decrementStock(ci.product.id, ci.quantity);
+        await _db.inventoryDao
+            .decrementForSale(ci.product.id, ci.quantity, orderId: id);
       }
 
       return id;
@@ -261,8 +270,9 @@ class OrdersNotifier extends StateNotifier<List<OrderWithItems>> {
     // cancellation must put it back or inventory drifts permanently.
     final items = await _db.orderItemsDao.getItemsForOrder(orderId);
     for (final item in items) {
-      await _db.inventoryDao
-          .incrementStock(item.productId, item.quantity, 'cancelacion');
+      await _db.inventoryDao.incrementForSale(
+          item.productId, item.quantity, 'cancelacion',
+          orderId: orderId);
     }
 
     await _db.ordersDao.cancelOrder(orderId, reason);
@@ -303,8 +313,9 @@ class OrdersNotifier extends StateNotifier<List<OrderWithItems>> {
       if (item.itemStatus == 'cancelado') return;
 
       // Devuelve el stock reservado de esta línea.
-      await _db.inventoryDao
-          .incrementStock(item.productId, item.quantity, 'cancelacion');
+      await _db.inventoryDao.incrementForSale(
+          item.productId, item.quantity, 'cancelacion',
+          orderId: orderId);
       await _db.orderItemsDao.updateItemStatus(item.id, 'cancelado');
 
       // Recalcula el subtotal desde las líneas que siguen activas y reescala el

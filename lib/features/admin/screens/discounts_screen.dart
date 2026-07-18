@@ -5,7 +5,9 @@ import '../../../core/database/database.dart';
 import '../../../core/providers/database_provider.dart';
 import '../../../core/providers/discounts_provider.dart';
 import '../../../core/providers/settings_provider.dart';
+import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/formatters.dart';
+import '../widgets/admin_panel.dart';
 
 class DiscountsScreen extends ConsumerStatefulWidget {
   const DiscountsScreen({super.key});
@@ -23,76 +25,123 @@ class _DiscountsScreenState extends ConsumerState<DiscountsScreen> {
     final discountsAsync = ref.watch(discountsProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Descuentos')),
+      backgroundColor: LaTerciaColors.appBg,
+      appBar: adminAppBar('Descuentos'),
       floatingActionButton: FloatingActionButton(
+        backgroundColor: LaTerciaColors.burntOrange,
         onPressed: () => _showForm(context, null),
-        child: const Icon(Icons.add),
+        child: const Icon(Icons.add, color: Colors.white),
       ),
       body: discountsAsync.when(
-        data: (discounts) => SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: DataTable(
-            columns: const [
-              DataColumn(label: Text('Nombre')),
-              DataColumn(label: Text('Tipo')),
-              DataColumn(label: Text('Valor')),
-              DataColumn(label: Text('Mínimo')),
-              DataColumn(label: Text('Válido hasta')),
-              DataColumn(label: Text('Activo')),
-              DataColumn(label: Text('Acciones')),
-            ],
-            rows: discounts.map((d) {
-              return DataRow(cells: [
-                DataCell(Text(d.name)),
-                DataCell(Text(d.type == 'percentage'
-                    ? 'Porcentaje'
-                    : 'Fijo')),
-                DataCell(Text(d.type == 'percentage'
-                    ? '${d.value.toInt()}%'
-                    : formatCurrency(d.value, symbol))),
-                DataCell(Text(d.minOrderAmount > 0
-                    ? formatCurrency(d.minOrderAmount, symbol)
-                    : '-')),
-                DataCell(Text(d.validUntil != null
-                    ? formatDate(d.validUntil!)
-                    : 'Sin límite')),
-                DataCell(Switch(
-                  value: d.active,
-                  onChanged: (v) async {
-                    await ref
-                        .read(databaseProvider)
-                        .discountsDao
-                        .toggleActive(d.id, v);
-                  },
-                )),
-                DataCell(Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    IconButton(
-                      icon: const Icon(Icons.edit, size: 18),
-                      onPressed: () => _showForm(context, d),
-                    ),
-                    IconButton(
-                      icon: Icon(Icons.delete,
-                          size: 18,
-                          color: Theme.of(context)
-                              .colorScheme
-                              .error),
-                      onPressed: () async {
-                        await ref
-                            .read(databaseProvider)
-                            .discountsDao
-                            .deleteDiscount(d.id);
-                      },
-                    ),
-                  ],
-                )),
-              ]);
-            }).toList(),
-          ),
-        ),
-        loading: () =>
-            const Center(child: CircularProgressIndicator()),
+        data: (discounts) {
+          if (discounts.isEmpty) {
+            return const AdminEmptyState(
+              icon: Icons.local_offer_outlined,
+              message: 'Sin descuentos todavía.',
+            );
+          }
+          return SingleChildScrollView(
+            padding: const EdgeInsets.all(20),
+            child: AdminPanel(
+              child: Column(
+                children: [
+                  const AdminHeaderRow(cells: [
+                    Expanded(flex: 3, child: Text('NOMBRE')),
+                    Expanded(flex: 2, child: Text('TIPO')),
+                    Expanded(flex: 2, child: Text('VALOR')),
+                    Expanded(flex: 2, child: Text('MÍNIMO')),
+                    Expanded(flex: 2, child: Text('VÁLIDO HASTA')),
+                    Expanded(flex: 1, child: Text('ACTIVO')),
+                    SizedBox(width: 88, child: Text('ACCIONES')),
+                  ]),
+                  ...discounts.asMap().entries.map((entry) {
+                    final d = entry.value;
+                    final isLast = entry.key == discounts.length - 1;
+                    return AdminRow(
+                      isLast: isLast,
+                      cells: [
+                        Expanded(
+                          flex: 3,
+                          child: Text(d.name,
+                              style: const TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  color: LaTerciaColors.darkBrown)),
+                        ),
+                        Expanded(
+                            flex: 2,
+                            child: Text(
+                                d.type == 'percentage' ? 'Porcentaje' : 'Fijo')),
+                        Expanded(
+                          flex: 2,
+                          child: Text(
+                              d.type == 'percentage'
+                                  ? '${d.value.toInt()}%'
+                                  : formatCurrency(d.value, symbol),
+                              style: const TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  color: LaTerciaColors.success)),
+                        ),
+                        Expanded(
+                          flex: 2,
+                          child: Text(d.minOrderAmount > 0
+                              ? formatCurrency(d.minOrderAmount, symbol)
+                              : '—'),
+                        ),
+                        Expanded(
+                          flex: 2,
+                          child: Text(
+                              d.validUntil != null
+                                  ? formatDate(d.validUntil!)
+                                  : 'Sin límite',
+                              style: const TextStyle(
+                                  fontSize: 12.5, color: LaTerciaColors.tan)),
+                        ),
+                        Expanded(
+                          flex: 1,
+                          child: Switch(
+                            value: d.active,
+                            activeColor: LaTerciaColors.burntOrange,
+                            onChanged: (v) async {
+                              await ref
+                                  .read(databaseProvider)
+                                  .discountsDao
+                                  .toggleActive(d.id, v);
+                            },
+                          ),
+                        ),
+                        SizedBox(
+                          width: 88,
+                          child: Row(
+                            children: [
+                              IconButton(
+                                icon: const Icon(Icons.edit_outlined,
+                                    size: 18, color: LaTerciaColors.tan),
+                                visualDensity: VisualDensity.compact,
+                                onPressed: () => _showForm(context, d),
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.delete_outline,
+                                    size: 18, color: LaTerciaColors.danger),
+                                visualDensity: VisualDensity.compact,
+                                onPressed: () async {
+                                  await ref
+                                      .read(databaseProvider)
+                                      .discountsDao
+                                      .deleteDiscount(d.id);
+                                },
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    );
+                  }),
+                ],
+              ),
+            ),
+          );
+        },
+        loading: () => adminLoading(),
         error: (e, _) => Center(child: Text('Error: $e')),
       ),
     );

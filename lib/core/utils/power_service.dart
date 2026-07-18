@@ -27,6 +27,23 @@ class PowerService {
         linuxFallback: ['shutdown', '-r', 'now'],
       );
 
+  /// Reinicia SOLO la app (no el equipo): relanza un proceso nuevo, detached
+  /// para que sobreviva a este cerrando, y termina el actual. Útil tras
+  /// cambios de configuración o si la app se ve rara, sin esperar un reinicio
+  /// completo del sistema. Nunca retorna (el proceso actual termina).
+  Future<void> restartApp() async {
+    try {
+      await Process.start(
+        Platform.resolvedExecutable,
+        const <String>[],
+        mode: ProcessStartMode.detached,
+      );
+    } catch (e, st) {
+      appLogger.warn('No se pudo relanzar la aplicación automáticamente.', e, st);
+    }
+    exit(0);
+  }
+
   Future<bool> _run({
     required List<String> windows,
     required List<String> linuxPrimary,

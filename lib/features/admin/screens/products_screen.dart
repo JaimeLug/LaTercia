@@ -6,10 +6,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import '../../../core/database/database.dart';
+import '../../../core/database/daos/recipes_dao.dart';
 import '../../../core/providers/categories_provider.dart';
 import '../../../core/providers/database_provider.dart';
 import '../../../core/providers/settings_provider.dart';
+import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/formatters.dart';
+import '../widgets/admin_panel.dart';
 
 class ProductsScreen extends ConsumerStatefulWidget {
   const ProductsScreen({super.key});
@@ -37,15 +40,17 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
     final categories = categoriesAsync.valueOrNull ?? [];
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Productos')),
+      backgroundColor: LaTerciaColors.appBg,
+      appBar: adminAppBar('Productos'),
       floatingActionButton: FloatingActionButton(
+        backgroundColor: LaTerciaColors.burntOrange,
         onPressed: () => _showProductForm(context, null),
-        child: const Icon(Icons.add),
+        child: const Icon(Icons.add, color: Colors.white),
       ),
       body: Column(
         children: [
           Padding(
-            padding: const EdgeInsets.all(12),
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
             child: Row(
               children: [
                 Expanded(
@@ -60,31 +65,21 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
                   ),
                 ),
                 const SizedBox(width: 12),
-                DropdownButton<int?>(
+                _CategoryFilter(
                   value: _filterCategoryId,
-                  hint: const Text('Categoría'),
-                  items: [
-                    const DropdownMenuItem<int?>(
-                        value: null, child: Text('Todas')),
-                    ...categories.map((c) => DropdownMenuItem(
-                          value: c.id,
-                          child: Text(c.name),
-                        )),
-                  ],
-                  onChanged: (v) =>
-                      setState(() => _filterCategoryId = v),
+                  categories: categories,
+                  onChanged: (v) => setState(() => _filterCategoryId = v),
                 ),
               ],
             ),
           ),
+          // Scroll VERTICAL explícito: sin esto, con suficientes productos y
+          // la ventana achicada la lista se sale por abajo (overflow).
           Expanded(
             child: FutureBuilder<List<Product>>(
               future: ref.read(databaseProvider).productsDao.getAllProducts(),
               builder: (ctx, snapshot) {
-                if (!snapshot.hasData) {
-                  return const Center(
-                      child: CircularProgressIndicator());
-                }
+                if (!snapshot.hasData) return adminLoading();
                 var products = snapshot.data!;
                 if (_filterCategoryId != null) {
                   products = products
@@ -98,64 +93,141 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
                           .contains(_search.toLowerCase()))
                       .toList();
                 }
+                if (products.isEmpty) {
+                  return const AdminEmptyState(
+                    icon: Icons.inventory_2_outlined,
+                    message: 'Sin productos con estos filtros.',
+                  );
+                }
 
                 return SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: DataTable(
-                    columns: const [
-                      DataColumn(label: Text('Nombre')),
-                      DataColumn(label: Text('Categoría')),
-                      DataColumn(label: Text('Precio')),
-                      DataColumn(label: Text('Costo')),
-                      DataColumn(label: Text('Stock')),
-                      DataColumn(label: Text('Disponible')),
-                      DataColumn(label: Text('Acciones')),
-                    ],
-                    rows: products.map((p) {
-                      final cat = categories
-                          .where((c) => c.id == p.categoryId)
-                          .firstOrNull;
-                      return DataRow(cells: [
-                        DataCell(Text(p.name)),
-                        DataCell(Text(cat?.name ?? '-')),
-                        DataCell(Text(
-                            formatCurrency(p.price, symbol))),
-                        DataCell(Text(
-                            formatCurrency(p.cost, symbol))),
-                        DataCell(Text(p.trackInventory
-                            ? '${p.stockQuantity}'
-                            : '-')),
-                        DataCell(Switch(
-                          value: p.available,
-                          onChanged: (v) async {
-                            await ref
-                                .read(databaseProvider)
-                                .productsDao
-                                .toggleAvailability(p.id, v);
-                            setState(() {});
-                          },
-                        )),
-                        DataCell(Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            IconButton(
-                              icon: const Icon(Icons.edit, size: 18),
-                              onPressed: () =>
-                                  _showProductForm(context, p),
-                            ),
-                            IconButton(
-                              icon: Icon(Icons.delete,
-                                  size: 18,
-                                  color: Theme.of(context)
-                                      .colorScheme
-                                      .error),
-                              onPressed: () =>
-                                  _confirmDelete(context, p),
-                            ),
-                          ],
-                        )),
-                      ]);
-                    }).toList(),
+                  padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
+                  child: AdminPanel(
+                    child: Column(
+                      children: [
+                        const AdminHeaderRow(cells: [
+                          Expanded(flex: 3, child: Text('NOMBRE')),
+                          Expanded(flex: 2, child: Text('CATEGORÍA')),
+                          Expanded(flex: 2, child: Text('PRECIO')),
+                          Expanded(flex: 2, child: Text('COSTO')),
+                          Expanded(
+                              flex: 1,
+                              child: Center(child: Text('STOCK'))),
+                          Expanded(
+                              flex: 2,
+                              child: Center(child: Text('RASTREAR'))),
+                          Expanded(
+                              flex: 2,
+                              child: Center(child: Text('DISPONIBLE'))),
+                          SizedBox(width: 88, child: Text('ACCIONES')),
+                        ]),
+                        ...products.asMap().entries.map((entry) {
+                          final p = entry.value;
+                          final isLast = entry.key == products.length - 1;
+                          final cat = categories
+                              .where((c) => c.id == p.categoryId)
+                              .firstOrNull;
+                          return AdminRow(
+                            isLast: isLast,
+                            cells: [
+                              Expanded(
+                                flex: 3,
+                                child: Text(p.name,
+                                    style: const TextStyle(
+                                        fontWeight: FontWeight.w600,
+                                        color: LaTerciaColors.darkBrown)),
+                              ),
+                              Expanded(flex: 2, child: Text(cat?.name ?? '—')),
+                              Expanded(
+                                flex: 2,
+                                child: Text(formatCurrency(p.price, symbol),
+                                    style: const TextStyle(
+                                        fontWeight: FontWeight.w600)),
+                              ),
+                              Expanded(
+                                  flex: 2,
+                                  child: Text(
+                                      formatCurrency(p.cost, symbol),
+                                      style: const TextStyle(
+                                          color: LaTerciaColors.tan))),
+                              Expanded(
+                                flex: 1,
+                                child: Center(
+                                  child: Text(p.trackInventory
+                                      ? '${p.stockQuantity}'
+                                      : '—'),
+                                ),
+                              ),
+                              Expanded(
+                                flex: 2,
+                                child: Center(
+                                  child: p.usesRecipe
+                                      ? const Tooltip(
+                                          message:
+                                              'Usa receta (insumos) — el stock '
+                                              'simple no aplica',
+                                          child: Icon(Icons.eco_outlined,
+                                              size: 18,
+                                              color: LaTerciaColors.tan),
+                                        )
+                                      : Switch(
+                                          value: p.trackInventory,
+                                          activeColor:
+                                              LaTerciaColors.burntOrange,
+                                          onChanged: (v) async {
+                                            await ref
+                                                .read(databaseProvider)
+                                                .productsDao
+                                                .toggleTrackInventory(p.id, v);
+                                            setState(() {});
+                                          },
+                                        ),
+                                ),
+                              ),
+                              Expanded(
+                                flex: 2,
+                                child: Center(
+                                  child: Switch(
+                                    value: p.available,
+                                    activeColor: LaTerciaColors.burntOrange,
+                                    onChanged: (v) async {
+                                      await ref
+                                          .read(databaseProvider)
+                                          .productsDao
+                                          .toggleAvailability(p.id, v);
+                                      setState(() {});
+                                    },
+                                  ),
+                                ),
+                              ),
+                              SizedBox(
+                                width: 88,
+                                child: Row(
+                                  children: [
+                                    IconButton(
+                                      icon: const Icon(Icons.edit_outlined,
+                                          size: 18,
+                                          color: LaTerciaColors.tan),
+                                      visualDensity: VisualDensity.compact,
+                                      onPressed: () =>
+                                          _showProductForm(context, p),
+                                    ),
+                                    IconButton(
+                                      icon: const Icon(Icons.delete_outline,
+                                          size: 18,
+                                          color: LaTerciaColors.danger),
+                                      visualDensity: VisualDensity.compact,
+                                      onPressed: () =>
+                                          _confirmDelete(context, p),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          );
+                        }),
+                      ],
+                    ),
                   ),
                 );
               },
@@ -230,6 +302,11 @@ class _ProductFormDialogState
   // IVA por producto (4.5). null = heredar el default global de Configuración.
   bool? _taxIncluded;
 
+  // FASE 7 — Receta (insumos), mutuamente excluyente con el stock simple.
+  bool _usesRecipe = false;
+  final List<_RecipeLine> _recipeLines = [];
+  late Future<List<Ingredient>> _ingredientsFuture;
+
   @override
   void initState() {
     super.initState();
@@ -252,6 +329,21 @@ class _ProductFormDialogState
     _trackInventory = p?.trackInventory ?? false;
     _taxIncluded = p?.taxIncluded;
     _imagePath = p?.imagePath;
+    _usesRecipe = p?.usesRecipe ?? false;
+
+    final db = ref.read(databaseProvider);
+    _ingredientsFuture = db.ingredientsDao.getActiveIngredients();
+    if (p != null) {
+      db.recipesDao.getRecipeForProduct(p.id).then((lines) {
+        if (!mounted) return;
+        setState(() {
+          _recipeLines.addAll(lines.map((l) => _RecipeLine(
+                ingredientId: l.item.ingredientId,
+                qtyCtrl: TextEditingController(text: '${l.item.quantity}'),
+              )));
+        });
+      });
+    }
   }
 
   @override
@@ -264,6 +356,9 @@ class _ProductFormDialogState
     _stockCtrl.dispose();
     _minStockCtrl.dispose();
     _taxRateCtrl.dispose();
+    for (final l in _recipeLines) {
+      l.qtyCtrl.dispose();
+    }
     super.dispose();
   }
 
@@ -271,6 +366,9 @@ class _ProductFormDialogState
   Widget build(BuildContext context) {
     final categories =
         ref.watch(categoriesProvider).valueOrNull ?? [];
+    final insumosActivo =
+        (ref.watch(settingsProvider).valueOrNull ?? {})['insumos_activo'] ==
+            'true';
 
     return AlertDialog(
       title: Text(
@@ -375,35 +473,55 @@ class _ProductFormDialogState
                   onChanged: (v) => setState(() => _available = v),
                   contentPadding: EdgeInsets.zero,
                 ),
-                SwitchListTile(
-                  title: const Text('Rastrear inventario'),
-                  value: _trackInventory,
-                  onChanged: (v) =>
-                      setState(() => _trackInventory = v),
-                  contentPadding: EdgeInsets.zero,
-                ),
-                if (_trackInventory) ...[
-                  Row(
-                    children: [
-                      Expanded(
-                        child: TextFormField(
-                          controller: _stockCtrl,
-                          decoration: const InputDecoration(
-                              labelText: 'Stock actual'),
-                          keyboardType: TextInputType.number,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: TextFormField(
-                          controller: _minStockCtrl,
-                          decoration: const InputDecoration(
-                              labelText: 'Stock mínimo'),
-                          keyboardType: TextInputType.number,
-                        ),
-                      ),
-                    ],
+                if (!_usesRecipe) ...[
+                  SwitchListTile(
+                    title: const Text('Rastrear inventario'),
+                    value: _trackInventory,
+                    onChanged: (v) =>
+                        setState(() => _trackInventory = v),
+                    contentPadding: EdgeInsets.zero,
                   ),
+                  if (_trackInventory) ...[
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextFormField(
+                            controller: _stockCtrl,
+                            decoration: const InputDecoration(
+                                labelText: 'Stock actual'),
+                            keyboardType: TextInputType.number,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: TextFormField(
+                            controller: _minStockCtrl,
+                            decoration: const InputDecoration(
+                                labelText: 'Stock mínimo'),
+                            keyboardType: TextInputType.number,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ],
+                // FASE 7 — Receta (insumos): mutuamente excluyente con el
+                // stock simple de arriba, solo visible si el sistema de
+                // insumos está activo en Configuración → Insumos.
+                if (insumosActivo) ...[
+                  SwitchListTile(
+                    title: const Text('Usa receta (consume insumos)'),
+                    subtitle: const Text(
+                        'Al vender, descuenta los insumos de la receta en '
+                        'vez del stock simple de arriba.'),
+                    value: _usesRecipe,
+                    onChanged: (v) => setState(() {
+                      _usesRecipe = v;
+                      if (v) _trackInventory = false;
+                    }),
+                    contentPadding: EdgeInsets.zero,
+                  ),
+                  if (_usesRecipe) _buildRecipeEditor(),
                 ],
                 const Divider(height: 24),
                 const Align(
@@ -469,6 +587,83 @@ class _ProductFormDialogState
     );
   }
 
+  Widget _buildRecipeEditor() {
+    return FutureBuilder<List<Ingredient>>(
+      future: _ingredientsFuture,
+      builder: (ctx, snapshot) {
+        final ingredients = snapshot.data ?? [];
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Padding(
+            padding: EdgeInsets.symmetric(vertical: 12),
+            child: LinearProgressIndicator(),
+          );
+        }
+        if (ingredients.isEmpty) {
+          return const Padding(
+            padding: EdgeInsets.symmetric(vertical: 8),
+            child: Text(
+                'No hay insumos activos — da de alta uno en Admin → Insumos primero.',
+                style: TextStyle(color: LaTerciaColors.tan)),
+          );
+        }
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            for (var i = 0; i < _recipeLines.length; i++)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Row(
+                  children: [
+                    Expanded(
+                      flex: 3,
+                      child: DropdownButtonFormField<int>(
+                        value: _recipeLines[i].ingredientId,
+                        decoration: const InputDecoration(labelText: 'Insumo'),
+                        items: ingredients
+                            .map((ing) => DropdownMenuItem(
+                                value: ing.id, child: Text(ing.name)))
+                            .toList(),
+                        onChanged: (v) =>
+                            setState(() => _recipeLines[i].ingredientId = v),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      flex: 2,
+                      child: TextFormField(
+                        controller: _recipeLines[i].qtyCtrl,
+                        decoration: const InputDecoration(labelText: 'Cantidad'),
+                        keyboardType:
+                            const TextInputType.numberWithOptions(decimal: true),
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close,
+                          size: 18, color: LaTerciaColors.danger),
+                      visualDensity: VisualDensity.compact,
+                      onPressed: () => setState(() {
+                        _recipeLines[i].qtyCtrl.dispose();
+                        _recipeLines.removeAt(i);
+                      }),
+                    ),
+                  ],
+                ),
+              ),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton.icon(
+                onPressed: () => setState(() => _recipeLines
+                    .add(_RecipeLine(qtyCtrl: TextEditingController()))),
+                icon: const Icon(Icons.add, size: 18),
+                label: const Text('Agregar insumo'),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   Future<void> _pickImage() async {
     final result = await FilePicker.platform.pickFiles(
       type: FileType.image,
@@ -512,15 +707,80 @@ class _ProductFormDialogState
           ? null
           : double.tryParse(_taxRateCtrl.text.replaceAll(',', '.'))),
       taxIncluded: Value(_taxIncluded),
+      usesRecipe: Value(_usesRecipe),
       updatedAt: Value(DateTime.now()),
     );
 
+    int productId;
     if (widget.product == null) {
-      await db.productsDao.insertProduct(companion);
+      productId = await db.productsDao.insertProduct(companion);
     } else {
+      productId = widget.product!.id;
       await db.productsDao.updateProduct(companion);
     }
 
+    // Lista vacía si se desactivó la receta — limpia cualquier línea previa.
+    final recipeDrafts = _usesRecipe
+        ? _recipeLines
+            .where((l) => l.ingredientId != null &&
+                (double.tryParse(l.qtyCtrl.text) ?? 0) > 0)
+            .map((l) => RecipeLineDraft(
+                ingredientId: l.ingredientId!,
+                quantity: double.parse(l.qtyCtrl.text)))
+            .toList()
+        : <RecipeLineDraft>[];
+    await db.recipesDao.setRecipe(productId, recipeDrafts);
+
     if (mounted) Navigator.pop(context);
+  }
+}
+
+class _RecipeLine {
+  int? ingredientId;
+  final TextEditingController qtyCtrl;
+  _RecipeLine({this.ingredientId, required this.qtyCtrl});
+}
+
+/// Filtro de categoría con el estilo de marca (reemplaza el `DropdownButton`
+/// Material default).
+class _CategoryFilter extends StatelessWidget {
+  final int? value;
+  final List<Category> categories;
+  final ValueChanged<int?> onChanged;
+  const _CategoryFilter({
+    required this.value,
+    required this.categories,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      decoration: BoxDecoration(
+        color: LaTerciaColors.creamAlt,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: LaTerciaColors.border),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<int?>(
+          value: value,
+          hint: const Text('Categoría'),
+          icon: const Icon(Icons.expand_more,
+              size: 18, color: LaTerciaColors.tan),
+          style: const TextStyle(
+              color: LaTerciaColors.cocoa,
+              fontSize: 13.5,
+              fontWeight: FontWeight.w600),
+          dropdownColor: LaTerciaColors.creamAlt,
+          items: [
+            const DropdownMenuItem<int?>(value: null, child: Text('Todas')),
+            ...categories.map(
+                (c) => DropdownMenuItem(value: c.id, child: Text(c.name))),
+          ],
+          onChanged: onChanged,
+        ),
+      ),
+    );
   }
 }

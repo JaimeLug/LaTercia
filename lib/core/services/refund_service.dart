@@ -57,8 +57,9 @@ class RefundService {
             ? items.where((i) => i.id == orderItemId)
             : items.where((i) => i.itemStatus != 'cancelado');
         for (final i in toRestock) {
-          await _db.inventoryDao
-              .incrementStock(i.productId, i.quantity, 'reembolso');
+          await _db.inventoryDao.incrementForSale(
+              i.productId, i.quantity, 'reembolso',
+              orderId: orderId);
         }
       }
 

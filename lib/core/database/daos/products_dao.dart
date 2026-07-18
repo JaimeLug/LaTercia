@@ -39,6 +39,13 @@ class ProductsDao extends DatabaseAccessor<AppDatabase>
       (update(products)..where((p) => p.id.equals(id)))
           .write(ProductsCompanion(available: Value(available)));
 
+  /// FASE 7 — Toggle rápido de "Rastrear inventario" desde la lista de
+  /// Productos, sin abrir el formulario. El caller debe garantizar que el
+  /// producto no use receta (mutuamente excluyente — ver `usesRecipe`).
+  Future<void> toggleTrackInventory(int id, bool trackInventory) =>
+      (update(products)..where((p) => p.id.equals(id)))
+          .write(ProductsCompanion(trackInventory: Value(trackInventory)));
+
   Future<void> updateStock(int id, int quantity) =>
       (update(products)..where((p) => p.id.equals(id)))
           .write(ProductsCompanion(stockQuantity: Value(quantity)));

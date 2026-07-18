@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import '../../../core/database/database.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../core/theme/category_icons.dart';
 import '../../../core/utils/formatters.dart';
 
 class ProductCard extends StatefulWidget {
@@ -147,10 +148,12 @@ class _ProductCardState extends State<ProductCard> {
           Positioned(
             right: -6,
             top: -6,
-            child: Text(
-              widget.category?.icon ?? '🍽',
-              style: const TextStyle(
-                fontSize: 56,
+            child: SizedBox(
+              width: 64,
+              height: 64,
+              child: categoryIconWidget(
+                widget.category?.icon ?? 'restaurant',
+                size: 56,
                 color: Colors.white24,
               ),
             ),

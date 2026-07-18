@@ -5,9 +5,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/models/order_with_items.dart';
 import '../../core/providers/orders_provider.dart';
 import '../../core/providers/settings_provider.dart';
+import '../../core/services/kds_button_service.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/utils/app_logger.dart';
 import '../../core/utils/formatters.dart';
+import '../../core/utils/kds_selection.dart';
 import 'widgets/order_card_kds.dart';
 
 class KdsScreen extends ConsumerStatefulWidget {
@@ -32,6 +34,18 @@ class _KdsScreenState extends ConsumerState<KdsScreen>
   int _page = 0; // página actual de tarjetas
   int _pageCount = 1; // calculado en build; lo usa el auto-rotate
 
+  // FASE 3.5 — botonera física (ESP32). Cursor de la tarjeta "seleccionada":
+  // ANTERIOR/SIGUIENTE la mueven; PREP/LISTO actúan sobre ella.
+  int? _selectedOrderId;
+  StreamSubscription<KdsButton>? _buttonSub;
+  StreamSubscription<String>? _rawButtonSub;
+  bool _botoneraStarted = false;
+  // GlobalKey (no `ScaffoldMessenger.of(context)`): el context de este State
+  // vive FUERA del árbol que arma build(), así que `.of(context)` seguiría
+  // encontrando el ScaffoldMessenger raíz de la app en vez del propio de esta
+  // pantalla. La key apunta directo al ScaffoldMessenger local.
+  final _messengerKey = GlobalKey<ScaffoldMessengerState>();
+
   @override
   void initState() {
     super.initState();
@@ -48,15 +62,153 @@ class _KdsScreenState extends ConsumerState<KdsScreen>
       vsync: this,
       duration: const Duration(seconds: 2),
     )..repeat(reverse: true);
+
+    // El stream real: local si este proceso tiene el socket del ESP32
+    // (KDS embebido/POS), o reenviado por WS si es la ventana separada —
+    // ver `kdsButtonStreamProvider`.
+    _buttonSub = ref.read(kdsButtonStreamProvider).listen(_onButton);
+    // Diagnóstico (3.5) de mensajes crudos no reconocidos: solo existe en el
+    // proceso que tiene el socket real (no se reenvía por WS) — en la ventana
+    // separada simplemente no habrá diagnóstico de mensajes basura, pero sí
+    // de los botones reconocidos (que es lo que importa operar).
+    final buttons = ref.read(kdsButtonServiceProvider);
+    _rawButtonSub = buttons.mensajeCrudo.listen((raw) {
+      if (!mounted || parseKdsButton(raw) != null) return;
+      _messengerKey.currentState?.showSnackBar(
+        SnackBar(
+          duration: const Duration(seconds: 2),
+          backgroundColor: LaTerciaColors.danger,
+          content: Text('⚠️ Botonera: mensaje no reconocido → "$raw"',
+              style: const TextStyle(color: Colors.white)),
+        ),
+      );
+    });
+  }
+
+  void _toast(String message, {bool warn = false}) {
+    if (!mounted) return;
+    _messengerKey.currentState?.showSnackBar(
+      SnackBar(
+        duration: const Duration(seconds: 2),
+        backgroundColor:
+            warn ? LaTerciaColors.gold : LaTerciaColors.kdsPanel,
+        content: Text(message,
+            style: TextStyle(
+                color: warn ? LaTerciaColors.darkBrown : Colors.white,
+                fontWeight: FontWeight.w600)),
+      ),
+    );
   }
 
   @override
   void dispose() {
     _clockTimer?.cancel();
     _rotateTimer?.cancel();
+    _buttonSub?.cancel();
+    _rawButtonSub?.cancel();
     _pulseController.dispose();
     _player.dispose();
     super.dispose();
+  }
+
+  /// Arranca/detiene el servidor de la botonera según `botonera_activa`
+  /// (reactivo — apagar el flag en Configuración lo detiene sin cerrar la
+  /// app). Llamado desde build() con el settings ya cargado.
+  void _syncBotonera(Map<String, String> settings) {
+    final enabled = settings['botonera_activa'] == 'true';
+    final service = ref.read(kdsButtonServiceProvider);
+    if (enabled && !_botoneraStarted) {
+      _botoneraStarted = true;
+      final port = int.tryParse(settings['botonera_puerto'] ?? '') ?? 8080;
+      WidgetsBinding.instance
+          .addPostFrameCallback((_) => service.start(port: port));
+    } else if (!enabled && _botoneraStarted) {
+      _botoneraStarted = false;
+      WidgetsBinding.instance.addPostFrameCallback((_) => service.stop());
+    }
+  }
+
+  /// Lista activa actual (mismo orden que la cuadrícula), para que la
+  /// botonera navegue sobre exactamente lo que se ve en pantalla.
+  List<OrderWithItems> get _activeOrdered {
+    final orders = ref.read(ordersProvider);
+    return orders
+        .where((o) =>
+            o.order.status == 'pendiente' ||
+            o.order.status == 'en_preparacion')
+        .toList()
+      ..sort((a, b) => a.order.createdAt.compareTo(b.order.createdAt));
+  }
+
+  void _onButton(KdsButton btn) {
+    if (!mounted) return;
+    final active = _activeOrdered;
+    final ids = active.map((o) => o.order.id).toList();
+    // Siempre hay una selección operable si hay algo activo — antes, si la
+    // selección se perdía (p.ej. tras marcar "listo"), PREP/LISTO quedaban en
+    // no-op silencioso hasta la siguiente navegación. Corrige el bug
+    // reportado de "el botón solo sirve una vez".
+    final current = effectiveSelection(ids, _selectedOrderId);
+
+    switch (btn) {
+      case KdsButton.tiempo:
+        // "TIEMPO": alterna la vista all-day (5.3) — la lectura de conjunto
+        // por tiempos, en vez de tarjeta por tarjeta. Con la cola vacía ambas
+        // vistas se ven igual ("Sin pedidos"), así que el aviso es lo único
+        // que confirma que el botón sí hizo algo.
+        setState(() => _allDay = !_allDay);
+        _toast(_allDay ? '🕐 Vista: All-day' : '🕐 Vista: Tarjetas');
+        return;
+      case KdsButton.recall:
+        ref.read(ordersProvider.notifier).recallLastReady().then((done) {
+          _toast(done
+              ? '↩️ Última orden recuperada'
+              : '↩️ Nada que recuperar (pasó la ventana de 60s, o ninguna)');
+        });
+        return;
+      case KdsButton.anterior:
+      case KdsButton.siguiente:
+        if (_allDay) {
+          _toast('Cambia a vista Tarjetas (botón TIEMPO) para navegar',
+              warn: true);
+          return;
+        }
+        if (ids.isEmpty) {
+          _toast('Sin pedidos activos para navegar', warn: true);
+          return;
+        }
+        final idx = current == null ? -1 : ids.indexOf(current);
+        final nextIdx = btn == KdsButton.siguiente
+            ? (idx + 1) % ids.length
+            : (idx - 1 + ids.length) % ids.length;
+        final newId = ids[nextIdx];
+        setState(() => _selectedOrderId = newId);
+        final num = active.firstWhere((o) => o.order.id == newId).order.orderNumber;
+        _toast('→ Orden $num seleccionada');
+        return;
+      case KdsButton.prep:
+      case KdsButton.listo:
+        if (current == null) {
+          _toast('Sin pedidos activos', warn: true);
+          return;
+        }
+        final notifier = ref.read(ordersProvider.notifier);
+        final num =
+            active.firstWhere((o) => o.order.id == current).order.orderNumber;
+        if (btn == KdsButton.prep) {
+          notifier.updateStatus(current, 'en_preparacion');
+          setState(() => _selectedOrderId = current);
+          _toast('👨‍🍳 En preparación: $num');
+        } else {
+          _playOrderDone();
+          notifier.markReady(current);
+          // Encadena a la siguiente tarjeta (cadencia de bump bar) en vez de
+          // exigir otra navegación manual tras cada "listo".
+          setState(() => _selectedOrderId = nextAfterReady(ids, current));
+          _toast('✅ Listo: $num');
+        }
+        return;
+    }
   }
 
   void _updateClock() {
@@ -86,6 +238,7 @@ class _KdsScreenState extends ConsumerState<KdsScreen>
     final settings = ref.watch(settingsProvider).valueOrNull ?? {};
     final businessName = settings['business_name'] ?? 'La Tercia';
     final soundEnabled = settings['kds_sound'] == 'true';
+    _syncBotonera(settings);
 
     // Detect new orders
     final active = orders
@@ -107,11 +260,32 @@ class _KdsScreenState extends ConsumerState<KdsScreen>
     _prevOrderIds = activeIds;
     _hasLoadedOnce = true;
 
-    return Scaffold(
+    // Resaltado a mostrar: la selección real si sigue vigente, si no la
+    // primera activa — así siempre hay una tarjeta claramente operable, aun
+    // antes de que la botonera navegue por primera vez. Es solo para pintar;
+    // el estado real (_selectedOrderId) lo fija _onButton.
+    final highlightId =
+        effectiveSelection(active.map((o) => o.order.id).toList(), _selectedOrderId);
+
+    // ScaffoldMessenger PROPIO: sin esto, los avisos de la botonera
+    // (_toast/SnackBar) suben al ScaffoldMessenger raíz de MaterialApp y se
+    // ven flotando sobre el POS/Admin aunque la pestaña Cocina·KDS no esté
+    // visible (KdsScreen vive siempre montado dentro del IndexedStack de
+    // _Root). Con su propio ScaffoldMessenger, los avisos quedan confinados a
+    // esta pantalla y, al no pintarse las pestañas no-seleccionadas del
+    // IndexedStack, no aparecen en ningún otro lado.
+    return ScaffoldMessenger(
+      key: _messengerKey,
+      child: Scaffold(
       backgroundColor: LaTerciaColors.kdsBg,
       body: Column(
         children: [
           _buildHeader(businessName, active.length),
+          // Barra PERMANENTE (no un aviso que desaparece, no solo un borde en
+          // la tarjeta): siempre visible mientras la botonera está activa, para
+          // que sea imposible no notar cuál pedido está seleccionado.
+          if (settings['botonera_activa'] == 'true')
+            _buildSelectionBar(active, highlightId),
           Expanded(
             child: active.isEmpty
                 ? const Center(
@@ -134,8 +308,42 @@ class _KdsScreenState extends ConsumerState<KdsScreen>
                   )
                 : _allDay
                     ? _buildAllDay(active)
-                    : _buildPaginatedGrid(active),
+                    : _buildPaginatedGrid(active, highlightId),
           ),
+        ],
+      ),
+      ),
+    );
+  }
+
+  /// Barra fija bajo el header con la selección actual de la botonera —
+  /// deliberadamente NO es un SnackBar (desaparece) ni depende de fijarse en
+  /// el borde de una tarjeta entre muchas: siempre está ahí, siempre legible.
+  Widget _buildSelectionBar(List<OrderWithItems> active, int? highlightId) {
+    String label;
+    if (active.isEmpty) {
+      label = 'Botonera: sin pedidos activos';
+    } else if (highlightId == null) {
+      label = 'Botonera: sin selección';
+    } else {
+      final idx = active.indexWhere((o) => o.order.id == highlightId);
+      final num = idx >= 0 ? active[idx].order.orderNumber : '—';
+      label =
+          'Botonera → Seleccionada: $num  (${idx + 1} de ${active.length})';
+    }
+    return Container(
+      width: double.infinity,
+      color: LaTerciaColors.gold,
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+      child: Row(
+        children: [
+          const Icon(Icons.gamepad, size: 16, color: LaTerciaColors.darkBrown),
+          const SizedBox(width: 8),
+          Text(label,
+              style: const TextStyle(
+                  color: LaTerciaColors.darkBrown,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 13)),
         ],
       ),
     );
@@ -143,7 +351,7 @@ class _KdsScreenState extends ConsumerState<KdsScreen>
 
   /// Tarjetas paginadas de tamaño fijo: nunca se encogen (legibilidad a 2 m).
   /// Lo que no cabe en la pantalla pasa a la siguiente página (5.3).
-  Widget _buildPaginatedGrid(List<OrderWithItems> active) {
+  Widget _buildPaginatedGrid(List<OrderWithItems> active, int? highlightId) {
     return LayoutBuilder(builder: (ctx, c) {
       const cardW = 320.0, cardH = 452.0, gap = 16.0, pad = 20.0, barH = 46.0;
       final cols =
@@ -179,10 +387,13 @@ class _KdsScreenState extends ConsumerState<KdsScreen>
                       SizedBox(
                         width: cardW,
                         height: cardH,
-                        child: OrderCardKds(
-                          key: ValueKey(o.order.id),
-                          orderWithItems: o,
-                          onSoundPlay: _playOrderDone,
+                        child: _SelectableCard(
+                          selected: o.order.id == highlightId,
+                          child: OrderCardKds(
+                            key: ValueKey(o.order.id),
+                            orderWithItems: o,
+                            onSoundPlay: _playOrderDone,
+                          ),
                         ),
                       ),
                   ],
@@ -333,7 +544,7 @@ class _KdsScreenState extends ConsumerState<KdsScreen>
                     .read(ordersProvider.notifier)
                     .recallLastReady();
                 if (done && mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
+                  _messengerKey.currentState?.showSnackBar(
                     const SnackBar(
                       content: Text('Última orden recuperada'),
                       duration: Duration(seconds: 2),
@@ -390,6 +601,66 @@ class _KdsScreenState extends ConsumerState<KdsScreen>
               fontFeatures: [FontFeature.tabularFigures()],
             ),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Envuelve una tarjeta del KDS con un anillo visible cuando está seleccionada
+/// (cursor de la botonera, 3.5). Necesita padding propio: la tarjeta interior
+/// ya pinta su borde y su fondo hasta el borde, así que sin ese hueco el
+/// anillo exterior queda completamente tapado y no se ve — el bug reportado
+/// era justo este.
+class _SelectableCard extends StatelessWidget {
+  final bool selected;
+  final Widget child;
+  const _SelectableCard({required this.selected, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 150),
+      padding: EdgeInsets.all(selected ? 5 : 0),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: selected ? LaTerciaColors.gold : Colors.transparent,
+          width: 5,
+        ),
+        boxShadow: selected
+            ? [
+                BoxShadow(
+                  color: LaTerciaColors.gold.withValues(alpha: 0.45),
+                  blurRadius: 16,
+                  spreadRadius: 1,
+                ),
+              ]
+            : null,
+      ),
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          child,
+          if (selected)
+            Positioned(
+              top: -12,
+              left: 14,
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: LaTerciaColors.gold,
+                  borderRadius: BorderRadius.circular(100),
+                ),
+                child: const Text('SELECCIONADA',
+                    style: TextStyle(
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0.5,
+                        color: LaTerciaColors.darkBrown)),
+              ),
+            ),
         ],
       ),
     );

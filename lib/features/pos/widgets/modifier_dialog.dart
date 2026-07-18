@@ -5,6 +5,10 @@ import '../../../core/providers/settings_provider.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/formatters.dart';
 
+/// Resultado del diálogo: los modificadores elegidos + cuáles de ellos el
+/// cajero marcó como "incluidos" (gratis) para esta línea (FASE 8).
+typedef ModifierSelection = ({List<Modifier> modifiers, Set<int> includedIds});
+
 class ModifierDialog extends ConsumerStatefulWidget {
   final Product product;
 
@@ -24,10 +28,14 @@ class ModifierDialog extends ConsumerStatefulWidget {
 
 class _ModifierDialogState extends ConsumerState<ModifierDialog> {
   final Set<int> _selected = {};
+  // FASE 8 — modificadores seleccionados que el cajero marcó como "incluido"
+  // (gratis) para esta línea — ej. el topping que ya viene incluido en el
+  // producto. Solo tiene sentido para ids que también están en [_selected].
+  final Set<int> _includedIds = {};
   late final List<Modifier> _modifiers = widget.modifiers;
 
   double get _extraTotal => _modifiers
-      .where((m) => _selected.contains(m.id))
+      .where((m) => _selected.contains(m.id) && !_includedIds.contains(m.id))
       .fold(0.0, (sum, m) => sum + m.priceDelta);
 
   @override
@@ -80,26 +88,42 @@ class _ModifierDialogState extends ConsumerState<ModifierDialog> {
                     itemBuilder: (context, i) {
                       final mod = _modifiers[i];
                       final active = _selected.contains(mod.id);
+                      final included = _includedIds.contains(mod.id);
                       return _ModifierTile(
                         name: mod.name,
-                        priceLabel: mod.priceDelta == 0
-                            ? 'Sin costo'
-                            : (mod.priceDelta > 0
-                                ? '+${formatCurrency(mod.priceDelta, symbol)}'
-                                : formatCurrency(mod.priceDelta, symbol)),
-                        priceColor: mod.priceDelta == 0
+                        priceLabel: included
+                            ? 'Incluido'
+                            : mod.priceDelta == 0
+                                ? 'Sin costo'
+                                : (mod.priceDelta > 0
+                                    ? '+${formatCurrency(mod.priceDelta, symbol)}'
+                                    : formatCurrency(mod.priceDelta, symbol)),
+                        priceColor: included
                             ? LaTerciaColors.tan
-                            : (mod.priceDelta > 0
-                                ? LaTerciaColors.success
-                                : LaTerciaColors.danger),
+                            : mod.priceDelta == 0
+                                ? LaTerciaColors.tan
+                                : (mod.priceDelta > 0
+                                    ? LaTerciaColors.success
+                                    : LaTerciaColors.danger),
                         active: active,
+                        included: included,
                         onTap: () => setState(() {
                           if (active) {
                             _selected.remove(mod.id);
+                            _includedIds.remove(mod.id);
                           } else {
                             _selected.add(mod.id);
                           }
                         }),
+                        onToggleIncluded: !active
+                            ? null
+                            : () => setState(() {
+                                  if (included) {
+                                    _includedIds.remove(mod.id);
+                                  } else {
+                                    _includedIds.add(mod.id);
+                                  }
+                                }),
                       );
                     },
                   ),
@@ -118,7 +142,12 @@ class _ModifierDialogState extends ConsumerState<ModifierDialog> {
                       final chosen = _modifiers
                           .where((m) => _selected.contains(m.id))
                           .toList();
-                      Navigator.pop(context, chosen);
+                      Navigator.pop(
+                          context,
+                          (
+                            modifiers: chosen,
+                            includedIds: Set<int>.from(_includedIds),
+                          ));
                     },
                     child: Text(
                       _extraTotal > 0
@@ -141,14 +170,18 @@ class _ModifierTile extends StatelessWidget {
   final String priceLabel;
   final Color priceColor;
   final bool active;
+  final bool included;
   final VoidCallback onTap;
+  final VoidCallback? onToggleIncluded;
 
   const _ModifierTile({
     required this.name,
     required this.priceLabel,
     required this.priceColor,
     required this.active,
+    required this.included,
     required this.onTap,
+    required this.onToggleIncluded,
   });
 
   @override
@@ -190,6 +223,44 @@ class _ModifierTile extends StatelessWidget {
                       color: LaTerciaColors.darkBrown),
                 ),
               ),
+              // FASE 8 — chip "Incluido" (gratis para esta línea), solo
+              // tocable cuando el modificador ya está seleccionado.
+              if (onToggleIncluded != null)
+                Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(100),
+                      onTap: onToggleIncluded,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: included
+                              ? LaTerciaColors.success.withValues(alpha: 0.14)
+                              : Colors.transparent,
+                          borderRadius: BorderRadius.circular(100),
+                          border: Border.all(
+                            color: included
+                                ? LaTerciaColors.success
+                                : LaTerciaColors.borderStrong,
+                          ),
+                        ),
+                        child: Text(
+                          'Incluido',
+                          style: TextStyle(
+                            fontSize: 10.5,
+                            fontWeight: FontWeight.w700,
+                            color: included
+                                ? LaTerciaColors.success
+                                : LaTerciaColors.tan,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
               Text(
                 priceLabel,
                 style: TextStyle(

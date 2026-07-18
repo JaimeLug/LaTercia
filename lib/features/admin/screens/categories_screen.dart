@@ -5,7 +5,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/database/database.dart';
 import '../../../core/providers/categories_provider.dart';
 import '../../../core/providers/database_provider.dart';
+import '../../../core/theme/category_icons.dart';
 import '../../../core/utils/app_logger.dart';
+import '../widgets/icon_picker.dart';
 
 class CategoriesScreen extends ConsumerWidget {
   const CategoriesScreen({super.key});
@@ -46,8 +48,10 @@ class CategoriesScreen extends ConsumerWidget {
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Text(cat.icon,
-                            style: const TextStyle(fontSize: 40)),
+                        SizedBox(
+                          height: 40,
+                          child: categoryIconWidget(cat.icon, size: 40),
+                        ),
                         const SizedBox(height: 8),
                         Text(
                           cat.name,
@@ -149,8 +153,8 @@ class _CategoryFormDialogState
     extends ConsumerState<_CategoryFormDialog> {
   final _formKey = GlobalKey<FormState>();
   late TextEditingController _nameCtrl;
-  late TextEditingController _iconCtrl;
   late TextEditingController _sortCtrl;
+  late String _iconKey;
   Color _color = Colors.brown;
 
   @override
@@ -158,7 +162,7 @@ class _CategoryFormDialogState
     super.initState();
     final c = widget.category;
     _nameCtrl = TextEditingController(text: c?.name ?? '');
-    _iconCtrl = TextEditingController(text: c?.icon ?? '☕');
+    _iconKey = c?.icon ?? 'restaurant';
     _sortCtrl = TextEditingController(
         text: c != null ? '${c.sortOrder}' : '0');
     if (c != null) {
@@ -177,9 +181,13 @@ class _CategoryFormDialogState
   @override
   void dispose() {
     _nameCtrl.dispose();
-    _iconCtrl.dispose();
     _sortCtrl.dispose();
     super.dispose();
+  }
+
+  Future<void> _pickIcon() async {
+    final chosen = await showCategoryIconPicker(context, _iconKey);
+    if (chosen != null) setState(() => _iconKey = chosen);
   }
 
   @override
@@ -202,11 +210,28 @@ class _CategoryFormDialogState
                 validator: (v) =>
                     v!.isEmpty ? 'Requerido' : null,
               ),
-              const SizedBox(height: 8),
-              TextFormField(
-                controller: _iconCtrl,
-                decoration:
-                    const InputDecoration(labelText: 'Emoji/Icono'),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  const Text('Ícono:'),
+                  const SizedBox(width: 12),
+                  Container(
+                    width: 44,
+                    height: 44,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: Colors.black26),
+                    ),
+                    child: categoryIconWidget(_iconKey, size: 26),
+                  ),
+                  const SizedBox(width: 12),
+                  OutlinedButton(
+                    onPressed: _pickIcon,
+                    child: const Text('Cambiar ícono'),
+                  ),
+                ],
               ),
               const SizedBox(height: 8),
               TextFormField(
@@ -261,7 +286,7 @@ class _CategoryFormDialogState
           : const Value.absent(),
       name: Value(_nameCtrl.text.trim()),
       color: Value(colorHex),
-      icon: Value(_iconCtrl.text),
+      icon: Value(_iconKey),
       sortOrder: Value(int.tryParse(_sortCtrl.text) ?? 0),
     );
 

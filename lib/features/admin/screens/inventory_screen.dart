@@ -1,11 +1,52 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../../core/database/database.dart';
-import '../../../core/providers/categories_provider.dart';
-import '../../../core/providers/database_provider.dart';
-import '../../../core/providers/session_provider.dart';
-import '../../../core/services/audit_service.dart';
+import '../../../core/providers/settings_provider.dart';
+import '../../../core/theme/app_theme.dart';
+import '../widgets/admin_panel.dart';
+import 'compras_screen.dart';
+import 'insumos_screen.dart';
+import 'proveedores_screen.dart';
+import 'stock_simple_screen.dart';
 
+typedef _InventoryCategory = ({
+  String key,
+  IconData icon,
+  String title,
+  String subtitle,
+});
+
+const _categories = <_InventoryCategory>[
+  (
+    key: 'stock',
+    icon: Icons.inventory_2_outlined,
+    title: 'Stock por producto',
+    subtitle: 'Rastreo simple, sin recetas',
+  ),
+  (
+    key: 'insumos',
+    icon: Icons.eco_outlined,
+    title: 'Insumos',
+    subtitle: 'Materia prima y recetas',
+  ),
+  (
+    key: 'proveedores',
+    icon: Icons.local_shipping_outlined,
+    title: 'Proveedores',
+    subtitle: 'Catálogo de proveedores',
+  ),
+  (
+    key: 'compras',
+    icon: Icons.shopping_cart_outlined,
+    title: 'Compras',
+    subtitle: 'Reposición de insumos',
+  ),
+];
+
+/// Landing de Inventario: una tarjeta por área (mismo patrón que
+/// Configuración — navegación EMBEBIDA en la misma pantalla, sin abrir una
+/// ventana/página nueva) que agrupa el rastreo simple por producto (de
+/// siempre) junto con el sistema de insumos y recetas (FASE 7, activable) y
+/// su ciclo de proveedores/compras.
 class InventoryScreen extends ConsumerStatefulWidget {
   const InventoryScreen({super.key});
 
@@ -14,188 +55,93 @@ class InventoryScreen extends ConsumerStatefulWidget {
 }
 
 class _InventoryScreenState extends ConsumerState<InventoryScreen> {
+  String? _active;
+
+  final _insumosKey = GlobalKey<InsumosBodyState>();
+  final _proveedoresKey = GlobalKey<ProveedoresBodyState>();
+  final _comprasKey = GlobalKey<ComprasBodyState>();
+
   @override
   Widget build(BuildContext context) {
-    final categories =
-        ref.watch(categoriesProvider).valueOrNull ?? [];
-    final catMap = {for (final c in categories) c.id: c.name};
+    final active = _active;
+    final settings = ref.watch(settingsProvider).valueOrNull ?? {};
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Inventario')),
-      body: FutureBuilder<List<Product>>(
-        future: ref
-            .read(databaseProvider)
-            .productsDao
-            .getAllProducts(),
-        builder: (ctx, snapshot) {
-          if (!snapshot.hasData) {
-            return const Center(child: CircularProgressIndicator());
-          }
-
-          final all = snapshot.data!;
-          final tracked =
-              all.where((p) => p.trackInventory).toList();
-          final lowStock = tracked
-              .where((p) => p.stockQuantity <= p.minStock)
-              .toList();
-
-          return Column(
-            children: [
-              if (lowStock.isNotEmpty)
-                MaterialBanner(
-                  backgroundColor: Colors.amber.shade50,
-                  leading: const Icon(Icons.warning,
-                      color: Colors.amber),
-                  content: Text(
-                    '${lowStock.length} producto(s) con stock bajo',
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  actions: [
-                    TextButton(
-                      onPressed: () {},
-                      child: const Text('Entendido'),
-                    ),
-                  ],
-                ),
-              Expanded(
-                child: SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: DataTable(
-                    columns: const [
-                      DataColumn(label: Text('Producto')),
-                      DataColumn(label: Text('Categoría')),
-                      DataColumn(label: Text('Stock actual')),
-                      DataColumn(label: Text('Stock mínimo')),
-                      DataColumn(label: Text('Estado')),
-                      DataColumn(label: Text('Acciones')),
-                    ],
-                    rows: tracked.map((p) {
-                      String status;
-                      Color statusColor;
-                      if (p.stockQuantity == 0) {
-                        status = 'Agotado';
-                        statusColor = Colors.red;
-                      } else if (p.stockQuantity <= p.minStock) {
-                        status = 'Bajo';
-                        statusColor = Colors.amber;
-                      } else {
-                        status = 'OK';
-                        statusColor = Colors.green;
-                      }
-
-                      return DataRow(cells: [
-                        DataCell(Text(p.name)),
-                        DataCell(Text(
-                            catMap[p.categoryId] ?? '-')),
-                        DataCell(Text('${p.stockQuantity}')),
-                        DataCell(Text('${p.minStock}')),
-                        DataCell(Chip(
-                          label: Text(status,
-                              style: const TextStyle(fontSize: 11)),
-                          backgroundColor:
-                              statusColor.withValues(alpha: 0.2),
-                          side: BorderSide(color: statusColor),
-                        )),
-                        DataCell(TextButton(
-                          onPressed: () =>
-                              _showAdjustDialog(context, p),
-                          child: const Text('Ajustar'),
-                        )),
-                      ]);
-                    }).toList(),
-                  ),
-                ),
+      backgroundColor: LaTerciaColors.appBg,
+      appBar: active == null
+          ? adminAppBar('Inventario')
+          : AppBar(
+              backgroundColor: LaTerciaColors.cream,
+              surfaceTintColor: Colors.transparent,
+              elevation: 0,
+              leading: IconButton(
+                icon: const Icon(Icons.arrow_back,
+                    color: LaTerciaColors.darkBrown),
+                onPressed: () => setState(() => _active = null),
               ),
-            ],
-          );
-        },
+              title: Text(
+                _categories.firstWhere((c) => c.key == active).title,
+                style: const TextStyle(
+                    fontFamily: 'DM Serif Display',
+                    fontSize: 22,
+                    color: LaTerciaColors.darkBrown),
+              ),
+            ),
+      floatingActionButton: _buildFab(active, settings),
+      body: active == null ? _buildGrid() : _buildBody(active),
+    );
+  }
+
+  Widget _buildGrid() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(20),
+      child: Wrap(
+        spacing: 14,
+        runSpacing: 14,
+        children: [
+          for (final cat in _categories)
+            CategoryCard(
+              icon: cat.icon,
+              title: cat.title,
+              subtitle: cat.subtitle,
+              onTap: () => setState(() => _active = cat.key),
+            ),
+        ],
       ),
     );
   }
 
-  Future<void> _showAdjustDialog(
-      BuildContext context, Product product) async {
-    final qtyCtrl = TextEditingController(
-        text: '${product.stockQuantity}');
-    final noteCtrl = TextEditingController();
-    String reason = 'ajuste';
+  Widget _buildBody(String active) {
+    switch (active) {
+      case 'stock':
+        return const StockSimpleBody();
+      case 'insumos':
+        return InsumosBody(key: _insumosKey);
+      case 'proveedores':
+        return ProveedoresBody(key: _proveedoresKey);
+      case 'compras':
+        return ComprasBody(key: _comprasKey);
+    }
+    return const SizedBox.shrink();
+  }
 
-    final reasons = ['ajuste', 'compra', 'merma'];
-
-    await showDialog(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setDialogState) => AlertDialog(
-          title: Text('Ajustar stock — ${product.name}'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text('Stock actual: ${product.stockQuantity}'),
-              const SizedBox(height: 8),
-              TextField(
-                controller: qtyCtrl,
-                decoration: const InputDecoration(
-                    labelText: 'Nueva cantidad'),
-                keyboardType: TextInputType.number,
-              ),
-              const SizedBox(height: 8),
-              DropdownButtonFormField<String>(
-                value: reason,
-                decoration:
-                    const InputDecoration(labelText: 'Razón'),
-                items: reasons
-                    .map((r) => DropdownMenuItem(
-                          value: r,
-                          child: Text(r),
-                        ))
-                    .toList(),
-                onChanged: (v) =>
-                    setDialogState(() => reason = v!),
-              ),
-              const SizedBox(height: 8),
-              TextField(
-                controller: noteCtrl,
-                decoration: const InputDecoration(
-                    labelText: 'Nota (opcional)'),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-                onPressed: () => Navigator.pop(ctx),
-                child: const Text('Cancelar')),
-            FilledButton(
-              onPressed: () async {
-                final qty = int.tryParse(qtyCtrl.text);
-                if (qty == null) return;
-                await ref
-                    .read(databaseProvider)
-                    .inventoryDao
-                    .adjustStock(
-                      product.id,
-                      qty,
-                      reason,
-                      noteCtrl.text.isEmpty ? null : noteCtrl.text,
-                    );
-                await ref.read(auditServiceProvider).log(
-                  employeeId: ref.read(sessionProvider)?.id,
-                  action: 'ajuste_inventario',
-                  entity: 'product',
-                  entityId: product.id,
-                  detail: {
-                    'previousStock': product.stockQuantity,
-                    'newStock': qty,
-                    'reason': reason,
-                  },
-                );
-                if (ctx.mounted) Navigator.pop(ctx);
-                setState(() {});
-              },
-              child: const Text('Guardar'),
-            ),
-          ],
-        ),
-      ),
+  Widget? _buildFab(String? active, Map<String, String> settings) {
+    VoidCallback? onPressed;
+    switch (active) {
+      case 'insumos':
+        if (settings['insumos_activo'] != 'true') return null;
+        onPressed = () => _insumosKey.currentState?.openAddDialog();
+      case 'proveedores':
+        onPressed = () => _proveedoresKey.currentState?.openAddDialog();
+      case 'compras':
+        onPressed = () => _comprasKey.currentState?.openAddDialog();
+      default:
+        return null;
+    }
+    return FloatingActionButton(
+      backgroundColor: LaTerciaColors.burntOrange,
+      onPressed: onPressed,
+      child: const Icon(Icons.add, color: Colors.white),
     );
   }
 }

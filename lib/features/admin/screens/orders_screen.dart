@@ -10,9 +10,11 @@ import '../../../core/services/audit_service.dart';
 import '../../../core/services/permission_service.dart';
 import '../../../core/services/print_service.dart';
 import '../../../core/services/refund_service.dart';
+import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/csv_exporter.dart';
 import '../../../core/utils/formatters.dart';
 import '../../auth/supervisor_pin_dialog.dart';
+import '../widgets/admin_panel.dart';
 
 class OrdersScreen extends ConsumerStatefulWidget {
   const OrdersScreen({super.key});
@@ -36,57 +38,55 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> {
     final employees = ref.watch(employeesProvider).valueOrNull ?? [];
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Órdenes'),
-        actions: [
-          TextButton.icon(
-            icon: const Icon(Icons.download),
+      backgroundColor: LaTerciaColors.appBg,
+      appBar: adminAppBar('Órdenes', actions: [
+        Padding(
+          padding: const EdgeInsets.only(right: 12),
+          child: TextButton.icon(
+            icon: const Icon(Icons.download_outlined, size: 18),
             label: const Text('Exportar CSV'),
+            style: TextButton.styleFrom(
+                foregroundColor: LaTerciaColors.burntOrange),
             onPressed: () => _export(context, symbol),
           ),
-        ],
-      ),
+        ),
+      ]),
       body: Column(
         children: [
           // Filter bar
           Padding(
-            padding: const EdgeInsets.all(12),
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
             child: Wrap(
-              spacing: 12,
+              spacing: 10,
+              runSpacing: 10,
               children: [
                 OutlinedButton.icon(
-                  icon: const Icon(Icons.calendar_today),
+                  icon: const Icon(Icons.calendar_today, size: 16),
                   label: Text(
                       '${formatDate(_dateRange.start)} — ${formatDate(_dateRange.end)}'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: LaTerciaColors.cocoa,
+                    side: const BorderSide(color: LaTerciaColors.border),
+                    backgroundColor: LaTerciaColors.creamAlt,
+                  ),
                   onPressed: _pickDateRange,
                 ),
-                DropdownButton<String>(
+                _FilterDropdown<String>(
                   value: _statusFilter,
-                  items: ['Todos', 'pendiente', 'en_preparacion',
-                      'listo', 'entregado', 'cancelado']
-                      .map((s) => DropdownMenuItem(
-                            value: s,
-                            child: Text(s == 'Todos'
-                                ? 'Todos'
-                                : s),
-                          ))
-                      .toList(),
-                  onChanged: (v) =>
-                      setState(() => _statusFilter = v!),
-                ),
-                DropdownButton<int?>(
-                  value: _employeeFilter,
-                  hint: const Text('Empleado'),
-                  items: [
-                    const DropdownMenuItem<int?>(
-                        value: null, child: Text('Todos')),
-                    ...employees.map((e) => DropdownMenuItem(
-                          value: e.id,
-                          child: Text(e.name),
-                        )),
+                  items: const [
+                    'Todos', 'pendiente', 'en_preparacion',
+                    'listo', 'entregado', 'cancelado'
                   ],
-                  onChanged: (v) =>
-                      setState(() => _employeeFilter = v),
+                  labelOf: (s) => s,
+                  onChanged: (v) => setState(() => _statusFilter = v!),
+                ),
+                _FilterDropdown<int?>(
+                  value: _employeeFilter,
+                  items: [null, ...employees.map((e) => e.id)],
+                  labelOf: (id) => id == null
+                      ? 'Todos los empleados'
+                      : employees.firstWhere((e) => e.id == id).name,
+                  onChanged: (v) => setState(() => _employeeFilter = v),
                 ),
               ],
             ),
@@ -99,10 +99,7 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> {
                   .getOrdersByDateRange(
                       _dateRange.start, _dateRange.end),
               builder: (ctx, snapshot) {
-                if (!snapshot.hasData) {
-                  return const Center(
-                      child: CircularProgressIndicator());
-                }
+                if (!snapshot.hasData) return adminLoading();
                 var orders = snapshot.data!;
                 if (_statusFilter != 'Todos') {
                   orders = orders
@@ -115,42 +112,74 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> {
                           (o) => o.employeeId == _employeeFilter)
                       .toList();
                 }
+                if (orders.isEmpty) {
+                  return const AdminEmptyState(
+                    icon: Icons.receipt_long_outlined,
+                    message: 'No hay órdenes con estos filtros.',
+                  );
+                }
 
                 final empMap = {
                   for (final e in employees) e.id: e.name
                 };
 
                 return SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: DataTable(
-                    columns: const [
-                      DataColumn(label: Text('# Orden')),
-                      DataColumn(label: Text('Tipo')),
-                      DataColumn(label: Text('Cliente')),
-                      DataColumn(label: Text('Empleado')),
-                      DataColumn(label: Text('Total')),
-                      DataColumn(label: Text('Estado')),
-                      DataColumn(label: Text('Hora')),
-                    ],
-                    rows: orders.map((o) {
-                      return DataRow(
-                        onSelectChanged: (_) =>
-                            _showDetail(context, o),
-                        cells: [
-                          DataCell(Text(o.orderNumber)),
-                          DataCell(Text(o.type)),
-                          DataCell(
-                              Text(o.customerName ?? '-')),
-                          DataCell(Text(
-                              empMap[o.employeeId] ?? '-')),
-                          DataCell(Text(
-                              formatCurrency(o.total, symbol))),
-                          DataCell(_StatusChip(o.status)),
-                          DataCell(Text(
-                              formatDateTime(o.createdAt))),
-                        ],
-                      );
-                    }).toList(),
+                  padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
+                  child: AdminPanel(
+                    child: Column(
+                      children: [
+                        const AdminHeaderRow(cells: [
+                          Expanded(flex: 2, child: Text('# ORDEN')),
+                          Expanded(flex: 2, child: Text('TIPO')),
+                          Expanded(flex: 2, child: Text('CLIENTE')),
+                          Expanded(flex: 2, child: Text('EMPLEADO')),
+                          Expanded(flex: 2, child: Text('TOTAL')),
+                          Expanded(flex: 2, child: Text('ESTADO')),
+                          Expanded(flex: 3, child: Text('HORA')),
+                        ]),
+                        ...orders.asMap().entries.map((entry) {
+                          final o = entry.value;
+                          final isLast = entry.key == orders.length - 1;
+                          return AdminRow(
+                            isLast: isLast,
+                            onTap: () => _showDetail(context, o),
+                            cells: [
+                              Expanded(
+                                flex: 2,
+                                child: Text(o.orderNumber,
+                                    style: const TextStyle(
+                                        fontWeight: FontWeight.w700,
+                                        color: LaTerciaColors.darkBrown)),
+                              ),
+                              Expanded(flex: 2, child: Text(o.type)),
+                              Expanded(
+                                  flex: 2,
+                                  child: Text(o.customerName ?? '—')),
+                              Expanded(
+                                  flex: 2,
+                                  child:
+                                      Text(empMap[o.employeeId] ?? '—')),
+                              Expanded(
+                                flex: 2,
+                                child: Text(
+                                    formatCurrency(o.total, symbol),
+                                    style: const TextStyle(
+                                        fontWeight: FontWeight.w600)),
+                              ),
+                              Expanded(
+                                  flex: 2, child: _StatusChip(o.status)),
+                              Expanded(
+                                  flex: 3,
+                                  child: Text(
+                                      formatDateTime(o.createdAt),
+                                      style: const TextStyle(
+                                          color: LaTerciaColors.tan,
+                                          fontSize: 12.5))),
+                            ],
+                          );
+                        }),
+                      ],
+                    ),
                   ),
                 );
               },
@@ -508,20 +537,58 @@ class _StatusChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = {
-      'pendiente': Colors.amber,
-      'en_preparacion': Colors.orange,
-      'listo': Colors.green,
-      'entregado': Colors.blue,
-      'cancelado': Colors.red,
+    const tones = {
+      'pendiente': StatusTone.warn,
+      'en_preparacion': StatusTone.progress,
+      'listo': StatusTone.ok,
+      'entregado': StatusTone.info,
+      'cancelado': StatusTone.danger,
     };
-    final color = colors[status] ?? Colors.grey;
-    return Chip(
-      label: Text(status, style: const TextStyle(fontSize: 11)),
-      backgroundColor: color.withValues(alpha: 0.2),
-      side: BorderSide(color: color),
-      padding: EdgeInsets.zero,
-      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+    return StatusPill(status, tone: tones[status] ?? StatusTone.neutral);
+  }
+}
+
+/// Dropdown de filtro con el estilo de marca (reemplaza el `DropdownButton`
+/// Material default). Genérico para reusarse con distintos tipos de valor.
+class _FilterDropdown<T> extends StatelessWidget {
+  final T value;
+  final List<T> items;
+  final String Function(T) labelOf;
+  final ValueChanged<T?> onChanged;
+  const _FilterDropdown({
+    super.key,
+    required this.value,
+    required this.items,
+    required this.labelOf,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      decoration: BoxDecoration(
+        color: LaTerciaColors.creamAlt,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: LaTerciaColors.border),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<T>(
+          value: value,
+          icon: const Icon(Icons.expand_more,
+              size: 18, color: LaTerciaColors.tan),
+          style: const TextStyle(
+              color: LaTerciaColors.cocoa,
+              fontSize: 13.5,
+              fontWeight: FontWeight.w600),
+          dropdownColor: LaTerciaColors.creamAlt,
+          items: items
+              .map((v) =>
+                  DropdownMenuItem(value: v, child: Text(labelOf(v))))
+              .toList(),
+          onChanged: onChanged,
+        ),
+      ),
     );
   }
 }

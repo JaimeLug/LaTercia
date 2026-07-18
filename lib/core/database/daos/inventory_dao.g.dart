@@ -13,6 +13,13 @@ mixin _$InventoryDaoMixin on DatabaseAccessor<AppDatabase> {
   $OrdersTable get orders => attachedDatabase.orders;
   $InventoryMovementsTable get inventoryMovements =>
       attachedDatabase.inventoryMovements;
+  $IngredientsTable get ingredients => attachedDatabase.ingredients;
+  $SuppliersTable get suppliers => attachedDatabase.suppliers;
+  $IngredientPurchasesTable get ingredientPurchases =>
+      attachedDatabase.ingredientPurchases;
+  $IngredientMovementsTable get ingredientMovements =>
+      attachedDatabase.ingredientMovements;
+  $RecipeItemsTable get recipeItems => attachedDatabase.recipeItems;
   InventoryDaoManager get managers => InventoryDaoManager(this);
 }
 
@@ -36,4 +43,16 @@ class InventoryDaoManager {
   $$InventoryMovementsTableTableManager get inventoryMovements =>
       $$InventoryMovementsTableTableManager(
           _db.attachedDatabase, _db.inventoryMovements);
+  $$IngredientsTableTableManager get ingredients =>
+      $$IngredientsTableTableManager(_db.attachedDatabase, _db.ingredients);
+  $$SuppliersTableTableManager get suppliers =>
+      $$SuppliersTableTableManager(_db.attachedDatabase, _db.suppliers);
+  $$IngredientPurchasesTableTableManager get ingredientPurchases =>
+      $$IngredientPurchasesTableTableManager(
+          _db.attachedDatabase, _db.ingredientPurchases);
+  $$IngredientMovementsTableTableManager get ingredientMovements =>
+      $$IngredientMovementsTableTableManager(
+          _db.attachedDatabase, _db.ingredientMovements);
+  $$RecipeItemsTableTableManager get recipeItems =>
+      $$RecipeItemsTableTableManager(_db.attachedDatabase, _db.recipeItems);
 }

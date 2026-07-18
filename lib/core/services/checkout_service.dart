@@ -96,6 +96,8 @@ class CheckoutService {
     double subtotal = 0,
     double discountAmount = 0,
     double taxAmount = 0,
+    String? deliveryZone,
+    double deliveryFee = 0,
     double total = 0,
     String? paymentMethod,
     double? amountTendered,
@@ -127,6 +129,8 @@ class CheckoutService {
           subtotal: Value(subtotal),
           discountAmount: Value(discountAmount),
           taxAmount: Value(taxAmount),
+          deliveryZone: Value(deliveryZone),
+          deliveryFee: Value(deliveryFee),
           total: Value(total),
           status: const Value('pendiente'),
           paymentStatus: const Value('pendiente'),
@@ -141,7 +145,11 @@ class CheckoutService {
       final itemCompanions = cartItems.map((ci) {
         final modJson = jsonEncode(
           ci.modifiers
-              .map((m) => {'name': m.name, 'priceDelta': m.priceDelta})
+              .map((m) => {
+                    'name': m.name,
+                    'priceDelta': m.priceDelta,
+                    'included': ci.includedModifierIds.contains(m.id),
+                  })
               .toList(),
         );
         return OrderItemsCompanion.insert(
@@ -157,7 +165,8 @@ class CheckoutService {
       await _db.orderItemsDao.insertOrderItems(itemCompanions);
 
       for (final ci in cartItems) {
-        await _db.inventoryDao.decrementStock(ci.product.id, ci.quantity);
+        await _db.inventoryDao
+            .decrementForSale(ci.product.id, ci.quantity, orderId: orderId);
       }
 
       // Record the payment(s) — one row per tramo (pago mixto 4.2).

@@ -4,7 +4,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/database/database.dart';
 import '../../../core/providers/database_provider.dart';
 import '../../../core/providers/employees_provider.dart';
+import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/pin_hasher.dart';
+import '../widgets/admin_panel.dart';
 
 class EmployeesScreen extends ConsumerStatefulWidget {
   const EmployeesScreen({super.key});
@@ -13,69 +15,122 @@ class EmployeesScreen extends ConsumerStatefulWidget {
   ConsumerState<EmployeesScreen> createState() => _EmployeesScreenState();
 }
 
+const _roleLabels = {
+  'admin': 'Administrador',
+  'gerente': 'Gerente',
+  'cashier': 'Cajero',
+  'kitchen': 'Cocina',
+};
+
 class _EmployeesScreenState extends ConsumerState<EmployeesScreen> {
   @override
   Widget build(BuildContext context) {
     final employeesAsync = ref.watch(employeesProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Empleados')),
+      backgroundColor: LaTerciaColors.appBg,
+      appBar: adminAppBar('Empleados'),
       floatingActionButton: FloatingActionButton(
+        backgroundColor: LaTerciaColors.burntOrange,
         onPressed: () => _showForm(context, null),
-        child: const Icon(Icons.add),
+        child: const Icon(Icons.add, color: Colors.white),
       ),
       body: employeesAsync.when(
         data: (employees) {
           final usingDefaultAdminPin = employees.any((e) =>
               e.role == 'admin' && e.active && isDefaultAdminPin(e.pin));
-          return ListView(
-            children: [
-              if (usingDefaultAdminPin) _DefaultPinWarning(),
-              DataTable(
-                columns: const [
-                  DataColumn(label: Text('Nombre')),
-                  DataColumn(label: Text('PIN')),
-                  DataColumn(label: Text('Rol')),
-                  DataColumn(label: Text('Activo')),
-                  DataColumn(label: Text('Acciones')),
+          if (employees.isEmpty) {
+            return const AdminEmptyState(
+              icon: Icons.badge_outlined,
+              message: 'Sin empleados todavía.',
+            );
+          }
+          return SingleChildScrollView(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (usingDefaultAdminPin) ...[
+                  const _DefaultPinWarning(),
+                  const SizedBox(height: 16),
                 ],
-                rows: employees.map((e) {
-            return DataRow(cells: [
-              DataCell(Text(e.name)),
-              const DataCell(Text('••••')),
-              DataCell(Text(e.role)),
-              DataCell(Switch(
-                value: e.active,
-                onChanged: (v) async {
-                  await ref
-                      .read(databaseProvider)
-                      .employeesDao
-                      .toggleActive(e.id, v);
-                },
-              )),
-              DataCell(Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  IconButton(
-                    icon: const Icon(Icons.edit, size: 18),
-                    onPressed: () => _showForm(context, e),
+                AdminPanel(
+                  child: Column(
+                    children: [
+                      const AdminHeaderRow(cells: [
+                        Expanded(flex: 3, child: Text('NOMBRE')),
+                        Expanded(flex: 2, child: Text('PIN')),
+                        Expanded(flex: 2, child: Text('ROL')),
+                        Expanded(flex: 2, child: Text('ACTIVO')),
+                        SizedBox(width: 88, child: Text('ACCIONES')),
+                      ]),
+                      ...employees.asMap().entries.map((entry) {
+                        final e = entry.value;
+                        final isLast = entry.key == employees.length - 1;
+                        return AdminRow(
+                          isLast: isLast,
+                          cells: [
+                            Expanded(
+                              flex: 3,
+                              child: Text(e.name,
+                                  style: const TextStyle(
+                                      fontWeight: FontWeight.w600,
+                                      color: LaTerciaColors.darkBrown)),
+                            ),
+                            const Expanded(
+                                flex: 2,
+                                child: Text('••••',
+                                    style: TextStyle(
+                                        color: LaTerciaColors.tan,
+                                        letterSpacing: 2))),
+                            Expanded(
+                                flex: 2,
+                                child: Text(_roleLabels[e.role] ?? e.role)),
+                            Expanded(
+                              flex: 2,
+                              child: Switch(
+                                value: e.active,
+                                activeColor: LaTerciaColors.burntOrange,
+                                onChanged: (v) async {
+                                  await ref
+                                      .read(databaseProvider)
+                                      .employeesDao
+                                      .toggleActive(e.id, v);
+                                },
+                              ),
+                            ),
+                            SizedBox(
+                              width: 88,
+                              child: Row(
+                                children: [
+                                  IconButton(
+                                    icon: const Icon(Icons.edit_outlined,
+                                        size: 18,
+                                        color: LaTerciaColors.tan),
+                                    visualDensity: VisualDensity.compact,
+                                    onPressed: () => _showForm(context, e),
+                                  ),
+                                  IconButton(
+                                    icon: const Icon(Icons.delete_outline,
+                                        size: 18,
+                                        color: LaTerciaColors.danger),
+                                    visualDensity: VisualDensity.compact,
+                                    onPressed: () => _delete(context, e),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        );
+                      }),
+                    ],
                   ),
-                  IconButton(
-                    icon: Icon(Icons.delete,
-                        size: 18,
-                        color: Theme.of(context).colorScheme.error),
-                    onPressed: () => _delete(context, e),
-                  ),
-                ],
-              )),
-            ]);
-                }).toList(),
-              ),
-            ],
+                ),
+              ],
+            ),
           );
         },
-        loading: () =>
-            const Center(child: CircularProgressIndicator()),
+        loading: () => adminLoading(),
         error: (e, _) => Center(child: Text('Error: $e')),
       ),
     );
@@ -250,26 +305,30 @@ class _EmployeeFormDialogState
 }
 
 class _DefaultPinWarning extends StatelessWidget {
+  const _DefaultPinWarning();
+
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
     return Container(
-      margin: const EdgeInsets.all(12),
-      padding: const EdgeInsets.all(12),
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: scheme.errorContainer,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: scheme.error),
+        color: LaTerciaColors.danger.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: LaTerciaColors.danger.withValues(alpha: 0.4)),
       ),
-      child: Row(
+      child: const Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(Icons.warning_amber_rounded, color: scheme.error),
-          const SizedBox(width: 12),
+          Icon(Icons.warning_amber_rounded,
+              color: LaTerciaColors.danger, size: 20),
+          SizedBox(width: 12),
           Expanded(
             child: Text(
               'El PIN de administrador sigue siendo el predeterminado (0000). '
               'Edita el empleado administrador y asígnale un PIN nuevo.',
-              style: TextStyle(color: scheme.onErrorContainer),
+              style: TextStyle(
+                  color: LaTerciaColors.darkBrown, fontWeight: FontWeight.w600),
             ),
           ),
         ],

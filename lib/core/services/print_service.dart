@@ -349,9 +349,10 @@ PrinterTransport? printerTransportFromSettings(Map<String, String> settings) {
 // ─── Modelo de modificador para la comanda ───────────────────────────────────
 
 class _ParsedModifier {
-  const _ParsedModifier(this.name, this.priceDelta);
+  const _ParsedModifier(this.name, this.priceDelta, {this.included = false});
   final String name;
   final double priceDelta;
+  final bool included;
 }
 
 List<_ParsedModifier> _parseModifiers(String? modifiersJson) {
@@ -366,6 +367,7 @@ List<_ParsedModifier> _parseModifiers(String? modifiersJson) {
               (m['priceDelta'] is num)
                   ? (m['priceDelta'] as num).toDouble()
                   : 0.0,
+              included: m['included'] == true,
             ))
         .toList();
   } catch (_) {
@@ -402,7 +404,7 @@ List<String> kitchenTicketLines(Order order, List<OrderItem> items) {
   for (final item in items) {
     lines.add('${item.quantity}x ${item.productName}');
     for (final mod in _parseModifiers(item.modifiersJson)) {
-      lines.add('  + ${mod.name}');
+      lines.add(mod.included ? '  + ${mod.name} (incluido)' : '  + ${mod.name}');
     }
     if (item.itemNote != null && item.itemNote!.trim().isNotEmpty) {
       lines.add('  * ${item.itemNote!.trim()}');
@@ -632,6 +634,12 @@ class PrintService {
           : 'IVA';
       bytes.addAll(_kv(g, ivaLabel, money(order.taxAmount)));
     }
+    if (order.deliveryFee > 0) {
+      final label = order.deliveryZone != null
+          ? 'Envío (${order.deliveryZone})'
+          : 'Envío';
+      bytes.addAll(_kv(g, label, money(order.deliveryFee)));
+    }
 
     // TOTAL en negrita/grande.
     bytes.addAll(g.row([
@@ -730,7 +738,8 @@ class PrintService {
           styles: const PosStyles(
               bold: true, height: PosTextSize.size2, width: PosTextSize.size2)));
       for (final mod in _parseModifiers(item.modifiersJson)) {
-        bytes.addAll(g.text(_san('  + ${mod.name}')));
+        bytes.addAll(g.text(
+            _san(mod.included ? '  + ${mod.name} (incluido)' : '  + ${mod.name}')));
       }
       if (item.itemNote != null && item.itemNote!.trim().isNotEmpty) {
         bytes.addAll(g.text(_san('  * ${item.itemNote!.trim()}'),
@@ -788,6 +797,31 @@ class PrintService {
     );
   }
 
+  /// Logo para el encabezado del ticket PDF: el personalizado si el negocio
+  /// subió uno en Configuración → Negocio, o el de La Tercia por defecto
+  /// (`assets/images/logo-color.png`) si no. Best-effort: si ninguno carga,
+  /// el ticket sigue imprimiéndose sin logo (nunca rompe la venta).
+  Future<pw.ImageProvider?> _resolveLogo(Map<String, String> settings) async {
+    final path = (settings['logo_path'] ?? '').trim();
+    if (path.isNotEmpty) {
+      try {
+        final file = File(path);
+        if (await file.exists()) {
+          return pw.MemoryImage(await file.readAsBytes());
+        }
+      } catch (e, st) {
+        appLogger.warn(
+            'No se pudo cargar el logo personalizado para el ticket.', e, st);
+      }
+    }
+    try {
+      return await imageFromAssetBundle('assets/images/logo-color.png');
+    } catch (e, st) {
+      appLogger.warn('No se pudo cargar el logo por defecto para el ticket.', e, st);
+      return null;
+    }
+  }
+
   /// PDF del ticket de venta — mismo contenido que [buildSalesTicket].
   Future<Uint8List> buildSalesTicketPdf({
     required Order order,
@@ -804,10 +838,18 @@ class PrintService {
     final footer = settings['receipt_footer'] ?? '';
     final showEmployee = settings['receipt_show_employee'] != 'false';
     final showDiscount = settings['receipt_show_discount'] != 'false';
+    final logo = await _resolveLogo(settings);
 
     String money(double v) => formatCurrency(v, symbol, decimals: decimals);
 
     final children = <pw.Widget>[
+      if (logo != null) ...[
+        pw.Center(
+          child: pw.SizedBox(
+              height: 46, width: 46, child: pw.Image(logo)),
+        ),
+        pw.SizedBox(height: 4),
+      ],
       _center(businessName, _monoBig),
       if (slogan.isNotEmpty) _center(slogan, _mono),
       if (reprint) _center('— REIMPRESIÓN —', _monoBold),
@@ -833,6 +875,12 @@ class PrintService {
                 ? 'IVA incluido'
                 : 'IVA',
             money(order.taxAmount)),
+      if (order.deliveryFee > 0)
+        _kvPdf(
+            order.deliveryZone != null
+                ? 'Envío (${order.deliveryZone})'
+                : 'Envío',
+            money(order.deliveryFee)),
       _kvPdf('TOTAL', money(order.total), style: _monoMed),
       _hrPdf(),
       if (payment.method == 'efectivo') ...[
@@ -881,7 +929,9 @@ class PrintService {
           sanitizeTicketText('${item.quantity}x ${item.productName}'),
           style: _monoMed));
       for (final mod in _parseModifiers(item.modifiersJson)) {
-        children.add(pw.Text(sanitizeTicketText('  + ${mod.name}'),
+        children.add(pw.Text(
+            sanitizeTicketText(
+                mod.included ? '  + ${mod.name} (incluido)' : '  + ${mod.name}'),
             style: _mono));
       }
       if (item.itemNote != null && item.itemNote!.trim().isNotEmpty) {

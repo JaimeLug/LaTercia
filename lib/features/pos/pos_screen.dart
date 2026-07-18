@@ -5,6 +5,7 @@ import '../../core/database/database.dart';
 import '../../core/models/order_with_items.dart';
 import '../../core/providers/categories_provider.dart';
 import '../../core/providers/database_provider.dart';
+import '../../core/providers/delivery_zones_provider.dart';
 import '../../core/providers/discounts_provider.dart';
 import '../../core/providers/modifiers_provider.dart';
 import '../../core/providers/orders_provider.dart';
@@ -44,6 +45,8 @@ class _PosScreenState extends ConsumerState<PosScreen> {
   final List<CartItem> _cart = [];
   String _orderType = 'mesa';
   int? _selectedTableId;
+  // FASE 8 — zona de envío obligatoria cuando _orderType == 'delivery'.
+  int? _selectedZoneId;
   String? _customerName;
   String? _orderNote;
   Discount? _selectedDiscount;
@@ -95,7 +98,23 @@ class _PosScreenState extends ConsumerState<PosScreen> {
 
   double get _discountAmount => _totals.discount;
   double get _taxAmount => _totals.tax;
-  double get _total => _totals.total;
+
+  /// FASE 8 — cargo de envío de la zona elegida (0 si no aplica o no se ha
+  /// elegido zona todavía). Se suma al total, igual que el IVA.
+  double get _deliveryFee {
+    if (_orderType != 'delivery' || _selectedZoneId == null) return 0;
+    final zones = ref.read(deliveryZonesProvider).valueOrNull ?? [];
+    final zone = zones.where((z) => z.id == _selectedZoneId).firstOrNull;
+    return zone?.fee ?? 0;
+  }
+
+  String? get _deliveryZoneName {
+    if (_orderType != 'delivery' || _selectedZoneId == null) return null;
+    final zones = ref.read(deliveryZonesProvider).valueOrNull ?? [];
+    return zones.where((z) => z.id == _selectedZoneId).firstOrNull?.name;
+  }
+
+  double get _total => _totals.total + _deliveryFee;
 
   // ─── Cart operations ───────────────────────────────────────────────────────
 
@@ -113,27 +132,32 @@ class _PosScreenState extends ConsumerState<PosScreen> {
 
     if (mods.isNotEmpty) {
       if (!mounted) return;
-      final chosen = await showDialog<List<Modifier>>(
+      final chosen = await showDialog<ModifierSelection>(
         context: context,
         builder: (_) => ModifierDialog(product: product, modifiers: mods),
       );
       if (chosen == null) return; // cancelled
-      _doAddToCart(product, chosen);
+      _doAddToCart(product, chosen.modifiers, chosen.includedIds);
     } else {
-      _doAddToCart(product, []);
+      _doAddToCart(product, [], {});
     }
   }
 
-  void _doAddToCart(Product product, List<Modifier> modifiers) {
+  void _doAddToCart(
+      Product product, List<Modifier> modifiers, Set<int> includedIds) {
     setState(() {
       final existing = _cart.where((c) =>
           c.product.id == product.id &&
           c.modifiers.map((m) => m.id).join() ==
-              modifiers.map((m) => m.id).join());
+              modifiers.map((m) => m.id).join() &&
+          c.includedModifierIds.join(',') == includedIds.join(','));
       if (existing.isNotEmpty) {
         existing.first.quantity++;
       } else {
-        _cart.add(CartItem(product: product, modifiers: modifiers));
+        _cart.add(CartItem(
+            product: product,
+            modifiers: modifiers,
+            includedModifierIds: includedIds));
       }
     });
   }
@@ -174,6 +198,7 @@ class _PosScreenState extends ConsumerState<PosScreen> {
     setState(() {
       _cart.clear();
       _selectedDiscount = null;
+      _selectedZoneId = null;
       _noteController.clear();
       _customerController.clear();
       _orderNote = null;
@@ -192,6 +217,12 @@ class _PosScreenState extends ConsumerState<PosScreen> {
       );
       return;
     }
+    if (_orderType == 'delivery' && _selectedZoneId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Elige la zona de envío.')),
+      );
+      return;
+    }
 
     try {
       final orderId = await ref.read(ordersProvider.notifier).sendToKitchen(
@@ -204,6 +235,8 @@ class _PosScreenState extends ConsumerState<PosScreen> {
             subtotal: _subtotal,
             discountAmount: _discountAmount,
             taxAmount: _taxAmount,
+            deliveryZone: _deliveryZoneName,
+            deliveryFee: _deliveryFee,
             total: _total,
           );
 
@@ -244,6 +277,12 @@ class _PosScreenState extends ConsumerState<PosScreen> {
       );
       return;
     }
+    if (_orderType == 'delivery' && _selectedZoneId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Elige la zona de envío.')),
+      );
+      return;
+    }
     showDialog(
       context: context,
       builder: (_) => PaymentModal(
@@ -273,6 +312,8 @@ class _PosScreenState extends ConsumerState<PosScreen> {
           subtotal: _subtotal,
           discountAmount: _discountAmount,
           taxAmount: _taxAmount,
+          deliveryZone: _deliveryZoneName,
+          deliveryFee: _deliveryFee,
           total: _total,
           payments: payments,
         );
@@ -376,6 +417,23 @@ class _PosScreenState extends ConsumerState<PosScreen> {
               ],
               onChanged: (v) => setState(() => _selectedTableId = v),
             ),
+          ],
+          if (_orderType == 'delivery') ...[
+            const SizedBox(width: 12),
+            Builder(builder: (context) {
+              final zones = ref.watch(deliveryZonesProvider).valueOrNull ?? [];
+              return _PillDropdown<int?>(
+                value: _selectedZoneId,
+                hint: 'Zona de envío *',
+                items: zones
+                    .map((z) => DropdownMenuItem<int?>(
+                          value: z.id,
+                          child: Text(z.name),
+                        ))
+                    .toList(),
+                onChanged: (v) => setState(() => _selectedZoneId = v),
+              );
+            }),
           ],
           if (showCustomer) ...[
             const SizedBox(width: 12),
@@ -741,6 +799,12 @@ class _PosScreenState extends ConsumerState<PosScreen> {
                   _summaryRow(
                       taxIncludedDefault ? 'IVA (incluido)' : 'IVA',
                       formatCurrency(_taxAmount, symbol)),
+                if (_deliveryFee > 0)
+                  _summaryRow(
+                      _deliveryZoneName != null
+                          ? 'Envío ($_deliveryZoneName)'
+                          : 'Envío',
+                      formatCurrency(_deliveryFee, symbol)),
                 const Padding(
                   padding: EdgeInsets.symmetric(vertical: 8),
                   child: Divider(height: 1),

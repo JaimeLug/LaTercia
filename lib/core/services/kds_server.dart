@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/order_with_items.dart';
 import '../utils/app_logger.dart';
+import 'kds_button_service.dart' show KdsButton, kdsButtonLabel;
 import 'kds_link.dart';
 
 /// Un único servidor por proceso POS. Solo se usa en el proceso POS (el KDS
@@ -39,6 +40,12 @@ class KdsServer {
   Future<void> Function()? onRecall;
 
   bool get isRunning => _server != null;
+
+  /// Verdadero si hay al menos una ventana KDS separada conectada por WS —
+  /// usado para que la pestaña KDS embebida del propio proceso POS deje de
+  /// procesar la botonera física en paralelo cuando ya hay una ventana
+  /// externa haciéndolo (ver [kdsButtonStreamProvider]).
+  bool get hasClients => _clients.isNotEmpty;
 
   /// Solo para tests (en producción el KDS descubre el endpoint por archivo).
   @visibleForTesting
@@ -105,6 +112,21 @@ class KdsServer {
     final msg = encodeOrdersMessage(orders, canRecall);
     if (msg == _lastMessage) return;
     _lastMessage = msg;
+    for (final ws in _clients.toList()) {
+      try {
+        ws.add(msg);
+      } catch (_) {
+        _clients.remove(ws);
+      }
+    }
+  }
+
+  /// Reenvía un botón de la botonera física a las ventanas KDS separadas
+  /// conectadas — el ESP32 solo puede hablarle a este proceso (dueño real del
+  /// puerto 8080 de la botonera); sin esto, una ventana KDS en otra pantalla
+  /// se queda sorda aunque el POS sí reciba las pulsaciones.
+  void broadcastBoton(KdsButton btn) {
+    final msg = jsonEncode({'type': 'boton', 'boton': kdsButtonLabel(btn)});
     for (final ws in _clients.toList()) {
       try {
         ws.add(msg);

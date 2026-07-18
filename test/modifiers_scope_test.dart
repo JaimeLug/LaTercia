@@ -63,4 +63,32 @@ void main() {
     expect(forNull.any((m) => m.name == 'Global'), isTrue);
     expect(forNull.any((m) => m.name == 'Topping especial'), isFalse);
   });
+
+  // FASE 8 — un modificador puede aplicar a varias categorías (ej. un
+  // topping que se usa tanto en Frappés como en Especialidades).
+  test('un alcance con varias categorías separadas por coma aplica a '
+      'cualquiera de ellas', () async {
+    await addModifier('Topping 1', scope: 'Frappés,Especialidades');
+
+    final forFrappes =
+        await db.modifiersDao.getModifiersForCategoryName('Frappés');
+    expect(forFrappes.any((m) => m.name == 'Topping 1'), isTrue);
+
+    final forEspecialidades =
+        await db.modifiersDao.getModifiersForCategoryName('Especialidades');
+    expect(forEspecialidades.any((m) => m.name == 'Topping 1'), isTrue);
+
+    final forSnacks =
+        await db.modifiersDao.getModifiersForCategoryName('Snacks Salados');
+    expect(forSnacks.any((m) => m.name == 'Topping 1'), isFalse);
+  });
+
+  test('el alcance multi-categoría tolera espacios alrededor de cada nombre',
+      () async {
+    await addModifier('Aderezo', scope: ' Snacks Salados , Combos ');
+
+    final forCombos =
+        await db.modifiersDao.getModifiersForCategoryName('Combos');
+    expect(forCombos.any((m) => m.name == 'Aderezo'), isTrue);
+  });
 }

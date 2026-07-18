@@ -16,6 +16,9 @@ import 'screens/inventory_screen.dart';
 import 'screens/reports_screen.dart';
 import 'screens/settings_screen.dart';
 import 'screens/shifts_screen.dart';
+import 'screens/botonera_screen.dart';
+import 'screens/kiosk_screen.dart';
+import 'screens/delivery_zones_screen.dart';
 
 class AdminShell extends ConsumerStatefulWidget {
   const AdminShell({super.key});
@@ -82,6 +85,18 @@ class _AdminShellState extends ConsumerState<AdminShell> {
         selectedIcon: Icon(Icons.point_of_sale),
         label: Text('Turnos')),
     NavigationRailDestination(
+        icon: Icon(Icons.delivery_dining_outlined),
+        selectedIcon: Icon(Icons.delivery_dining),
+        label: Text('Envío')),
+    NavigationRailDestination(
+        icon: Icon(Icons.gamepad_outlined),
+        selectedIcon: Icon(Icons.gamepad),
+        label: Text('Botonera')),
+    NavigationRailDestination(
+        icon: Icon(Icons.dvr_outlined),
+        selectedIcon: Icon(Icons.dvr),
+        label: Text('Quiosco')),
+    NavigationRailDestination(
         icon: Icon(Icons.settings_outlined),
         selectedIcon: Icon(Icons.settings),
         label: Text('Configuración')),
@@ -101,6 +116,9 @@ class _AdminShellState extends ConsumerState<AdminShell> {
     InventoryScreen(),
     ReportsScreen(),
     ShiftsScreen(),
+    DeliveryZonesScreen(),
+    BotoneraScreen(),
+    KioskScreen(),
     SettingsScreen(),
   ];
 
@@ -110,40 +128,57 @@ class _AdminShellState extends ConsumerState<AdminShell> {
       child: Scaffold(
         body: Row(
           children: [
-            NavigationRail(
-              extended: _extended,
-              selectedIndex: _selectedIndex,
-              onDestinationSelected: (i) =>
-                  setState(() => _selectedIndex = i),
-              destinations: _destinations,
-              leading: Column(
-                children: [
-                  const SizedBox(height: 8),
-                  IconButton(
-                    icon: Icon(_extended
-                        ? Icons.chevron_left
-                        : Icons.chevron_right),
-                    onPressed: () =>
-                        setState(() => _extended = !_extended),
-                  ),
-                ],
-              ),
-              trailing: Expanded(
-                child: Align(
-                  alignment: Alignment.bottomCenter,
-                  child: Padding(
-                    padding: const EdgeInsets.only(bottom: 16),
-                    child: IconButton(
-                      icon: const Icon(Icons.logout),
-                      tooltip: 'Cerrar sesión',
-                      onPressed: () {
-                        ref.read(sessionProvider.notifier).state = null;
-                      },
+            // El menú ya tiene 16 destinos y seguirá creciendo — sin scroll
+            // propio, NavigationRail desborda en ventanas cortas (overflow
+            // reportado). LayoutBuilder+ConstrainedBox(minHeight)+
+            // IntrinsicHeight es el patrón estándar para dejar scrollable un
+            // Column con un `Expanded` adentro (el trailing del logout,
+            // anclado abajo): si todo cabe, se ve igual que antes; si no,
+            // hace scroll en vez de desbordarse.
+            LayoutBuilder(builder: (context, constraints) {
+              return SingleChildScrollView(
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                  child: IntrinsicHeight(
+                    child: NavigationRail(
+                      extended: _extended,
+                      selectedIndex: _selectedIndex,
+                      onDestinationSelected: (i) =>
+                          setState(() => _selectedIndex = i),
+                      destinations: _destinations,
+                      leading: Column(
+                        children: [
+                          const SizedBox(height: 8),
+                          IconButton(
+                            icon: Icon(_extended
+                                ? Icons.chevron_left
+                                : Icons.chevron_right),
+                            onPressed: () =>
+                                setState(() => _extended = !_extended),
+                          ),
+                        ],
+                      ),
+                      trailing: Expanded(
+                        child: Align(
+                          alignment: Alignment.bottomCenter,
+                          child: Padding(
+                            padding: const EdgeInsets.only(bottom: 16),
+                            child: IconButton(
+                              icon: const Icon(Icons.logout),
+                              tooltip: 'Cerrar sesión',
+                              onPressed: () {
+                                ref.read(sessionProvider.notifier).state =
+                                    null;
+                              },
+                            ),
+                          ),
+                        ),
+                      ),
                     ),
                   ),
                 ),
-              ),
-            ),
+              );
+            }),
             const VerticalDivider(thickness: 1, width: 1),
             Expanded(child: _screens[_selectedIndex]),
           ],

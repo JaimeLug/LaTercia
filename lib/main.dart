@@ -8,6 +8,7 @@ import 'package:window_manager/window_manager.dart';
 import 'app.dart';
 import 'core/providers/database_provider.dart';
 import 'core/providers/orders_provider.dart';
+import 'core/services/kds_button_service.dart';
 import 'core/services/kds_client.dart';
 import 'core/utils/app_logger.dart';
 import 'core/utils/backup_helper.dart';
@@ -83,14 +84,19 @@ Future<void> _mainImpl(List<String> args) async {
     // FASE 5.1 — La ventana KDS separada es viewer por WebSocket: su
     // OrdersNotifier recibe un KdsClient que la conecta al servidor del proceso
     // POS. Si el WS no responde, el notifier cae al polling de BD (fallback).
+    // La MISMA instancia también reenvía los botones de la botonera física
+    // (3.5) — el ESP32 solo puede hablarle al proceso POS (dueño del puerto
+    // 8080), así que esta ventana los recibe reenviados por el mismo canal.
+    final kdsClient = KdsClient();
     runApp(ProviderScope(
       overrides: [
         ordersProvider.overrideWith(
           (ref) => OrdersNotifier(
             ref.watch(databaseProvider),
-            kdsClient: KdsClient(),
+            kdsClient: kdsClient,
           ),
         ),
+        kdsButtonStreamProvider.overrideWithValue(kdsClient.botonPresionado),
       ],
       child: const KDSApp(),
     ));

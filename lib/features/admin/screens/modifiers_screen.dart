@@ -3,8 +3,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/database/database.dart';
 import '../../../core/providers/database_provider.dart';
+import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../core/providers/settings_provider.dart';
+import '../widgets/admin_panel.dart';
 
 class ModifiersScreen extends ConsumerStatefulWidget {
   const ModifiersScreen({super.key});
@@ -20,57 +22,100 @@ class _ModifiersScreenState extends ConsumerState<ModifiersScreen> {
     final symbol = settings['currency_symbol'] ?? r'$';
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Modificadores')),
+      backgroundColor: LaTerciaColors.appBg,
+      appBar: adminAppBar('Modificadores'),
       floatingActionButton: FloatingActionButton(
+        backgroundColor: LaTerciaColors.burntOrange,
         onPressed: () => _showForm(context, null),
-        child: const Icon(Icons.add),
+        child: const Icon(Icons.add, color: Colors.white),
       ),
       body: FutureBuilder<List<Modifier>>(
         future: ref.read(databaseProvider).modifiersDao.getAllModifiers(),
         builder: (ctx, snapshot) {
-          if (!snapshot.hasData) {
-            return const Center(child: CircularProgressIndicator());
-          }
+          if (!snapshot.hasData) return adminLoading();
           final mods = snapshot.data!;
-          return DataTable(
-            columns: const [
-              DataColumn(label: Text('Nombre')),
-              DataColumn(label: Text('Delta precio')),
-              DataColumn(label: Text('Alcance')),
-              DataColumn(label: Text('Acciones')),
-            ],
-            rows: mods.map((m) {
-              return DataRow(cells: [
-                DataCell(Text(m.name)),
-                DataCell(Text(m.priceDelta == 0
-                    ? 'Sin costo'
-                    : (m.priceDelta > 0
-                        ? '+${formatCurrency(m.priceDelta, symbol)}'
-                        : formatCurrency(m.priceDelta, symbol)))),
-                DataCell(Text(m.categoryScope ?? 'Todas')),
-                DataCell(Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    IconButton(
-                      icon: const Icon(Icons.edit, size: 18),
-                      onPressed: () => _showForm(context, m),
-                    ),
-                    IconButton(
-                      icon: Icon(Icons.delete,
-                          size: 18,
-                          color: Theme.of(context).colorScheme.error),
-                      onPressed: () async {
-                        await ref
-                            .read(databaseProvider)
-                            .modifiersDao
-                            .deleteModifier(m.id);
-                        setState(() {});
-                      },
-                    ),
-                  ],
-                )),
-              ]);
-            }).toList(),
+          if (mods.isEmpty) {
+            return const AdminEmptyState(
+              icon: Icons.tune,
+              message: 'Sin modificadores todavía.\n'
+                  'Toca “+” para crear el primero (ej. “Sin azúcar”, “Extra shot”).',
+            );
+          }
+          return SingleChildScrollView(
+            padding: const EdgeInsets.all(20),
+            child: AdminPanel(
+              child: Column(
+                children: [
+                  const AdminHeaderRow(cells: [
+                    Expanded(flex: 3, child: Text('NOMBRE')),
+                    Expanded(flex: 2, child: Text('DELTA PRECIO')),
+                    Expanded(flex: 2, child: Text('ALCANCE')),
+                    SizedBox(width: 88, child: Text('ACCIONES')),
+                  ]),
+                  ...mods.asMap().entries.map((entry) {
+                    final m = entry.value;
+                    final isLast = entry.key == mods.length - 1;
+                    return AdminRow(
+                      isLast: isLast,
+                      cells: [
+                        Expanded(
+                          flex: 3,
+                          child: Text(m.name,
+                              style: const TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  color: LaTerciaColors.darkBrown)),
+                        ),
+                        Expanded(
+                          flex: 2,
+                          child: m.priceDelta == 0
+                              ? const Text('Sin costo',
+                                  style: TextStyle(
+                                      color: LaTerciaColors.tan))
+                              : Text(
+                                  m.priceDelta > 0
+                                      ? '+${formatCurrency(m.priceDelta, symbol)}'
+                                      : formatCurrency(
+                                          m.priceDelta, symbol),
+                                  style: const TextStyle(
+                                      fontWeight: FontWeight.w600,
+                                      color: LaTerciaColors.success)),
+                        ),
+                        Expanded(
+                          flex: 2,
+                          child: Text(m.categoryScope ?? 'Todas'),
+                        ),
+                        SizedBox(
+                          width: 88,
+                          child: Row(
+                            children: [
+                              IconButton(
+                                icon: const Icon(Icons.edit_outlined,
+                                    size: 18, color: LaTerciaColors.tan),
+                                visualDensity: VisualDensity.compact,
+                                onPressed: () => _showForm(context, m),
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.delete_outline,
+                                    size: 18,
+                                    color: LaTerciaColors.danger),
+                                visualDensity: VisualDensity.compact,
+                                onPressed: () async {
+                                  await ref
+                                      .read(databaseProvider)
+                                      .modifiersDao
+                                      .deleteModifier(m.id);
+                                  setState(() {});
+                                },
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    );
+                  }),
+                ],
+              ),
+            ),
           );
         },
       ),
@@ -101,7 +146,9 @@ class _ModifierFormDialogState
   final _formKey = GlobalKey<FormState>();
   late TextEditingController _nameCtrl;
   late TextEditingController _deltaCtrl;
-  late TextEditingController _scopeCtrl;
+  // FASE 8 — categorías elegidas del catálogo real (antes texto libre). Vacío
+  // = aplica a todas.
+  late Set<String> _scopeCategories;
 
   @override
   void initState() {
@@ -110,16 +157,32 @@ class _ModifierFormDialogState
     _nameCtrl = TextEditingController(text: m?.name ?? '');
     _deltaCtrl = TextEditingController(
         text: m != null ? '${m.priceDelta}' : '0');
-    _scopeCtrl =
-        TextEditingController(text: m?.categoryScope ?? '');
+    _scopeCategories = (m?.categoryScope ?? '')
+        .split(',')
+        .map((s) => s.trim())
+        .where((s) => s.isNotEmpty)
+        .toSet();
   }
 
   @override
   void dispose() {
     _nameCtrl.dispose();
     _deltaCtrl.dispose();
-    _scopeCtrl.dispose();
     super.dispose();
+  }
+
+  Future<void> _pickScope() async {
+    final categories =
+        await ref.read(databaseProvider).categoriesDao.getAllCategories();
+    if (!mounted) return;
+    final result = await showDialog<Set<String>>(
+      context: context,
+      builder: (_) => _ScopePickerDialog(
+        categories: categories.map((c) => c.name).toList(),
+        initialSelected: _scopeCategories,
+      ),
+    );
+    if (result != null) setState(() => _scopeCategories = result);
   }
 
   @override
@@ -148,10 +211,30 @@ class _ModifierFormDialogState
               keyboardType: TextInputType.number,
             ),
             const SizedBox(height: 8),
-            TextFormField(
-              controller: _scopeCtrl,
-              decoration: const InputDecoration(
-                  labelText: 'Alcance (vacío = todas)'),
+            InkWell(
+              onTap: _pickScope,
+              child: InputDecorator(
+                decoration: const InputDecoration(
+                  labelText: 'Alcance',
+                  suffixIcon: Icon(Icons.arrow_drop_down),
+                ),
+                child: _scopeCategories.isEmpty
+                    ? const Text('Todas las categorías',
+                        style: TextStyle(color: LaTerciaColors.tan))
+                    : Wrap(
+                        spacing: 6,
+                        runSpacing: 4,
+                        children: _scopeCategories
+                            .map((c) => Chip(
+                                  label: Text(c,
+                                      style: const TextStyle(fontSize: 12)),
+                                  visualDensity: VisualDensity.compact,
+                                  materialTapTargetSize:
+                                      MaterialTapTargetSize.shrinkWrap,
+                                ))
+                            .toList(),
+                      ),
+              ),
             ),
           ],
         ),
@@ -176,7 +259,7 @@ class _ModifierFormDialogState
       priceDelta:
           Value(double.tryParse(_deltaCtrl.text) ?? 0),
       categoryScope: Value(
-          _scopeCtrl.text.isEmpty ? null : _scopeCtrl.text),
+          _scopeCategories.isEmpty ? null : _scopeCategories.join(',')),
     );
 
     if (widget.modifier == null) {
@@ -185,5 +268,67 @@ class _ModifierFormDialogState
       await db.modifiersDao.updateModifier(companion);
     }
     if (mounted) Navigator.pop(context);
+  }
+}
+
+/// FASE 8 — selector múltiple de categorías para el alcance de un
+/// modificador, con checkboxes sobre el catálogo real (reemplaza el texto
+/// libre separado por comas).
+class _ScopePickerDialog extends StatefulWidget {
+  final List<String> categories;
+  final Set<String> initialSelected;
+  const _ScopePickerDialog(
+      {required this.categories, required this.initialSelected});
+
+  @override
+  State<_ScopePickerDialog> createState() => _ScopePickerDialogState();
+}
+
+class _ScopePickerDialogState extends State<_ScopePickerDialog> {
+  late Set<String> _selected = Set.from(widget.initialSelected);
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Alcance por categoría'),
+      content: SizedBox(
+        width: 360,
+        child: widget.categories.isEmpty
+            ? const Text('No hay categorías todavía.')
+            : SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: widget.categories
+                      .map((c) => CheckboxListTile(
+                            title: Text(c),
+                            value: _selected.contains(c),
+                            controlAffinity: ListTileControlAffinity.leading,
+                            contentPadding: EdgeInsets.zero,
+                            onChanged: (v) => setState(() {
+                              if (v == true) {
+                                _selected.add(c);
+                              } else {
+                                _selected.remove(c);
+                              }
+                            }),
+                          ))
+                      .toList(),
+                ),
+              ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => setState(() => _selected = {}),
+          child: const Text('Todas (limpiar)'),
+        ),
+        TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancelar')),
+        FilledButton(
+          onPressed: () => Navigator.pop(context, _selected),
+          child: const Text('Aplicar'),
+        ),
+      ],
+    );
   }
 }

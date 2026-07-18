@@ -6,8 +6,88 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/providers/database_provider.dart';
 import '../../../core/providers/settings_provider.dart';
 import '../../../core/services/print_service.dart';
+import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/backup_helper.dart';
-import '../../../core/utils/power_service.dart';
+import '../widgets/admin_panel.dart';
+
+/// Metadatos de cada categoría de Configuración, para la vista de tarjetas de
+/// entrada — reemplaza la única página larga de scroll infinito por un menú
+/// tipo Ajustes de Windows/macOS: entras, ves temas, tocas uno, ves solo eso.
+typedef _SettingsCategory = ({
+  String key,
+  IconData icon,
+  String title,
+  String subtitle,
+});
+
+const _settingsCategories = <_SettingsCategory>[
+  (
+    key: 'negocio',
+    icon: Icons.storefront_outlined,
+    title: 'Negocio',
+    subtitle: 'Nombre, slogan y logo'
+  ),
+  (
+    key: 'apariencia',
+    icon: Icons.palette_outlined,
+    title: 'Apariencia',
+    subtitle: 'Colores de la marca'
+  ),
+  (
+    key: 'pos',
+    icon: Icons.point_of_sale_outlined,
+    title: 'POS',
+    subtitle: 'Tipo de orden, cliente, mesas'
+  ),
+  (
+    key: 'cocina',
+    icon: Icons.soup_kitchen_outlined,
+    title: 'Cocina (KDS)',
+    subtitle: 'Sonido y alertas de tiempo'
+  ),
+  (
+    key: 'caja',
+    icon: Icons.lock_outline,
+    title: 'Caja y seguridad',
+    subtitle: 'Turnos, auto-bloqueo'
+  ),
+  (
+    key: 'impresion',
+    icon: Icons.print_outlined,
+    title: 'Impresión y gaveta',
+    subtitle: 'Tickets, impresora, gaveta'
+  ),
+  (
+    key: 'impuestos',
+    icon: Icons.receipt_long_outlined,
+    title: 'Impuestos',
+    subtitle: 'IVA y su despliegue'
+  ),
+  (
+    key: 'ventas',
+    icon: Icons.payments_outlined,
+    title: 'Ventas',
+    subtitle: 'Propinas'
+  ),
+  (
+    key: 'moneda',
+    icon: Icons.attach_money,
+    title: 'Moneda',
+    subtitle: 'Símbolo y decimales'
+  ),
+  (
+    key: 'ticket',
+    icon: Icons.receipt_outlined,
+    title: 'Ticket / Recibo',
+    subtitle: 'Pie de página y detalles'
+  ),
+  (
+    key: 'respaldo',
+    icon: Icons.backup_outlined,
+    title: 'Respaldo',
+    subtitle: 'Backups automáticos'
+  ),
+];
 
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
@@ -49,9 +129,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   bool _backupAuto = true;
   late TextEditingController _backupRetentionDays;
 
-  // Kiosko (Fase 6)
-  bool _modoKiosko = false;
-
   // Moneda
   late TextEditingController _currencySymbol;
   String _currencyDecimals = '2';
@@ -79,6 +156,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   List<String> _availablePrinters = const [];
 
   bool _loaded = false;
+
+  // null = vista de tarjetas (landing); con valor = detalle de esa categoría.
+  String? _activeCategory;
 
   @override
   void initState() {
@@ -150,7 +230,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     _gavetaAutoEfectivo = s['gaveta_auto_efectivo'] != 'false';
     _backupAuto = s['backup_auto'] != 'false';
     _backupRetentionDays.text = s['backup_retention_days'] ?? '14';
-    _modoKiosko = s['modo_kiosko'] == 'true';
   }
 
   Color _parseColor(String hex) {
@@ -180,12 +259,100 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   }
 
   Widget _buildBody(BuildContext context) {
+    final active = _activeCategory;
     return Scaffold(
-      appBar: AppBar(title: const Text('Configuración')),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
+      backgroundColor: LaTerciaColors.appBg,
+      appBar: active == null
+          ? adminAppBar('Configuración')
+          : AppBar(
+              backgroundColor: LaTerciaColors.cream,
+              surfaceTintColor: Colors.transparent,
+              elevation: 0,
+              leading: IconButton(
+                icon: const Icon(Icons.arrow_back,
+                    color: LaTerciaColors.darkBrown),
+                onPressed: () => setState(() => _activeCategory = null),
+              ),
+              title: Text(
+                _settingsCategories
+                    .firstWhere((c) => c.key == active)
+                    .title,
+                style: const TextStyle(
+                    fontFamily: 'DM Serif Display',
+                    fontSize: 22,
+                    color: LaTerciaColors.darkBrown),
+              ),
+            ),
+      body: active == null
+          ? _buildCategoryGrid()
+          : _buildCategoryDetail(active),
+    );
+  }
+
+  /// Landing de Configuración: una tarjeta por tema (estilo Ajustes de
+  /// Windows/macOS) en vez de una sola página con todo apilado — así se
+  /// encuentra cada control sin perderse en un scroll interminable.
+  Widget _buildCategoryGrid() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(20),
+      child: Wrap(
+        spacing: 14,
+        runSpacing: 14,
         children: [
-          _section('Negocio', [
+          for (final cat in _settingsCategories)
+            CategoryCard(
+              icon: cat.icon,
+              title: cat.title,
+              subtitle: cat.subtitle,
+              onTap: () => setState(() => _activeCategory = cat.key),
+            ),
+        ],
+      ),
+    );
+  }
+
+  /// Detalle de una categoría: solo sus controles + Guardar. `_save()` sigue
+  /// persistiendo TODOS los settings a la vez (no solo los de esta categoría)
+  /// — es seguro porque los controllers/estado viven en este mismo State y no
+  /// se pierden al navegar entre categorías.
+  Widget _buildCategoryDetail(String key) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(20),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 720),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            AdminPanel(
+              padding: const EdgeInsets.all(18),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: _categoryFields(key),
+              ),
+            ),
+            const SizedBox(height: 20),
+            SizedBox(
+              height: 52,
+              width: double.infinity,
+              child: FilledButton(
+                style: FilledButton.styleFrom(
+                    backgroundColor: LaTerciaColors.burntOrange),
+                onPressed: _save,
+                child: const Text('Guardar cambios',
+                    style: TextStyle(fontSize: 16)),
+              ),
+            ),
+            const SizedBox(height: 32),
+          ],
+        ),
+      ),
+    );
+  }
+
+  List<Widget> _categoryFields(String key) {
+    switch (key) {
+      case 'negocio':
+        return [
             TextField(
               controller: _businessName,
               decoration: const InputDecoration(
@@ -212,8 +379,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 ),
               ],
             ),
-          ]),
-          _section('Apariencia', [
+        ];
+      case 'apariencia':
+        return [
             const Text('Color primario:'),
             ColorPicker(
               color: _primaryColor,
@@ -277,8 +445,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 ],
               ),
             ),
-          ]),
-          _section('POS', [
+        ];
+      case 'pos':
+        return [
             DropdownButtonFormField<String>(
               value: _defaultOrderType,
               decoration: const InputDecoration(
@@ -309,8 +478,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   setState(() => _enableTables = v),
               contentPadding: EdgeInsets.zero,
             ),
-          ]),
-          _section('Cocina (KDS)', [
+        ];
+      case 'cocina':
+        return [
             SwitchListTile(
               title: const Text('Alertas de sonido'),
               value: _kdsSound,
@@ -338,8 +508,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 ),
               ],
             ),
-          ]),
-          _section('Caja y seguridad', [
+        ];
+      case 'caja':
+        return [
             SwitchListTile(
               title: const Text('Requerir turno abierto para vender'),
               subtitle: const Text(
@@ -365,8 +536,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               onChanged: (v) => setState(() => _lockTrasVenta = v),
               contentPadding: EdgeInsets.zero,
             ),
-          ]),
-          _section('Impresión y gaveta', [
+        ];
+      case 'impresion':
+        return [
             SwitchListTile(
               title: const Text('Activar impresión de tickets'),
               subtitle: const Text(
@@ -496,8 +668,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 ),
               ],
             ),
-          ]),
-          _section('Impuestos', [
+        ];
+      case 'impuestos':
+        return [
             TextField(
               controller: _taxRate,
               decoration: const InputDecoration(
@@ -522,8 +695,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   setState(() => _showTaxReceipt = v),
               contentPadding: EdgeInsets.zero,
             ),
-          ]),
-          _section('Ventas', [
+        ];
+      case 'ventas':
+        return [
             SwitchListTile(
               title: const Text('Propinas'),
               subtitle: const Text(
@@ -532,8 +706,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               onChanged: (v) => setState(() => _propinasActivas = v),
               contentPadding: EdgeInsets.zero,
             ),
-          ]),
-          _section('Moneda', [
+        ];
+      case 'moneda':
+        return [
             TextField(
               controller: _currencySymbol,
               decoration: const InputDecoration(
@@ -551,8 +726,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               onChanged: (v) =>
                   setState(() => _currencyDecimals = v!),
             ),
-          ]),
-          _section('Ticket / Recibo', [
+        ];
+      case 'ticket':
+        return [
             TextField(
               controller: _receiptFooter,
               decoration: const InputDecoration(
@@ -573,8 +749,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   setState(() => _showEmployeeOnReceipt = v),
               contentPadding: EdgeInsets.zero,
             ),
-          ]),
-          _section('Respaldo', [
+        ];
+      case 'respaldo':
+        return [
             SwitchListTile(
               title: const Text('Backup automático'),
               subtitle: const Text(
@@ -609,115 +786,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 ),
               ],
             ),
-          ]),
-          _section('Kiosko', [
-            SwitchListTile(
-              title: const Text('Modo kiosko'),
-              subtitle: const Text(
-                  'Pantalla completa y bloquea el cierre de la ventana. Apágalo aquí para liberarla.'),
-              value: _modoKiosko,
-              onChanged: (v) => setState(() => _modoKiosko = v),
-              contentPadding: EdgeInsets.zero,
-            ),
-          ]),
-          _section('Equipo', [
-            const Text(
-              'Apaga o reinicia la computadora (útil en modo kiosko, sin escritorio a la vista).',
-              style: TextStyle(fontSize: 12.5, color: Colors.black54),
-            ),
-            const SizedBox(height: 10),
-            Row(
-              children: [
-                OutlinedButton.icon(
-                  icon: const Icon(Icons.restart_alt),
-                  label: const Text('Reiniciar equipo'),
-                  onPressed: () => _confirmPower(context, reboot: true),
-                ),
-                const SizedBox(width: 12),
-                OutlinedButton.icon(
-                  icon: const Icon(Icons.power_settings_new),
-                  label: const Text('Apagar equipo'),
-                  style: OutlinedButton.styleFrom(
-                      foregroundColor: Theme.of(context).colorScheme.error),
-                  onPressed: () => _confirmPower(context, reboot: false),
-                ),
-              ],
-            ),
-          ]),
-          const SizedBox(height: 24),
-          SizedBox(
-            height: 52,
-            child: FilledButton(
-              onPressed: _save,
-              child: const Text('Guardar cambios',
-                  style: TextStyle(fontSize: 16)),
-            ),
-          ),
-          const SizedBox(height: 32),
-        ],
-      ),
-    );
-  }
-
-  Future<void> _confirmPower(BuildContext context,
-      {required bool reboot}) async {
-    final verb = reboot ? 'Reiniciar' : 'Apagar';
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: Text('¿$verb el equipo?'),
-        content: Text(reboot
-            ? 'La computadora se reiniciará ahora.'
-            : 'La computadora se apagará ahora.'),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('Cancelar')),
-          FilledButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: Text(verb)),
-        ],
-      ),
-    );
-    if (ok != true) return;
-    final done = reboot
-        ? await const PowerService().reboot()
-        : await const PowerService().shutdown();
-    if (!done && context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-            content: Text(
-                'No se pudo $verb el equipo (permisos del sistema). Revisa el log.')),
-      );
+        ];
+      default:
+        return const [];
     }
-  }
-
-  Widget _section(String title, List<Widget> children) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.only(top: 24, bottom: 8),
-          child: Text(
-            title,
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-              color: Theme.of(context).colorScheme.primary,
-            ),
-          ),
-        ),
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: children,
-            ),
-          ),
-        ),
-      ],
-    );
   }
 
   /// Desplegable con las impresoras instaladas en Windows + botón de refrescar.
@@ -917,7 +989,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       'backup_retention_days': _backupRetentionDays.text.trim().isEmpty
           ? '14'
           : _backupRetentionDays.text.trim(),
-      'modo_kiosko': _modoKiosko.toString(),
     };
 
     await ref.read(settingsProvider.notifier).setSettings(settings);
@@ -933,3 +1004,4 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     }
   }
 }
+

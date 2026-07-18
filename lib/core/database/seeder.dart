@@ -65,9 +65,16 @@ class SeederService {
       // FASE 5: backups automáticos (default ON, diario, retención 14 días).
       'backup_auto': 'true',
       'backup_retention_days': '14',
+      // FASE 3.5: botonera física ESP32 (default OFF, sin hardware para probar
+      // hasta que el usuario la active).
+      'botonera_activa': 'false',
+      'botonera_puerto': '8080',
       // FASE 6: modo kiosko (pantalla completa + bloquear cierre). Default OFF
       // para no atrapar al usuario en desarrollo; se activa en la estación.
       'modo_kiosko': 'false',
+      // FASE 7: insumos y recetas (default OFF hasta que el usuario lo active
+      // en Admin → Insumos).
+      'insumos_activo': 'false',
       'seeded': 'true',
     };
     for (final entry in defaults.entries) {

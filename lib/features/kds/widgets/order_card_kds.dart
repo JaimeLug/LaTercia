@@ -196,7 +196,9 @@ class _OrderCardKdsState extends ConsumerState<OrderCardKds>
                                   padding: const EdgeInsets.only(
                                       left: 16, top: 2),
                                   child: Text(
-                                    '↳ ${m['name']}',
+                                    m['included'] == true
+                                        ? '↳ ${m['name']} (incluido)'
+                                        : '↳ ${m['name']}',
                                     style: const TextStyle(
                                       color: LaTerciaColors.kdsMuted,
                                       fontSize: 13,

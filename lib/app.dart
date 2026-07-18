@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'dart:async';
+
 import 'core/models/order_with_items.dart';
 import 'core/providers/orders_provider.dart';
 import 'core/providers/settings_provider.dart';
 import 'core/services/backup_service.dart';
+import 'core/services/kds_button_service.dart';
 import 'core/services/kds_server.dart';
 import 'core/theme/app_theme.dart';
 import 'features/admin/admin_shell.dart';
@@ -71,6 +74,7 @@ class _RootState extends ConsumerState<_Root> {
   bool _inModule = false;
   int _tab = 0; // 0 = POS, 1 = KDS (embedded), 2 = Admin
   ProviderSubscription<List<OrderWithItems>>? _ordersSub;
+  StreamSubscription<KdsButton>? _botonForwardSub;
 
   @override
   void initState() {
@@ -86,6 +90,7 @@ class _RootState extends ConsumerState<_Root> {
   @override
   void dispose() {
     _ordersSub?.close();
+    _botonForwardSub?.cancel();
     super.dispose();
   }
 
@@ -108,6 +113,13 @@ class _RootState extends ConsumerState<_Root> {
       (prev, next) => server.broadcast(next, notifier.canRecall),
       fireImmediately: true,
     );
+    // Reenvía cada botón de la botonera física (que solo este proceso puede
+    // recibir del ESP32, dueño del puerto 8080) a cualquier ventana KDS
+    // separada conectada — sin esto, esa ventana se queda sorda a la botonera.
+    _botonForwardSub = ref
+        .read(kdsButtonServiceProvider)
+        .botonPresionado
+        .listen(server.broadcastBoton);
   }
 
   final _screens = const [

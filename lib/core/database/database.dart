@@ -21,6 +21,11 @@ import 'daos/reports_dao.dart';
 import 'daos/audit_log_dao.dart';
 import 'daos/cash_movements_dao.dart';
 import 'daos/refunds_dao.dart';
+import 'daos/ingredients_dao.dart';
+import 'daos/suppliers_dao.dart';
+import 'daos/purchases_dao.dart';
+import 'daos/recipes_dao.dart';
+import 'daos/delivery_zones_dao.dart';
 
 part 'database.g.dart';
 
@@ -59,6 +64,10 @@ class Products extends Table {
   // global (`tax_rate` / `tax_included` en Settings). Un valor explícito manda.
   RealColumn get taxRate => real().nullable()();
   BoolColumn get taxIncluded => boolean().nullable()();
+  // FASE 7 — Insumos y recetas. Si es true, el producto se descuenta por
+  // receta ([RecipeItems]) en vez de por trackInventory/stockQuantity — las
+  // dos formas de rastrear stock son mutuamente excluyentes por producto.
+  BoolColumn get usesRecipe => boolean().withDefault(const Constant(false))();
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
   DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();
 }
@@ -142,6 +151,11 @@ class Orders extends Table {
   RealColumn get discountAmount => real().withDefault(const Constant(0))();
   RealColumn get taxAmount => real().withDefault(const Constant(0))();
   RealColumn get total => real().withDefault(const Constant(0))();
+  // FASE 8 — Envío por zona (solo aplica a type == 'delivery'). deliveryFee
+  // ya está sumado dentro de [total] (mismo patrón que taxAmount); ambas
+  // columnas existen para desglosar la línea en ticket/recibo.
+  TextColumn get deliveryZone => text().nullable()();
+  RealColumn get deliveryFee => real().withDefault(const Constant(0))();
   TextColumn get cancelReason => text().nullable()();
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
   DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();
@@ -244,6 +258,84 @@ class Refunds extends Table {
   DateTimeColumn get ts => dateTime().withDefault(currentDateAndTime)();
 }
 
+/// FASE 7 — Insumos y recetas (activable vía Settings `insumos_activo`).
+/// Proveedores de insumos, para el ciclo de compras.
+class Suppliers extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  TextColumn get name => text()();
+  TextColumn get contactName => text().nullable()();
+  TextColumn get phone => text().nullable()();
+  TextColumn get note => text().nullable()();
+  BoolColumn get active => boolean().withDefault(const Constant(true))();
+  DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
+}
+
+/// Materia prima (café, leche, vasos...). Stock y cantidades en `real` para
+/// soportar unidades fraccionarias (g, ml). `unit` es texto libre elegido por
+/// el usuario (sin conversión entre unidades — decisión de diseño).
+class Ingredients extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  TextColumn get name => text()();
+  TextColumn get unit => text()();
+  RealColumn get stockQuantity => real().withDefault(const Constant(0))();
+  RealColumn get minStock => real().withDefault(const Constant(0))();
+  RealColumn get lastUnitCost => real().nullable()();
+  BoolColumn get active => boolean().withDefault(const Constant(true))();
+  DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
+}
+
+/// Espejo de [InventoryMovements] pero para insumos — bitácora de cada
+/// entrada/salida de stock (venta, ajuste, compra, merma, cancelación,
+/// reembolso).
+class IngredientMovements extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  IntColumn get ingredientId => integer().references(Ingredients, #id)();
+  RealColumn get delta => real()(); // positivo = entrada, negativo = salida
+  TextColumn get reason => text()();
+  TextColumn get note => text().nullable()();
+  IntColumn get orderId => integer().nullable().references(Orders, #id)();
+  IntColumn get purchaseId =>
+      integer().nullable().references(IngredientPurchases, #id)();
+  DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
+}
+
+/// Cabecera de una compra a proveedor — repone stock de N insumos a la vez.
+class IngredientPurchases extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  IntColumn get supplierId =>
+      integer().nullable().references(Suppliers, #id)();
+  IntColumn get employeeId => integer().references(Employees, #id)();
+  RealColumn get totalCost => real().withDefault(const Constant(0))();
+  TextColumn get note => text().nullable()();
+  DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
+}
+
+class IngredientPurchaseItems extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  IntColumn get purchaseId =>
+      integer().references(IngredientPurchases, #id)();
+  IntColumn get ingredientId => integer().references(Ingredients, #id)();
+  RealColumn get quantity => real()();
+  RealColumn get unitCost => real()();
+}
+
+/// Receta = las filas de esta tabla para un `productId` dado (sin tabla de
+/// cabecera; relación 1 producto → N insumos).
+class RecipeItems extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  IntColumn get productId => integer().references(Products, #id)();
+  IntColumn get ingredientId => integer().references(Ingredients, #id)();
+  RealColumn get quantity => real()();
+}
+
+/// FASE 8 — Zonas de envío (cargo fijo por zona en órdenes `delivery`).
+class DeliveryZones extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  TextColumn get name => text()();
+  RealColumn get fee => real().withDefault(const Constant(0))();
+  BoolColumn get active => boolean().withDefault(const Constant(true))();
+}
+
 // ─── Database class ──────────────────────────────────────────────────────────
 
 @DriftDatabase(tables: [
@@ -264,6 +356,13 @@ class Refunds extends Table {
   AuditLog,
   CashMovements,
   Refunds,
+  Suppliers,
+  Ingredients,
+  IngredientMovements,
+  IngredientPurchases,
+  IngredientPurchaseItems,
+  RecipeItems,
+  DeliveryZones,
 ])
 class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
@@ -273,7 +372,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 6;
+  int get schemaVersion => 8;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -339,6 +438,23 @@ class AppDatabase extends _$AppDatabase {
               appLogger.warn('No se pudo correr foreign_key_check en v6.', e, st);
             }
           }
+          if (from < 7) {
+            // FASE 7: insumos y recetas (activable, default OFF).
+            await m.createTable(suppliers);
+            await m.createTable(ingredients);
+            await m.createTable(ingredientMovements);
+            await m.createTable(ingredientPurchases);
+            await m.createTable(ingredientPurchaseItems);
+            await m.createTable(recipeItems);
+            await m.addColumn(products, products.usesRecipe);
+            await settingsDao.setValue('insumos_activo', 'false');
+          }
+          if (from < 8) {
+            // FASE 8: envío por zona.
+            await m.createTable(deliveryZones);
+            await m.addColumn(orders, orders.deliveryZone);
+            await m.addColumn(orders, orders.deliveryFee);
+          }
         },
       );
 
@@ -361,6 +477,11 @@ class AppDatabase extends _$AppDatabase {
   late final AuditLogDao auditLogDao = AuditLogDao(this);
   late final CashMovementsDao cashMovementsDao = CashMovementsDao(this);
   late final RefundsDao refundsDao = RefundsDao(this);
+  late final IngredientsDao ingredientsDao = IngredientsDao(this);
+  late final SuppliersDao suppliersDao = SuppliersDao(this);
+  late final PurchasesDao purchasesDao = PurchasesDao(this);
+  late final RecipesDao recipesDao = RecipesDao(this);
+  late final DeliveryZonesDao deliveryZonesDao = DeliveryZonesDao(this);
 }
 
 QueryExecutor _openConnection() {

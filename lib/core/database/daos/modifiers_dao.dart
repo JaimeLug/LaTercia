@@ -12,8 +12,10 @@ class ModifiersDao extends DatabaseAccessor<AppDatabase>
 
   /// Returns the modifiers that apply to a product in the given category.
   /// A modifier with an empty [categoryScope] applies to everything; otherwise
-  /// it only applies when its scope matches the product's category name
-  /// (case-insensitive). Avoids showing e.g. "Extra shot" on a cheesecake.
+  /// [categoryScope] es una lista separada por comas de nombres de categoría
+  /// (ej. "Frappés,Especialidades") y aplica si CUALQUIERA coincide
+  /// (case-insensitive) — un valor de una sola categoría sigue funcionando
+  /// igual. Avoids showing e.g. "Extra shot" on a cheesecake.
   Future<List<Modifier>> getModifiersForCategoryName(
       String? categoryName) async {
     final all = await select(modifiers).get();
@@ -21,7 +23,8 @@ class ModifiersDao extends DatabaseAccessor<AppDatabase>
     return all.where((m) {
       final scope = m.categoryScope?.trim();
       if (scope == null || scope.isEmpty) return true;
-      return cat != null && scope.toLowerCase() == cat;
+      if (cat == null) return false;
+      return scope.split(',').map((s) => s.trim().toLowerCase()).contains(cat);
     }).toList();
   }
 
