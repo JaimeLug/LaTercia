@@ -138,6 +138,27 @@ la muestra la propia app.
 > pantalla completa y sin cierre). El flag interno sigue siendo útil para el
 > modo más simple (autostart sobre el escritorio) de la sección 4/5.
 
+**Plan B — pantalla negra por falla de GPU (auditoría 2026-07-17):** si `cage`
+falla con un error de renderer (driver roto, o una VM sin aceleración 3D como
+la de este mismo setup), probá antes de reiniciar:
+```bash
+LIBGL_ALWAYS_SOFTWARE=1 cage -- /opt/latercia/latercia
+```
+Si así sí abre, creá una sesión kiosko alterna (deja la de arriba intacta, así
+podés cambiar de una a otra sin reescribir archivos si algún día se resuelve
+el driver):
+```ini
+# /usr/share/wayland-sessions/latercia-kiosk-software.desktop
+[Desktop Entry]
+Name=La Tercia Kiosko (software rendering)
+Comment=POS — fallback sin GPU
+Exec=env LIBGL_ALWAYS_SOFTWARE=1 cage -- /opt/latercia/latercia
+Type=Application
+```
+y apuntá `Session=latercia-kiosk-software` en `/etc/sddm.conf.d/autologin.conf`.
+Es justo lo que se usó para dejar corriendo el modo electrodoméstico en esta VM
+(sin GPU real, per §6.3 más abajo).
+
 ## 6. Checklist de verificación en la VM (6.3)
 
 - [ ] `flutter build linux --release` compila sin errores.
@@ -152,3 +173,5 @@ la muestra la propia app.
 - [ ] Botones **Configuración → Equipo → Apagar/Reiniciar** funcionan.
 - [ ] Modo electrodoméstico (§5b): al reiniciar arranca directo en la app con
       cage, sin escritorio ni forma de salir.
+- [ ] Si `cage` sin software rendering falla (VM sin GPU 3D), el plan B
+      (`LIBGL_ALWAYS_SOFTWARE=1`) sí abre la app a pantalla completa.

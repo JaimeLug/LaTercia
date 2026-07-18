@@ -16,6 +16,7 @@ import '../database/database.dart';
 import '../utils/app_logger.dart';
 import '../utils/formatters.dart';
 import '../utils/pricing.dart';
+import 'shift_service.dart' show ShiftSummary;
 
 /// FASE 3.1/3.2 — Servicio de impresión térmica ESC/POS + gaveta de dinero.
 ///
@@ -167,9 +168,10 @@ class WindowsRawPrinterTransport implements PrinterTransport {
 /// los builders. La impresora de RED (socket 9100) ya es cross-platform y no
 /// necesita esto.
 class LinuxPrinterTransport implements PrinterTransport {
-  LinuxPrinterTransport(this.target);
+  LinuxPrinterTransport(this.target, {this.timeout = const Duration(seconds: 8)});
 
   final String target;
+  final Duration timeout;
 
   @override
   Future<void> send(List<int> bytes) async {
@@ -179,23 +181,36 @@ class LinuxPrinterTransport implements PrinterTransport {
     }
 
     if (target.startsWith('/dev/')) {
-      // Escritura RAW directa al dispositivo.
+      // Escritura RAW directa al dispositivo. Auditoría 2026-07-17: sin
+      // [timeout] esto dependía por completo de que el kernel reportara el
+      // error rápido si el USB se desconecta a media escritura — ahora
+      // acotado explícitamente, igual que NetworkPrinterTransport.
       final raf = await File(target).open(mode: FileMode.writeOnlyAppend);
       try {
-        await raf.writeFrom(bytes);
-        await raf.flush();
+        await raf.writeFrom(bytes).timeout(timeout);
+        await raf.flush().timeout(timeout);
       } finally {
         await raf.close();
       }
       return;
     }
 
-    // Cola CUPS vía `lp -o raw`, alimentando los bytes por stdin.
+    // Cola CUPS vía `lp -o raw`, alimentando los bytes por stdin. `lp`
+    // normalmente devuelve 0 en cuanto encola el trabajo (no espera a que se
+    // imprima físicamente) — un código 0 no garantiza impresión real, solo
+    // que CUPS aceptó el trabajo; documentado, no solucionable desde aquí.
     final process = await Process.start('lp', ['-d', target, '-o', 'raw']);
     process.stdin.add(bytes);
     await process.stdin.flush();
     await process.stdin.close();
-    final code = await process.exitCode;
+    int code;
+    try {
+      code = await process.exitCode.timeout(timeout);
+    } on TimeoutException {
+      process.kill();
+      throw Exception(
+          'lp no respondió en ${timeout.inSeconds}s (impresora desconectada o CUPS colgado).');
+    }
     if (code != 0) {
       final err =
           await process.stderr.transform(systemEncoding.decoder).join();
@@ -758,6 +773,101 @@ class PrintService {
     return bytes;
   }
 
+  // ─── Corte X/Z ────────────────────────────────────────────────────────────
+
+  /// Documento ESC/POS del corte X (turno abierto) o Z (turno cerrado) —
+  /// mismo contenido que muestra `CutTicket` en pantalla. Auditoría
+  /// 2026-07-17: antes el corte solo existía en pantalla + CSV, sin tickét
+  /// físico.
+  Future<List<int>> buildCutTicket({
+    required ShiftSummary summary,
+    required Map<String, String> settings,
+    required bool isZ,
+  }) async {
+    final profile = await _profile();
+    final g = Generator(_paperSize(settings), profile);
+    final symbol = settings['currency_symbol'] ?? r'$';
+    final decimals = int.tryParse(settings['currency_decimals'] ?? '2') ?? 2;
+    final businessName = settings['business_name'] ?? 'La Tercia';
+    final shift = summary.shift;
+
+    String money(double v) => formatCurrency(v, symbol, decimals: decimals);
+    const center = PosStyles(align: PosAlign.center);
+
+    final bytes = <int>[];
+    bytes.addAll(g.reset());
+
+    bytes.addAll(g.text(_san(businessName),
+        styles: const PosStyles(
+            align: PosAlign.center,
+            bold: true,
+            height: PosTextSize.size2,
+            width: PosTextSize.size2)));
+    bytes.addAll(g.text(_san(isZ ? 'CORTE Z' : 'CORTE X (PARCIAL)'),
+        styles: const PosStyles(align: PosAlign.center, bold: true)));
+    if (isZ && shift.zNumber != null) {
+      bytes.addAll(g.text(_san('Folio Z-${shift.zNumber}'), styles: center));
+    }
+    bytes.addAll(g.text(_san('Turno #${shift.id}'), styles: center));
+    bytes.addAll(g.text(
+        _san(formatDateTime(shift.startedAt) +
+            (shift.endedAt != null
+                ? ' — ${formatDateTime(shift.endedAt!)}'
+                : '')),
+        styles: center));
+
+    bytes.addAll(g.hr());
+    bytes.addAll(_kv(g, 'Fondo inicial', money(shift.startingCash)));
+    bytes.addAll(_kv(g, 'Ventas efectivo', money(summary.cashSales)));
+    bytes.addAll(_kv(g, 'Depósitos', money(summary.deposits)));
+    bytes.addAll(_kv(g, 'Retiros', '-${money(summary.withdrawals)}'));
+    bytes.addAll(_kv(g, 'Esperado en caja', money(summary.expectedCash)));
+    if (summary.countedCash != null) {
+      bytes.addAll(_kv(g, 'Efectivo contado', money(summary.countedCash!)));
+      bytes.addAll(_kv(
+          g,
+          'Diferencia',
+          '${summary.difference! >= 0 ? '+' : ''}${money(summary.difference!)}'));
+    }
+
+    bytes.addAll(g.hr());
+    bytes.addAll(g.text(_san('Desglose por método de pago'),
+        styles: const PosStyles(bold: true)));
+    if (summary.paymentsByMethod.isEmpty) {
+      bytes.addAll(g.text(_san('Sin pagos registrados')));
+    } else {
+      for (final e in summary.paymentsByMethod.entries) {
+        bytes.addAll(_kv(g, e.key, money(e.value)));
+      }
+    }
+
+    bytes.addAll(g.hr());
+    bytes.addAll(_kv(g, 'Descuentos otorgados', money(summary.discountsTotal)));
+    if (summary.tipsTotal > 0) {
+      bytes.addAll(_kv(g, 'Propinas', money(summary.tipsTotal)));
+    }
+    if (summary.refundsTotal > 0) {
+      bytes.addAll(_kv(g, 'Reembolsos', '-${money(summary.refundsTotal)}'));
+    }
+    bytes.addAll(_kv(g, 'Cancelaciones',
+        '${summary.cancelledCount} (${money(summary.cancelledAmount)})'));
+    bytes.addAll(g.row([
+      PosColumn(
+          text: 'TOTAL VENTAS',
+          width: 6,
+          styles: const PosStyles(bold: true, height: PosTextSize.size2)),
+      PosColumn(
+        text: _san(money(shift.totalSales)),
+        width: 6,
+        styles: const PosStyles(
+            bold: true, align: PosAlign.right, height: PosTextSize.size2),
+      ),
+    ]));
+
+    bytes.addAll(g.cut());
+    return bytes;
+  }
+
   // ─── Builders PDF (modo 'grafica') ───────────────────────────────────────
   //
   // Reflejan el MISMO contenido que sus equivalentes ESC/POS, pero renderizado
@@ -960,6 +1070,73 @@ class PrintService {
     return doc.save();
   }
 
+  /// PDF del corte X/Z — mismo contenido que [buildCutTicket].
+  Future<Uint8List> buildCutTicketPdf({
+    required ShiftSummary summary,
+    required Map<String, String> settings,
+    required bool isZ,
+  }) async {
+    final symbol = settings['currency_symbol'] ?? r'$';
+    final decimals = int.tryParse(settings['currency_decimals'] ?? '2') ?? 2;
+    final businessName = settings['business_name'] ?? 'La Tercia';
+    final shift = summary.shift;
+
+    String money(double v) => formatCurrency(v, symbol, decimals: decimals);
+
+    final children = <pw.Widget>[
+      _center(businessName, _monoBig),
+      _center(isZ ? 'CORTE Z' : 'CORTE X (PARCIAL)', _monoBold),
+      if (isZ && shift.zNumber != null)
+        _center('Folio Z-${shift.zNumber}', _mono),
+      _center('Turno #${shift.id}', _mono),
+      _center(
+          formatDateTime(shift.startedAt) +
+              (shift.endedAt != null
+                  ? ' — ${formatDateTime(shift.endedAt!)}'
+                  : ''),
+          _mono),
+      _hrPdf(),
+      _kvPdf('Fondo inicial', money(shift.startingCash)),
+      _kvPdf('Ventas efectivo', money(summary.cashSales)),
+      _kvPdf('Depósitos', money(summary.deposits)),
+      _kvPdf('Retiros', '-${money(summary.withdrawals)}'),
+      _kvPdf('Esperado en caja', money(summary.expectedCash)),
+      if (summary.countedCash != null) ...[
+        _kvPdf('Efectivo contado', money(summary.countedCash!)),
+        _kvPdf(
+            'Diferencia',
+            '${summary.difference! >= 0 ? '+' : ''}${money(summary.difference!)}'),
+      ],
+      _hrPdf(),
+      pw.Text(sanitizeTicketText('Desglose por método de pago'),
+          style: _monoBold),
+      if (summary.paymentsByMethod.isEmpty)
+        pw.Text(sanitizeTicketText('Sin pagos registrados'), style: _mono)
+      else
+        for (final e in summary.paymentsByMethod.entries)
+          _kvPdf(e.key, money(e.value)),
+      _hrPdf(),
+      _kvPdf('Descuentos otorgados', money(summary.discountsTotal)),
+      if (summary.tipsTotal > 0) _kvPdf('Propinas', money(summary.tipsTotal)),
+      if (summary.refundsTotal > 0)
+        _kvPdf('Reembolsos', '-${money(summary.refundsTotal)}'),
+      _kvPdf('Cancelaciones',
+          '${summary.cancelledCount} (${money(summary.cancelledAmount)})'),
+      _kvPdf('TOTAL VENTAS', money(shift.totalSales), style: _monoMed),
+    ];
+
+    final doc = pw.Document();
+    doc.addPage(pw.Page(
+      pageFormat: _rollMargins(settings),
+      build: (context) => pw.Column(
+        crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+        mainAxisSize: pw.MainAxisSize.min,
+        children: children,
+      ),
+    ));
+    return doc.save();
+  }
+
   /// PDF del ticket de prueba — refleja [testTicketPreviewLines].
   Future<Uint8List> buildTestTicketPdf(Map<String, String> settings) async {
     final lines = testTicketPreviewLines(settings);
@@ -1147,6 +1324,35 @@ class PrintService {
           transport, kitchen, 'Comanda ${order.orderNumber}');
     } catch (e, st) {
       appLogger.warn('No se pudo construir la comanda de cocina.', e, st);
+    }
+  }
+
+  /// Imprime el corte X (parcial, turno abierto) o Z (turno cerrado). No-op
+  /// si `impresion_activa` está OFF. Nunca lanza — igual que el resto de la
+  /// impresión, es best-effort tras el cierre/consulta del turno.
+  Future<void> printCutTicket({
+    required ShiftSummary summary,
+    required Map<String, String> settings,
+    required bool isZ,
+  }) async {
+    if (!printingEnabled(settings)) return;
+    final label = isZ ? 'Corte Z' : 'Corte X';
+    final jobName = '$label turno ${summary.shift.id}';
+    try {
+      if (printerMode(settings) == 'grafica') {
+        final printerName = (settings['printer_address'] ?? '').trim();
+        final pdf =
+            await buildCutTicketPdf(summary: summary, settings: settings, isZ: isZ);
+        await printPdfToWindows(printerName, pdf, jobName);
+        return;
+      }
+
+      final transport = transportFor(settings);
+      final ticket =
+          await buildCutTicket(summary: summary, settings: settings, isZ: isZ);
+      await queue.enqueue(transport, ticket, jobName);
+    } catch (e, st) {
+      appLogger.warn('No se pudo construir el corte para imprimir.', e, st);
     }
   }
 

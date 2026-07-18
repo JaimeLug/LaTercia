@@ -135,8 +135,34 @@ En una TTY (`Ctrl+Alt+F3` → login):
 cage -- /opt/latercia/latercia
 ```
 Si abre la app a pantalla completa → todo bien (`Ctrl+Alt+F1` para volver). Si da
-error de renderer, la GPU no está habilitada — revisa drivers; como plan B usa el
-método autostart de `setup.md` §4–5.
+error de renderer, la GPU no está habilitada — sigue con **5.3b** (plan B por
+software) antes de rendirte con el método autostart de `setup.md` §4–5 (ese
+sí muestra el escritorio un instante al arrancar, sin el efecto "electrodoméstico").
+
+**5.3b — Plan B: render por software** (auditoría 2026-07-17). Si el driver de
+GPU falla o no está disponible (común en una VM, o en hardware con un driver
+roto), `cage` puede forzar renderizado por software con Mesa/llvmpipe en vez de
+depender de la GPU. Es más lento (perceptible en animaciones) pero evita la
+pantalla negra permanente:
+```bash
+LIBGL_ALWAYS_SOFTWARE=1 cage -- /opt/latercia/latercia
+```
+Si esto sí abre la app, crea una sesión kiosko alterna con la variable ya puesta
+(no reemplaces la de 5.1 — deja las dos, para poder elegir cuál usar sin volver
+a editar archivos):
+```bash
+sudo tee /usr/share/wayland-sessions/latercia-kiosk-software.desktop > /dev/null <<'EOF'
+[Desktop Entry]
+Name=La Tercia Kiosko (software rendering)
+Comment=POS — fallback sin GPU
+Exec=env LIBGL_ALWAYS_SOFTWARE=1 cage -- /opt/latercia/latercia
+Type=Application
+EOF
+```
+Y apunta `Session=` en `/etc/sddm.conf.d/autologin.conf` (paso 5.2) a
+`latercia-kiosk-software` en vez de `latercia-kiosk`. Si más adelante se
+resuelve el driver de GPU, vuelve a apuntar a la sesión normal — no hace falta
+reinstalar nada.
 
 **5.4** Reinicia: `sudo reboot`. Debe arrancar directo en el POS.
 

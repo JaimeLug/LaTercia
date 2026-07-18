@@ -71,6 +71,28 @@ void main() {
     expect(count, 1);
   });
 
+  // FASE de auditoría 2026-07-17 — el backup ahora copia a .tmp y renombra
+  // (rename atómico) en vez de copiar directo al nombre final.
+  test('backupNow nunca deja el archivo final con sufijo .tmp', () async {
+    final file = await backup.backupNow(reason: 'test');
+    expect(file, isNotNull);
+    expect(file!.path.endsWith('.tmp'), isFalse);
+    expect(await File('${file.path}.tmp').exists(), isFalse,
+        reason: 'no debe quedar un .tmp huérfano tras un backup exitoso');
+  });
+
+  test('un .tmp huérfano de un intento anterior interrumpido se limpia solo',
+      () async {
+    final dir = await backup.backupsDir();
+    final orphan = File(p.join(dir.path, 'latercia-viejo.db.tmp'));
+    await orphan.writeAsString('incompleto');
+
+    await backup.backupNow(reason: 'test');
+
+    expect(await orphan.exists(), isFalse,
+        reason: 'el .tmp huérfano debe borrarse en el siguiente backup');
+  });
+
   test('la retención borra respaldos más antiguos que N días', () async {
     await db.settingsDao.setValue('backup_retention_days', '7');
     final dir = await backup.backupsDir();

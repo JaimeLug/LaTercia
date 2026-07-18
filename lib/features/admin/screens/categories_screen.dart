@@ -2,6 +2,7 @@ import 'package:drift/drift.dart' show Value;
 import 'package:flex_color_picker/flex_color_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:sqlite3/sqlite3.dart' show SqliteException;
 import '../../../core/database/database.dart';
 import '../../../core/providers/categories_provider.dart';
 import '../../../core/providers/database_provider.dart';
@@ -130,12 +131,22 @@ class CategoriesScreen extends ConsumerWidget {
         ],
       ),
     );
-    if (confirmed == true) {
-      await ref
-          .read(databaseProvider)
-          .categoriesDao
-          .deleteCategory(cat.id);
+    if (confirmed != true) return;
+    try {
+      await ref.read(databaseProvider).categoriesDao.deleteCategory(cat.id);
       ref.invalidate(categoriesProvider);
+    } on SqliteException catch (_) {
+      // FK constraint (foreign_keys=ON desde v6): la categoría todavía tiene
+      // productos apuntándole — no se puede borrar sin antes moverlos/
+      // borrarlos, y no queremos dejar productos huérfanos.
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+                'No se puede eliminar: la categoría todavía tiene productos asociados.'),
+          ),
+        );
+      }
     }
   }
 }

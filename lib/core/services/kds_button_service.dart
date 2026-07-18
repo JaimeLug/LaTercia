@@ -90,6 +90,14 @@ class KdsButtonService {
   bool get conectado => _clientSocket != null;
   bool get isRunning => _server != null;
 
+  // Auditoría 2026-07-17 — rebote mecánico: un botón físico puede mandar
+  // varios mensajes idénticos en milisegundos. Sin esto, cada rebote
+  // disparaba sonido/toast/escritura a BD por separado, y —desde el reenvío
+  // cross-proceso (3.5)— se reenviaba duplicado a la ventana KDS separada.
+  KdsButton? _lastButton;
+  DateTime? _lastButtonAt;
+  static const _debounceWindow = Duration(milliseconds: 180);
+
   /// Best-effort: si el puerto ya está tomado (otra ventana KDS ya lo tiene),
   /// queda en silencio sin recibir eventos — nunca lanza hacia el caller.
   /// [port] es configurable desde Configuración (default 8080, el que trae
@@ -136,9 +144,20 @@ class KdsButtonService {
       socket.listen(
         (message) {
           if (message is String) {
+            // El stream crudo SIEMPRE recibe todo, rebote incluido — es el
+            // diagnóstico de hardware (Admin → Botonera) y no debe ocultar
+            // nada de lo que realmente llegó del ESP32.
             _rawController.add(message);
             final boton = parseKdsButton(message);
-            if (boton != null) _controller.add(boton);
+            if (boton == null) return;
+
+            final now = DateTime.now();
+            final isBounce = boton == _lastButton &&
+                _lastButtonAt != null &&
+                now.difference(_lastButtonAt!) < _debounceWindow;
+            _lastButton = boton;
+            _lastButtonAt = now;
+            if (!isBounce) _controller.add(boton);
           }
         },
         onDone: () {

@@ -1,5 +1,5 @@
 # Plan de Ataque — La Tercia POS + KDS → producto comercial completo
-**Fecha:** 2026-07-15 · **Fuente:** [AUDITORIA_2026-07.md](AUDITORIA_2026-07.md)
+**Fecha:** 2026-07-15 · **Fuente:** [AUDITORIA_2026-07-17.md](AUDITORIA_2026-07-17.md)
 **Convención:** `[FLAG]` = funcionalidad opcional, activable en Configuración (default indicado). Tamaños: S (<½ sesión) · M (½–1 sesión) · L (1–2 sesiones).
 
 **Regla general:** cada fase termina con `flutter analyze` limpio, suite de tests verde y verificación visual. Una migración de esquema por fase, no por tarea.

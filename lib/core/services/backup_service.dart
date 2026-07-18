@@ -71,14 +71,47 @@ class BackupService {
   Future<File?> backupNow({required String reason}) async {
     try {
       // Vuelca el WAL al .db para que la copia incluya lo recién escrito.
-      await _db.customStatement('PRAGMA wal_checkpoint(TRUNCATE);');
+      // `PRAGMA wal_checkpoint(TRUNCATE)` devuelve (busy, log, checkpointed) —
+      // si hay un lector concurrente (ej. el KDS a media consulta del poll de
+      // 2s), el checkpoint puede quedar parcial sin lanzar error, y el backup
+      // copiaría el .db sin las transacciones más recientes del WAL. Lo
+      // logueamos (no bloqueante — best-effort) para poder diagnosticarlo.
+      final checkpoint =
+          await _db.customSelect('PRAGMA wal_checkpoint(TRUNCATE);').get();
+      if (checkpoint.isNotEmpty) {
+        final row = checkpoint.first.data;
+        final busy = row['busy'] as int?;
+        final log = row['log'] as int?;
+        final checkpointed = row['checkpointed'] as int?;
+        if (busy == 1 || (log != null && checkpointed != null && checkpointed < log)) {
+          appLogger.warn(
+              'Checkpoint del WAL incompleto antes del backup ($reason): '
+              'busy=$busy log=$log checkpointed=$checkpointed — el respaldo '
+              'podría no incluir las escrituras más recientes.');
+        }
+      }
       final src = File(await _dbPath());
       if (!await src.exists()) return null;
 
       final dir = await backupsDir();
+      // Limpia .tmp huérfanos de un intento anterior interrumpido (ej. el
+      // proceso murió entre el copy() y el rename()) — no deben acumularse.
+      await for (final e in dir.list()) {
+        if (e is File && e.path.endsWith('.tmp')) {
+          try {
+            await e.delete();
+          } catch (_) {/* best-effort */}
+        }
+      }
       final stamp = DateFormat('yyyy-MM-dd_HHmmss').format(DateTime.now());
       final dest = p.join(dir.path, 'latercia-$stamp.db');
-      await src.copy(dest);
+      // Copia a un archivo temporal y luego renombra — el rename es atómico
+      // en el mismo volumen (Windows/Linux), así que ante un corte de luz a
+      // medio `copy()` el respaldo nunca queda truncado con el nombre final:
+      // o existe completo, o no existe.
+      final tmp = File('$dest.tmp');
+      await src.copy(tmp.path);
+      await tmp.rename(dest);
 
       await _db.settingsDao
           .setValue('last_backup_at', DateTime.now().toIso8601String());

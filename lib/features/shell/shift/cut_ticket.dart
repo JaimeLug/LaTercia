@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/providers/settings_provider.dart';
+import '../../../core/services/print_service.dart';
 import '../../../core/services/shift_service.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/csv_exporter.dart';
@@ -8,7 +11,7 @@ import '../../../core/utils/formatters.dart';
 /// Receipt-styled read-out of a [ShiftSummary] — used for both Corte X (the
 /// open shift, no `countedCash`) and Corte Z (a closed shift, always has
 /// one). Mirrors the visual language of `ReceiptDialog` for consistency.
-class CutTicket extends StatelessWidget {
+class CutTicket extends ConsumerWidget {
   final ShiftSummary summary;
   final String symbol;
   final bool isZ;
@@ -21,7 +24,7 @@ class CutTicket extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final s = summary;
     final shift = s.shift;
 
@@ -95,14 +98,54 @@ class CutTicket extends StatelessWidget {
             _row('Total ventas', formatCurrency(shift.totalSales, symbol),
                 bold: true),
           const SizedBox(height: 16),
-          OutlinedButton.icon(
-            icon: const Icon(Icons.download, size: 18),
-            label: const Text('Exportar CSV'),
-            onPressed: () => _export(context),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  icon: const Icon(Icons.print, size: 18),
+                  label: const Text('Imprimir'),
+                  onPressed: () => _print(context, ref),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: OutlinedButton.icon(
+                  icon: const Icon(Icons.download, size: 18),
+                  label: const Text('Exportar CSV'),
+                  onPressed: () => _export(context),
+                ),
+              ),
+            ],
           ),
         ],
       ),
     );
+  }
+
+  Future<void> _print(BuildContext context, WidgetRef ref) async {
+    final settings = ref.read(settingsProvider).valueOrNull ?? {};
+    final printService = ref.read(printServiceProvider);
+
+    if (!printService.printingEnabled(settings)) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+                'La impresión está desactivada. Actívala en Configuración.'),
+          ),
+        );
+      }
+      return;
+    }
+
+    await printService.printCutTicket(
+        summary: summary, settings: settings, isZ: isZ);
+
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Corte enviado a la cola de impresión.')),
+      );
+    }
   }
 
   Future<void> _export(BuildContext context) async {

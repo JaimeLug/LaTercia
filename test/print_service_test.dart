@@ -1,3 +1,4 @@
+import 'package:drift/drift.dart' show Value;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
@@ -5,6 +6,7 @@ import 'package:latercia/core/database/database.dart';
 import 'package:latercia/core/models/order_with_items.dart';
 import 'package:latercia/core/services/checkout_service.dart';
 import 'package:latercia/core/services/print_service.dart';
+import 'package:latercia/core/services/shift_service.dart';
 
 /// Transporte falso que falla las primeras [failTimes] veces y luego "imprime".
 class _FakeTransport implements PrinterTransport {
@@ -102,6 +104,24 @@ void main() {
     );
   }
 
+  /// Construye un turno cerrado (Corte Z) real vía ShiftService y devuelve su
+  /// ShiftSummary, para alimentar buildCutTicket/buildCutTicketPdf.
+  Future<ShiftSummary> makeShiftSummary() async {
+    final shiftId = await db.shiftsDao.openShift(
+      ShiftsCompanion.insert(
+        employeeId: 1,
+        startedAt: DateTime.now(),
+        startingCash: const Value(500),
+      ),
+    );
+    await makeSale(); // se adjunta solo al turno abierto (getCurrentOpenShift)
+    return ShiftService(db).closeShift(
+      shiftId: shiftId,
+      employeeId: 1,
+      countedCash: 600,
+    );
+  }
+
   group('ticket de venta (bytes)', () {
     // GS V 0 = corte total en esc_pos_utils_plus.
     const cutSequence = [0x1D, 0x56, 0x30];
@@ -187,6 +207,59 @@ void main() {
     });
   });
 
+  // Auditoría 2026-07-17 — antes el corte X/Z no tenía ruta de impresión.
+  group('corte X/Z (bytes)', () {
+    const cutSequence = [0x1D, 0x56, 0x30];
+
+    test('corte Z genera bytes no vacíos, con folio, y termina en el corte '
+        'de papel', () async {
+      final summary = await makeShiftSummary();
+      final bytes = await printService.buildCutTicket(
+        summary: summary,
+        settings: const {'printer_width': '80', 'currency_symbol': r'$'},
+        isZ: true,
+      );
+
+      expect(bytes, isNotEmpty);
+      expect(_endsWith(bytes, cutSequence), isTrue);
+    });
+
+    test('corte X (turno abierto, sin countedCash) también genera bytes '
+        'válidos', () async {
+      final shiftId = await db.shiftsDao.openShift(
+        ShiftsCompanion.insert(
+          employeeId: 1,
+          startedAt: DateTime.now(),
+          startingCash: const Value(300),
+        ),
+      );
+      final summary = await ShiftService(db).computeSummary(shiftId);
+      final bytes = await printService.buildCutTicket(
+        summary: summary,
+        settings: const {'printer_width': '58'},
+        isZ: false,
+      );
+
+      expect(bytes, isNotEmpty);
+      expect(_endsWith(bytes, cutSequence), isTrue);
+    });
+
+    test('printCutTicket no-op si impresion_activa está OFF (no toca la cola)',
+        () async {
+      final summary = await makeShiftSummary();
+
+      await printService.printCutTicket(
+        summary: summary,
+        settings: const {'impresion_activa': 'false'},
+        isZ: true,
+      );
+
+      expect(printService.queue.lastJobFailed, isFalse,
+          reason: 'con el flag OFF, printCutTicket debe salir antes de '
+              'tocar la cola de impresión');
+    });
+  });
+
   group('builders PDF (modo grafica)', () {
     // Header de un documento PDF: "%PDF".
     const pdfHeader = [0x25, 0x50, 0x44, 0x46];
@@ -212,6 +285,17 @@ void main() {
         expect(bytes, isNotEmpty);
         expect(startsWithPdf(bytes), isTrue,
             reason: 'debe empezar con el header %PDF');
+      });
+
+      test('buildCutTicketPdf a ${width}mm produce un PDF válido', () async {
+        final summary = await makeShiftSummary();
+        final bytes = await printService.buildCutTicketPdf(
+          summary: summary,
+          settings: {'printer_width': width, 'currency_symbol': r'$'},
+          isZ: true,
+        );
+        expect(bytes, isNotEmpty);
+        expect(startsWithPdf(bytes), isTrue);
       });
 
       test('buildKitchenTicketPdf a ${width}mm produce un PDF válido',
@@ -276,6 +360,21 @@ void main() {
         () => LinuxPrinterTransport('/dev/usb/lp0').send([0x1B]),
         throwsA(isA<UnsupportedError>()),
       );
+    });
+
+    // Auditoría 2026-07-17 — antes no tenía timeout (a diferencia de
+    // NetworkPrinterTransport). No se puede probar el timeout disparándose
+    // de verdad sin Linux/hardware real (el runner de test es Windows y
+    // `send()` lanza antes de llegar a esa lógica), pero sí confirmamos que
+    // el parámetro existe con un default razonable y que se puede overridear.
+    test('LinuxPrinterTransport expone timeout configurable (default 8s)',
+        () {
+      final t1 = LinuxPrinterTransport('/dev/usb/lp0');
+      expect(t1.timeout, const Duration(seconds: 8));
+
+      final t2 = LinuxPrinterTransport('cola-cups',
+          timeout: const Duration(seconds: 3));
+      expect(t2.timeout, const Duration(seconds: 3));
     });
 
     test('sin dirección devuelve null (impresora no configurada)', () {

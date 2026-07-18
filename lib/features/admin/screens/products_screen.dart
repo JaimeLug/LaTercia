@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
+import 'package:sqlite3/sqlite3.dart' show SqliteException;
 import '../../../core/database/database.dart';
 import '../../../core/database/daos/recipes_dao.dart';
 import '../../../core/providers/categories_provider.dart';
@@ -264,12 +265,21 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
         ],
       ),
     );
-    if (confirmed == true) {
-      await ref
-          .read(databaseProvider)
-          .productsDao
-          .deleteProduct(product.id);
+    if (confirmed != true) return;
+    try {
+      await ref.read(databaseProvider).productsDao.deleteProduct(product.id);
       setState(() {});
+    } on SqliteException catch (_) {
+      // FK constraint (foreign_keys=ON desde v6): el producto ya tiene
+      // órdenes/receta apuntándole — no se puede borrar sin dejar huérfanos.
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+                'No se puede eliminar: el producto ya tiene ventas o una receta asociada.'),
+          ),
+        );
+      }
     }
   }
 }

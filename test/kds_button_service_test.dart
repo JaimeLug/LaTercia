@@ -63,6 +63,65 @@ void main() {
       await ws.close();
     });
 
+    // Auditoría 2026-07-17 — rebote mecánico del botón físico.
+    test('mensajes idénticos y seguidos (rebote) se colapsan en un solo '
+        'evento', () async {
+      final ws = await connectAsEsp32();
+      final events = <KdsButton>[];
+      final sub = service.botonPresionado.listen(events.add);
+
+      // Simula el rebote: el mismo botón "spameado" varias veces en pocos ms.
+      for (var i = 0; i < 5; i++) {
+        ws.add('LISTO');
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 250));
+
+      expect(events, [KdsButton.listo],
+          reason: 'el rebote no debe generar 5 acciones de "listo"');
+
+      await sub.cancel();
+      await ws.close();
+    });
+
+    test('el stream crudo (diagnóstico) sí ve cada mensaje del rebote',
+        () async {
+      final ws = await connectAsEsp32();
+      final raw = <String>[];
+      final sub = service.mensajeCrudo.listen(raw.add);
+
+      for (var i = 0; i < 5; i++) {
+        ws.add('LISTO');
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 250));
+
+      expect(raw, hasLength(5),
+          reason:
+              'el panel de diagnóstico debe ver todo lo que mandó el ESP32, '
+              'rebote incluido — solo el stream de acciones se debounce');
+
+      await sub.cancel();
+      await ws.close();
+    });
+
+    test('el mismo botón presionado de nuevo DESPUÉS de la ventana de '
+        'debounce sí cuenta dos veces', () async {
+      final ws = await connectAsEsp32();
+      final events = <KdsButton>[];
+      final sub = service.botonPresionado.listen(events.add);
+
+      ws.add('LISTO');
+      await Future<void>.delayed(const Duration(milliseconds: 250));
+      ws.add('LISTO');
+      await Future<void>.delayed(const Duration(milliseconds: 250));
+
+      expect(events, [KdsButton.listo, KdsButton.listo],
+          reason: 'dos presiones reales separadas en el tiempo deben contar '
+              'ambas, no es un debounce permanente');
+
+      await sub.cancel();
+      await ws.close();
+    });
+
     test('conectado refleja el estado del socket del ESP32', () async {
       expect(service.conectado, isFalse);
       final ws = await connectAsEsp32();
