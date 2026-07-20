@@ -280,11 +280,28 @@ class _EmployeeFormDialogState
     if (!_formKey.currentState!.validate()) return;
     final db = ref.read(databaseProvider);
 
-    // Store the PIN hashed. On edit with an empty field, leave the PIN as-is.
+    // On edit, an empty PIN field means "keep the current PIN"; solo estamos
+    // fijando un PIN cuando el campo trae valor (o es un empleado nuevo).
     final pinText = _pinCtrl.text;
-    final pinValue = (widget.employee != null && pinText.isEmpty)
-        ? const Value<String>.absent()
-        : Value(hashPin(pinText));
+    final settingPin = !(widget.employee != null && pinText.isEmpty);
+
+    // Impedir dos empleados ACTIVOS con el mismo PIN (auditoría 2026-07-18):
+    // sin esto, dos cajeros podían compartir PIN y la auditoría por empleado
+    // quedaba ambigua. Solo se valida cuando se está fijando un PIN.
+    if (settingPin &&
+        await db.employeesDao
+            .pinInUseByActive(pinText, excludeId: widget.employee?.id)) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Ese PIN ya lo usa otro empleado activo. Elige otro.'),
+        ));
+      }
+      return;
+    }
+
+    // Store the PIN hashed. On edit with an empty field, leave the PIN as-is.
+    final pinValue =
+        settingPin ? Value(hashPin(pinText)) : const Value<String>.absent();
 
     final companion = EmployeesCompanion(
       id: widget.employee != null
@@ -295,10 +312,21 @@ class _EmployeeFormDialogState
       role: Value(_role),
     );
 
-    if (widget.employee == null) {
-      await db.employeesDao.insertEmployee(companion);
-    } else {
-      await db.employeesDao.updateEmployee(companion);
+    try {
+      if (widget.employee == null) {
+        await db.employeesDao.insertEmployee(companion);
+      } else {
+        await db.employeesDao.updateEmployee(companion);
+      }
+    } catch (e) {
+      // Red de seguridad: el UNIQUE(pin) de la base aún podría saltar (p.ej. si
+      // el PIN lo tiene un empleado INACTIVO). Mensaje claro en vez de crash.
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('No se pudo guardar: ese PIN ya está en uso.'),
+        ));
+      }
+      return;
     }
     if (mounted) Navigator.pop(context);
   }

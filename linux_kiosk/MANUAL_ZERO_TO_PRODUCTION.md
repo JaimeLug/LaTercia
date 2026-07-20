@@ -145,8 +145,21 @@ sync    # ← IMPORTANTE: fuerza la escritura real al USB antes de sacarlo
 y luego expulsa el USB desde el explorador de archivos (o
 `umount /media/jaimel/KINGSTON`).
 
+**⚠️ La base de datos NO viaja con el bundle.** El bundle solo lleva el
+programa; el catálogo, empleados, configuración, etc. viven en un archivo
+aparte que hay que llevar explícitamente. La base "buena" (la del catálogo
+real ya cargado) está en **Windows**, en:
+```
+C:\Users\jaime\Documents\latercia.sqlite
+```
+Con la app de Windows **cerrada** (POS y KDS), copia ese archivo al USB-2.
+*(Alternativa más ordenada: en la app de Windows, Configuración → Respaldo →
+exportar un respaldo fresco, y copiar ese archivo al USB-2 — se restaura en
+sitio con Configuración → Respaldo → Restaurar.)*
+
 **Verificación final del USB-2** (en cualquier máquina): debe contener
-`bundle/` (con `latercia`, `lib/`, `data/` adentro) y `linux_kiosk/`.
+`bundle/` (con `latercia`, `lib/`, `data/` adentro), `linux_kiosk/` y
+`latercia.sqlite` (o el archivo de respaldo exportado).
 
 ---
 
@@ -531,6 +544,39 @@ LIBGL_ALWAYS_SOFTWARE=1 /opt/latercia/latercia
 ```
 Si así sí abre, la GPU de esta PC no puede con el render acelerado —
 **apúntalo**: en la Fase 4 irás directo al Plan B (4.4).
+
+### 3.3b Cargar la base de datos con el catálogo real
+
+La primera ejecución (3.3) creó una base **vacía** (con los defaults de
+fábrica). Ahora reemplázala por la base buena que traes en el USB-2.
+
+**Opción A — reemplazo directo del archivo:**
+1. Cierra la app por completo.
+2. Localiza dónde creó la app su base en esta PC:
+   ```bash
+   find ~ -name "latercia.sqlite*" 2>/dev/null
+   # → lo esperado: /home/pos/Documents(o Documentos)/latercia.sqlite
+   #   (pueden aparecer también latercia.sqlite-wal / -shm)
+   ```
+3. Reemplaza (ajusta las rutas a lo que te dio el `find` y al nombre real de
+   tu USB):
+   ```bash
+   rm -f ~/Documents/latercia.sqlite-wal ~/Documents/latercia.sqlite-shm
+   cp /media/pos/KINGSTON/latercia.sqlite ~/Documents/latercia.sqlite
+   ```
+   *(Los `-wal`/`-shm` son restos de la sesión anterior; hay que borrarlos
+   para que no mezclen datos de la base vacía con la nueva.)*
+4. Abre la app de nuevo → debe aparecer **todo el catálogo real**. Si sigue
+   viéndose vacía, copiaste a una ruta distinta de la que usa la app —
+   repite el `find` y compara.
+
+**Opción B — por la propia app (si llevaste un respaldo exportado):** abre la
+app → PIN admin → Configuración → Respaldo → **Restaurar** → elige el archivo
+del USB → la restauración se aplica al reiniciar la app.
+
+⚠️ En cualquiera de las dos: verifica después productos, precios y empleados
+antes de seguir — este es el momento de detectar un archivo equivocado, no el
+día de la primera venta.
 
 ### 3.4 Permisos de impresión (haz esto ya, aunque la impresora se conecte después)
 
@@ -954,7 +1000,8 @@ Los datos NO se tocan (viven fuera del bundle). Si el bundle nuevo falla,
 restaurar: `sudo rm -rf /opt/latercia && sudo mv /opt/latercia.anterior /opt/latercia`.
 
 **Rutas importantes:**
-- Base de datos: `/home/pos/.local/share/latercia/latercia.db`
+- Base de datos: `/home/pos/Documents/latercia.sqlite` (o `Documentos/` según
+  el idioma del sistema — confírmala con `find ~ -name "latercia.sqlite"`)
 - Logs (uno por día, purga automática 30 días / tope 50 MB):
   `/home/pos/.local/share/latercia/logs/`
 - Backups: `/home/pos/.local/share/latercia/backups/`

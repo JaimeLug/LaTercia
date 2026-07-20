@@ -24,6 +24,22 @@ class EmployeesDao extends DatabaseAccessor<AppDatabase>
             ..where((e) => e.pin.equals(hashPin(pin)) & e.active.equals(true)))
           .getSingleOrNull();
 
+  /// ¿Algún OTRO empleado **activo** (distinto de [excludeId]) ya usa este PIN?
+  ///
+  /// Compara contra el hash, igual que el login. Se usa para impedir PINs
+  /// duplicados entre cajeros activos antes de guardar — sin esto, dos cajeros
+  /// podían compartir PIN y los reportes por empleado quedaban ambiguos
+  /// (auditoría 2026-07-18). Los empleados inactivos NO cuentan, para poder
+  /// reutilizar el PIN de alguien dado de baja.
+  Future<bool> pinInUseByActive(String pin, {int? excludeId}) async {
+    final query = select(employees)
+      ..where((e) => e.pin.equals(hashPin(pin)) & e.active.equals(true));
+    if (excludeId != null) {
+      query.where((e) => e.id.equals(excludeId).not());
+    }
+    return (await query.get()).isNotEmpty;
+  }
+
   Future<int> insertEmployee(EmployeesCompanion employee) =>
       into(employees).insert(employee);
 
