@@ -9,6 +9,7 @@ import '../../core/services/kds_button_service.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/utils/app_logger.dart';
 import '../../core/utils/formatters.dart';
+import '../../core/utils/kds_modifiers.dart';
 import '../../core/utils/kds_selection.dart';
 import 'widgets/order_card_kds.dart';
 
@@ -493,18 +494,33 @@ class _KdsScreenState extends ConsumerState<KdsScreen>
     );
   }
 
-  /// Vista all-day: consolida las cantidades pendientes por producto en toda la
-  /// cocina ("7× Frappé de Café"), en texto grande legible a distancia (5.3).
+  /// Vista all-day: consolida las cantidades pendientes en toda la cocina
+  /// ("7× Frappé de Café"), en texto grande legible a distancia (5.3).
+  ///
+  /// 2026-07-20 (feedback en VM): se agrupa por producto + combinación de
+  /// modificadores, no solo por producto — antes "Café Americano sin azúcar"
+  /// y "Café Americano" a secas se sumaban juntos, perdiendo justo el dato
+  /// que le importa a quien prepara. Dos pedidos con los MISMOS
+  /// modificadores sí se siguen sumando en una sola línea.
   Widget _buildAllDay(List<OrderWithItems> active) {
-    final counts = <String, int>{};
+    final groups = <String,
+        ({String product, List<KdsModifier> mods, int count})>{};
     for (final o in active) {
       for (final it in o.items) {
         if (it.itemStatus == 'listo' || it.itemStatus == 'cancelado') continue;
-        counts[it.productName] = (counts[it.productName] ?? 0) + it.quantity;
+        final mods = parseKdsModifiers(it.modifiersJson)
+          ..sort((a, b) => a.label.compareTo(b.label));
+        final key = '${it.productName}|${mods.map((m) => m.label).join(',')}';
+        final prev = groups[key];
+        groups[key] = (
+          product: it.productName,
+          mods: mods,
+          count: (prev?.count ?? 0) + it.quantity,
+        );
       }
     }
-    final entries = counts.entries.toList()
-      ..sort((a, b) => b.value.compareTo(a.value));
+    final entries = groups.values.toList()
+      ..sort((a, b) => b.count.compareTo(a.count));
 
     return ListView.separated(
       // 2026-07-20: controller propio para que Anterior/Siguiente puedan
@@ -520,11 +536,12 @@ class _KdsScreenState extends ConsumerState<KdsScreen>
         return Padding(
           padding: const EdgeInsets.symmetric(vertical: 14),
           child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               SizedBox(
                 width: 110,
                 child: Text(
-                  '${e.value}×',
+                  '${e.count}×',
                   style: const TextStyle(
                     fontFamily: 'DM Serif Display',
                     color: LaTerciaColors.gold,
@@ -534,13 +551,29 @@ class _KdsScreenState extends ConsumerState<KdsScreen>
               ),
               const SizedBox(width: 16),
               Expanded(
-                child: Text(
-                  e.key,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 32,
-                    fontWeight: FontWeight.w600,
-                  ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      e.product,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 32,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    for (final m in e.mods)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: Text(
+                          '↳ ${m.label}',
+                          style: const TextStyle(
+                            color: LaTerciaColors.kdsMuted,
+                            fontSize: 18,
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
               ),
             ],

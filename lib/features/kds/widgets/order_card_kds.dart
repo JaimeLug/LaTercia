@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/database/database.dart';
@@ -7,6 +6,7 @@ import '../../../core/providers/orders_provider.dart';
 import '../../../core/providers/settings_provider.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/formatters.dart';
+import '../../../core/utils/kds_modifiers.dart';
 import 'elapsed_timer.dart';
 
 const _typeInfo = {
@@ -253,21 +253,16 @@ class _OrderCardKdsState extends ConsumerState<OrderCardKds>
                                         ],
                                       ),
                                     ),
-                                    if (item.modifiersJson != null &&
-                                        item.modifiersJson!.isNotEmpty)
-                                      ..._parseModifiers(item.modifiersJson!)
-                                          .map(
-                                        (m) => Padding(
-                                          padding: const EdgeInsets.only(
-                                              left: 16, top: 2),
-                                          child: Text(
-                                            m['included'] == true
-                                                ? '↳ ${m['name']} (incluido)'
-                                                : '↳ ${m['name']}',
-                                            style: const TextStyle(
-                                              color: LaTerciaColors.kdsMuted,
-                                              fontSize: 13,
-                                            ),
+                                    for (final m
+                                        in parseKdsModifiers(item.modifiersJson))
+                                      Padding(
+                                        padding: const EdgeInsets.only(
+                                            left: 16, top: 2),
+                                        child: Text(
+                                          '↳ ${m.label}',
+                                          style: const TextStyle(
+                                            color: LaTerciaColors.kdsMuted,
+                                            fontSize: 13,
                                           ),
                                         ),
                                       ),
@@ -459,12 +454,4 @@ class _OrderCardKdsState extends ConsumerState<OrderCardKds>
     );
   }
 
-  List<Map<String, dynamic>> _parseModifiers(String json) {
-    try {
-      final list = jsonDecode(json) as List;
-      return list.cast<Map<String, dynamic>>();
-    } catch (_) {
-      return [];
-    }
-  }
 }

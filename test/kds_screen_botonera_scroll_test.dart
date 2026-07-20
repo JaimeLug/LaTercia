@@ -179,4 +179,85 @@ void main() {
     expect(controller.position.pixels, greaterThan(0),
         reason: 'Siguiente en All-day debe desplazar la lista hacia abajo');
   });
+
+  group('All-day agrupa por producto + modificadores (2026-07-20)', () {
+    /// Inserta una orden con UN item de [productName], opcionalmente con
+    /// [modifiersJson] — para probar que All-day agrupa por la combinación
+    /// exacta, no solo por nombre de producto.
+    Future<void> makeOrderWithItem(
+      String number, {
+      required String productName,
+      String? modifiersJson,
+      required DateTime createdAt,
+    }) async {
+      final products = await db.productsDao.getAllProducts();
+      final product = products.firstWhere((p) => p.name == productName);
+      final orderId = await db.ordersDao.insertOrder(
+        OrdersCompanion.insert(
+          orderNumber: number,
+          type: 'mesa',
+          employeeId: 1,
+          status: const Value('pendiente'),
+          createdAt: Value(createdAt),
+        ),
+      );
+      await db.orderItemsDao.insertOrderItems([
+        OrderItemsCompanion.insert(
+          orderId: orderId,
+          productId: product.id,
+          productName: product.name,
+          quantity: 1,
+          unitPrice: product.price,
+          modifiersJson: modifiersJson == null
+              ? const Value.absent()
+              : Value(modifiersJson),
+        ),
+      ]);
+    }
+
+    testWidgets(
+        'un pedido CON modificador no se mezcla con uno SIN modificador',
+        (tester) async {
+      final now = DateTime.now();
+      final products = await db.productsDao.getAllProducts();
+      final productName = products.first.name;
+
+      await makeOrderWithItem('0001',
+          productName: productName, createdAt: now);
+      await makeOrderWithItem('0002',
+          productName: productName,
+          modifiersJson: '[{"name":"Sin azúcar","included":false}]',
+          createdAt: now.add(const Duration(minutes: 1)));
+
+      await pumpKds(tester);
+      await press(tester, KdsButton.tiempo); // → vista All-day
+
+      // Dos líneas separadas de "1×" (una por cada combinación), NO una
+      // sola de "2×" — antes se sumaban juntas perdiendo el modificador.
+      expect(find.text('1×'), findsNWidgets(2));
+      expect(find.text('2×'), findsNothing);
+      expect(find.text('↳ Sin azúcar'), findsOneWidget);
+    });
+
+    testWidgets('dos pedidos con el MISMO modificador sí se suman',
+        (tester) async {
+      final now = DateTime.now();
+      final products = await db.productsDao.getAllProducts();
+      final productName = products.first.name;
+      const mods = '[{"name":"Extra shot","included":false}]';
+
+      await makeOrderWithItem('0001',
+          productName: productName, modifiersJson: mods, createdAt: now);
+      await makeOrderWithItem('0002',
+          productName: productName,
+          modifiersJson: mods,
+          createdAt: now.add(const Duration(minutes: 1)));
+
+      await pumpKds(tester);
+      await press(tester, KdsButton.tiempo);
+
+      expect(find.text('2×'), findsOneWidget);
+      expect(find.text('↳ Extra shot'), findsOneWidget);
+    });
+  });
 }
