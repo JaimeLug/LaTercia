@@ -519,8 +519,27 @@ class _KdsScreenState extends ConsumerState<KdsScreen>
         );
       }
     }
+    // Orden (feedback en VM): las variantes del MISMO producto deben quedar
+    // SEGUIDAS — antes se ordenaba solo por cantidad, así que "Café
+    // Americano sin azúcar" podía quedar lejos de "Café Americano" a secas
+    // si algún otro producto se metía en medio por tener una cantidad
+    // intermedia. Ahora se agrupa por producto (el de mayor total arriba,
+    // para seguir priorizando lo más pedido) y, dentro de cada producto,
+    // sus variantes van ordenadas por cantidad — así "si sacaron 6 cafés,
+    // se ven los 6 juntos" aunque tengan modificadores distintos.
+    final productTotals = <String, int>{};
+    for (final e in groups.values) {
+      productTotals[e.product] = (productTotals[e.product] ?? 0) + e.count;
+    }
     final entries = groups.values.toList()
-      ..sort((a, b) => b.count.compareTo(a.count));
+      ..sort((a, b) {
+        final byTotal =
+            productTotals[b.product]!.compareTo(productTotals[a.product]!);
+        if (byTotal != 0) return byTotal;
+        final byProduct = a.product.compareTo(b.product);
+        if (byProduct != 0) return byProduct;
+        return b.count.compareTo(a.count);
+      });
 
     return ListView.separated(
       // 2026-07-20: controller propio para que Anterior/Siguiente puedan

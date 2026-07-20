@@ -259,5 +259,45 @@ void main() {
       expect(find.text('2×'), findsOneWidget);
       expect(find.text('↳ Extra shot'), findsOneWidget);
     });
+
+    testWidgets(
+        'las variantes del MISMO producto quedan SEGUIDAS, sin que otro '
+        'producto se meta en medio (feedback en VM sobre el orden)',
+        (tester) async {
+      final now = DateTime.now();
+      final products = await db.productsDao.getAllProducts();
+      final productA = products[0].name;
+      final productB = products[1].name;
+
+      // A-plano × 3, B × 2, A-"sin azúcar" × 1. Con el orden VIEJO (solo por
+      // cantidad) quedaría: A-plano(3), B(2), A-sin-azúcar(1) — B metido en
+      // medio de las dos variantes de A. Con el nuevo orden (agrupado por
+      // producto, el de mayor total primero) A (total 4) va completo antes
+      // que B (total 2).
+      for (var i = 0; i < 3; i++) {
+        await makeOrderWithItem('A-plano-$i',
+            productName: productA,
+            createdAt: now.add(Duration(minutes: i)));
+      }
+      for (var i = 0; i < 2; i++) {
+        await makeOrderWithItem('B-$i',
+            productName: productB,
+            createdAt: now.add(Duration(minutes: 10 + i)));
+      }
+      await makeOrderWithItem('A-sinaz',
+          productName: productA,
+          modifiersJson: '[{"name":"Sin azúcar","included":false}]',
+          createdAt: now.add(const Duration(minutes: 20)));
+
+      await pumpKds(tester);
+      await press(tester, KdsButton.tiempo);
+
+      final ySinAzucar = tester.getTopLeft(find.text('↳ Sin azúcar')).dy;
+      final yProductoB = tester.getTopLeft(find.text(productB)).dy;
+
+      expect(ySinAzucar, lessThan(yProductoB),
+          reason: 'las dos variantes de "$productA" deben quedar juntas — '
+              '"$productB" no debe aparecer entre ellas');
+    });
   });
 }
