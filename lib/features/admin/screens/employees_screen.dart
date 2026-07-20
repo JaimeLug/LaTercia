@@ -37,8 +37,8 @@ class _EmployeesScreenState extends ConsumerState<EmployeesScreen> {
       ),
       body: employeesAsync.when(
         data: (employees) {
-          final usingDefaultAdminPin = employees.any((e) =>
-              e.role == 'admin' && e.active && isDefaultAdminPin(e.pin));
+          final usingDefaultAdminPin = employees.any(
+              (e) => e.role == 'admin' && e.active && isDefaultAdminPin(e.pin));
           if (employees.isEmpty) {
             return const AdminEmptyState(
               icon: Icons.badge_outlined,
@@ -105,15 +105,13 @@ class _EmployeesScreenState extends ConsumerState<EmployeesScreen> {
                                 children: [
                                   IconButton(
                                     icon: const Icon(Icons.edit_outlined,
-                                        size: 18,
-                                        color: LaTerciaColors.tan),
+                                        size: 18, color: LaTerciaColors.tan),
                                     visualDensity: VisualDensity.compact,
                                     onPressed: () => _showForm(context, e),
                                   ),
                                   IconButton(
                                     icon: const Icon(Icons.delete_outline,
-                                        size: 18,
-                                        color: LaTerciaColors.danger),
+                                        size: 18, color: LaTerciaColors.danger),
                                     visualDensity: VisualDensity.compact,
                                     onPressed: () => _delete(context, e),
                                   ),
@@ -136,16 +134,14 @@ class _EmployeesScreenState extends ConsumerState<EmployeesScreen> {
     );
   }
 
-  Future<void> _showForm(
-      BuildContext context, Employee? employee) async {
+  Future<void> _showForm(BuildContext context, Employee? employee) async {
     await showDialog(
       context: context,
       builder: (_) => _EmployeeFormDialog(employee: employee),
     );
   }
 
-  Future<void> _delete(
-      BuildContext context, Employee employee) async {
+  Future<void> _delete(BuildContext context, Employee employee) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
@@ -162,10 +158,7 @@ class _EmployeesScreenState extends ConsumerState<EmployeesScreen> {
       ),
     );
     if (confirmed == true) {
-      await ref
-          .read(databaseProvider)
-          .employeesDao
-          .deleteEmployee(employee.id);
+      await ref.read(databaseProvider).employeesDao.deleteEmployee(employee.id);
     }
   }
 }
@@ -179,8 +172,7 @@ class _EmployeeFormDialog extends ConsumerStatefulWidget {
       _EmployeeFormDialogState();
 }
 
-class _EmployeeFormDialogState
-    extends ConsumerState<_EmployeeFormDialog> {
+class _EmployeeFormDialogState extends ConsumerState<_EmployeeFormDialog> {
   final _formKey = GlobalKey<FormState>();
   late TextEditingController _nameCtrl;
   late TextEditingController _pinCtrl;
@@ -208,8 +200,8 @@ class _EmployeeFormDialogState
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: Text(
-          widget.employee == null ? 'Nuevo empleado' : 'Editar empleado'),
+      title:
+          Text(widget.employee == null ? 'Nuevo empleado' : 'Editar empleado'),
       content: Form(
         key: _formKey,
         child: Column(
@@ -217,10 +209,8 @@ class _EmployeeFormDialogState
           children: [
             TextFormField(
               controller: _nameCtrl,
-              decoration:
-                  const InputDecoration(labelText: 'Nombre *'),
-              validator: (v) =>
-                  v!.isEmpty ? 'Requerido' : null,
+              decoration: const InputDecoration(labelText: 'Nombre *'),
+              validator: (v) => v!.isEmpty ? 'Requerido' : null,
             ),
             const SizedBox(height: 8),
             TextFormField(
@@ -230,10 +220,9 @@ class _EmployeeFormDialogState
                     ? 'PIN (4 dígitos) *'
                     : 'Nuevo PIN (vacío = sin cambio)',
                 suffixIcon: IconButton(
-                  icon: Icon(
-                      _showPin ? Icons.visibility_off : Icons.visibility),
-                  onPressed: () =>
-                      setState(() => _showPin = !_showPin),
+                  icon:
+                      Icon(_showPin ? Icons.visibility_off : Icons.visibility),
+                  onPressed: () => setState(() => _showPin = !_showPin),
                 ),
               ),
               obscureText: !_showPin,
@@ -253,14 +242,10 @@ class _EmployeeFormDialogState
               value: _role,
               decoration: const InputDecoration(labelText: 'Rol'),
               items: const [
-                DropdownMenuItem(
-                    value: 'admin', child: Text('Administrador')),
-                DropdownMenuItem(
-                    value: 'gerente', child: Text('Gerente')),
-                DropdownMenuItem(
-                    value: 'cashier', child: Text('Cajero')),
-                DropdownMenuItem(
-                    value: 'kitchen', child: Text('Cocina')),
+                DropdownMenuItem(value: 'admin', child: Text('Administrador')),
+                DropdownMenuItem(value: 'gerente', child: Text('Gerente')),
+                DropdownMenuItem(value: 'cashier', child: Text('Cajero')),
+                DropdownMenuItem(value: 'kitchen', child: Text('Cocina')),
               ],
               onChanged: (v) => setState(() => _role = v!),
             ),

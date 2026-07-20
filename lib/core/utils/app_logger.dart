@@ -38,9 +38,12 @@ class AppLogger {
 
   Future<Directory> _getLogDir() async {
     if (_logDir != null) return _logDir!;
+    // A3 (2026-07-20): logs a Documentos junto con los backups — pensados
+    // para que un técnico los encuentre y copie a mano, no en la carpeta
+    // interna de soporte de la app (donde ahora vive la base de datos).
     final appDir = logDirOverrideForTesting != null
         ? await logDirOverrideForTesting!()
-        : await getApplicationSupportDirectory();
+        : await getApplicationDocumentsDirectory();
     final dir = logDirOverrideForTesting != null
         ? appDir
         : Directory(p.join(appDir.path, 'latercia', 'logs'));
@@ -120,7 +123,8 @@ class AppLogger {
   /// ese caso).
   Future<void> purgeOldLogs() async {
     final dir = await _getLogDir();
-    final cutoff = DateTime.now().subtract(const Duration(days: _retentionDays));
+    final cutoff =
+        DateTime.now().subtract(const Duration(days: _retentionDays));
     final remaining = <File, DateTime>{};
 
     await for (final entity in dir.list()) {
@@ -171,7 +175,8 @@ class AppLogger {
     }
   }
 
-  void _write(LogLevel level, String message, [Object? error, StackTrace? stackTrace]) {
+  void _write(LogLevel level, String message,
+      [Object? error, StackTrace? stackTrace]) {
     final line = StringBuffer()
       ..write(DateTime.now().toIso8601String())
       ..write(' [')

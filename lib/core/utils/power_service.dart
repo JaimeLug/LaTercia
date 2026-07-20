@@ -39,7 +39,8 @@ class PowerService {
         mode: ProcessStartMode.detached,
       );
     } catch (e, st) {
-      appLogger.warn('No se pudo relanzar la aplicación automáticamente.', e, st);
+      appLogger.warn(
+          'No se pudo relanzar la aplicación automáticamente.', e, st);
     }
     exit(0);
   }

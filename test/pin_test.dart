@@ -81,8 +81,7 @@ void main() {
       expect(await db.employeesDao.pinInUseByActive('2222'), isFalse);
     });
 
-    test('excludeId ignora al propio empleado (para poder editarlo)',
-        () async {
+    test('excludeId ignora al propio empleado (para poder editarlo)', () async {
       final id = await db.employeesDao.insertEmployee(
         EmployeesCompanion.insert(
             name: 'Caja 1', pin: hashPin('1111'), role: 'cashier'),

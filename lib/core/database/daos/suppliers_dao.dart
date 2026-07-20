@@ -12,11 +12,10 @@ class SuppliersDao extends DatabaseAccessor<AppDatabase>
       (select(suppliers)..orderBy([(s) => OrderingTerm(expression: s.name)]))
           .get();
 
-  Future<List<Supplier>> getActiveSuppliers() =>
-      (select(suppliers)
-            ..where((s) => s.active.equals(true))
-            ..orderBy([(s) => OrderingTerm(expression: s.name)]))
-          .get();
+  Future<List<Supplier>> getActiveSuppliers() => (select(suppliers)
+        ..where((s) => s.active.equals(true))
+        ..orderBy([(s) => OrderingTerm(expression: s.name)]))
+      .get();
 
   Future<int> insertSupplier(SuppliersCompanion entry) =>
       into(suppliers).insert(entry);

@@ -78,8 +78,7 @@ class PermissionService {
           SupervisorPinError.notSupervisor);
     }
     if (candidate.id == actor.id) {
-      return const SupervisorPinResult.failure(
-          SupervisorPinError.sameEmployee);
+      return const SupervisorPinResult.failure(SupervisorPinError.sameEmployee);
     }
     return SupervisorPinResult.success(candidate);
   }

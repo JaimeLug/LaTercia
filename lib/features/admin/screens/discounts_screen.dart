@@ -13,8 +13,7 @@ class DiscountsScreen extends ConsumerStatefulWidget {
   const DiscountsScreen({super.key});
 
   @override
-  ConsumerState<DiscountsScreen> createState() =>
-      _DiscountsScreenState();
+  ConsumerState<DiscountsScreen> createState() => _DiscountsScreenState();
 }
 
 class _DiscountsScreenState extends ConsumerState<DiscountsScreen> {
@@ -69,8 +68,9 @@ class _DiscountsScreenState extends ConsumerState<DiscountsScreen> {
                         ),
                         Expanded(
                             flex: 2,
-                            child: Text(
-                                d.type == 'percentage' ? 'Porcentaje' : 'Fijo')),
+                            child: Text(d.type == 'percentage'
+                                ? 'Porcentaje'
+                                : 'Fijo')),
                         Expanded(
                           flex: 2,
                           child: Text(
@@ -147,8 +147,7 @@ class _DiscountsScreenState extends ConsumerState<DiscountsScreen> {
     );
   }
 
-  Future<void> _showForm(
-      BuildContext context, Discount? discount) async {
+  Future<void> _showForm(BuildContext context, Discount? discount) async {
     await showDialog(
       context: context,
       builder: (_) => _DiscountFormDialog(discount: discount),
@@ -165,8 +164,7 @@ class _DiscountFormDialog extends ConsumerStatefulWidget {
       _DiscountFormDialogState();
 }
 
-class _DiscountFormDialogState
-    extends ConsumerState<_DiscountFormDialog> {
+class _DiscountFormDialogState extends ConsumerState<_DiscountFormDialog> {
   final _formKey = GlobalKey<FormState>();
   late TextEditingController _nameCtrl;
   late TextEditingController _valueCtrl;
@@ -180,10 +178,9 @@ class _DiscountFormDialogState
     super.initState();
     final d = widget.discount;
     _nameCtrl = TextEditingController(text: d?.name ?? '');
-    _valueCtrl =
-        TextEditingController(text: d != null ? '${d.value}' : '');
-    _minCtrl = TextEditingController(
-        text: d != null ? '${d.minOrderAmount}' : '0');
+    _valueCtrl = TextEditingController(text: d != null ? '${d.value}' : '');
+    _minCtrl =
+        TextEditingController(text: d != null ? '${d.minOrderAmount}' : '0');
     _type = d?.type ?? 'percentage';
     _validFrom = d?.validFrom;
     _validUntil = d?.validUntil;
@@ -211,10 +208,8 @@ class _DiscountFormDialogState
             children: [
               TextFormField(
                 controller: _nameCtrl,
-                decoration:
-                    const InputDecoration(labelText: 'Nombre *'),
-                validator: (v) =>
-                    v!.isEmpty ? 'Requerido' : null,
+                decoration: const InputDecoration(labelText: 'Nombre *'),
+                validator: (v) => v!.isEmpty ? 'Requerido' : null,
               ),
               const SizedBox(height: 8),
               DropdownButtonFormField<String>(
@@ -222,10 +217,8 @@ class _DiscountFormDialogState
                 decoration: const InputDecoration(labelText: 'Tipo'),
                 items: const [
                   DropdownMenuItem(
-                      value: 'percentage',
-                      child: Text('Porcentaje (%)')),
-                  DropdownMenuItem(
-                      value: 'fixed', child: Text('Fijo (\$)')),
+                      value: 'percentage', child: Text('Porcentaje (%)')),
+                  DropdownMenuItem(value: 'fixed', child: Text('Fijo (\$)')),
                 ],
                 onChanged: (v) => setState(() => _type = v!),
               ),
@@ -233,9 +226,8 @@ class _DiscountFormDialogState
               TextFormField(
                 controller: _valueCtrl,
                 decoration: InputDecoration(
-                    labelText: _type == 'percentage'
-                        ? 'Porcentaje *'
-                        : 'Monto *'),
+                    labelText:
+                        _type == 'percentage' ? 'Porcentaje *' : 'Monto *'),
                 keyboardType: TextInputType.number,
                 validator: (v) {
                   if (v!.isEmpty) return 'Requerido';
@@ -248,8 +240,7 @@ class _DiscountFormDialogState
               const SizedBox(height: 8),
               TextFormField(
                 controller: _minCtrl,
-                decoration: const InputDecoration(
-                    labelText: 'Mínimo de orden'),
+                decoration: const InputDecoration(labelText: 'Mínimo de orden'),
                 keyboardType: TextInputType.number,
               ),
               const SizedBox(height: 8),
@@ -280,8 +271,7 @@ class _DiscountFormDialogState
                       onPressed: () async {
                         final d = await showDatePicker(
                           context: context,
-                          initialDate:
-                              _validUntil ?? DateTime.now(),
+                          initialDate: _validUntil ?? DateTime.now(),
                           firstDate: DateTime(2020),
                           lastDate: DateTime(2030),
                         );
@@ -319,8 +309,7 @@ class _DiscountFormDialogState
       name: Value(_nameCtrl.text.trim()),
       type: Value(_type),
       value: Value(double.parse(_valueCtrl.text)),
-      minOrderAmount:
-          Value(double.tryParse(_minCtrl.text) ?? 0),
+      minOrderAmount: Value(double.tryParse(_minCtrl.text) ?? 0),
       validFrom: Value(_validFrom),
       validUntil: Value(_validUntil),
     );

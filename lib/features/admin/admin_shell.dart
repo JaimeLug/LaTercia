@@ -167,8 +167,7 @@ class _AdminShellState extends ConsumerState<AdminShell> {
                               icon: const Icon(Icons.logout),
                               tooltip: 'Cerrar sesión',
                               onPressed: () {
-                                ref.read(sessionProvider.notifier).state =
-                                    null;
+                                ref.read(sessionProvider.notifier).state = null;
                               },
                             ),
                           ),

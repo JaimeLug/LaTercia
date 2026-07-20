@@ -6,8 +6,7 @@ import '../../../core/theme/category_icons.dart';
 /// texto libre "Emoji/Icono" por una cuadrícula de Material Icons.
 /// Devuelve la clave elegida (ver `categoryIconCatalog`), o null si se
 /// canceló.
-Future<String?> showCategoryIconPicker(
-    BuildContext context, String? current) {
+Future<String?> showCategoryIconPicker(BuildContext context, String? current) {
   return showDialog<String>(
     context: context,
     builder: (_) => AlertDialog(

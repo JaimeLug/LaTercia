@@ -22,12 +22,11 @@ class ProductsDao extends DatabaseAccessor<AppDatabase>
                 p.categoryId.equals(categoryId) & p.available.equals(true)))
           .get();
 
-  Future<List<Product>> searchProducts(String query) =>
-      (select(products)
-            ..where((p) =>
-                p.name.lower().contains(query.toLowerCase()) &
-                p.available.equals(true)))
-          .get();
+  Future<List<Product>> searchProducts(String query) => (select(products)
+        ..where((p) =>
+            p.name.lower().contains(query.toLowerCase()) &
+            p.available.equals(true)))
+      .get();
 
   Future<int> insertProduct(ProductsCompanion product) =>
       into(products).insert(product);
@@ -53,10 +52,9 @@ class ProductsDao extends DatabaseAccessor<AppDatabase>
   Future<int> deleteProduct(int id) =>
       (delete(products)..where((p) => p.id.equals(id))).go();
 
-  Future<List<Product>> getLowStockProducts(int minStock) =>
-      (select(products)
-            ..where((p) =>
-                p.trackInventory.equals(true) &
-                p.stockQuantity.isSmallerOrEqualValue(minStock)))
-          .get();
+  Future<List<Product>> getLowStockProducts(int minStock) => (select(products)
+        ..where((p) =>
+            p.trackInventory.equals(true) &
+            p.stockQuantity.isSmallerOrEqualValue(minStock)))
+      .get();
 }

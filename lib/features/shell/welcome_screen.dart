@@ -120,8 +120,8 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
             ),
             const SizedBox(height: 8),
             Text('$dateStr · $timeStr',
-                style: const TextStyle(
-                    fontSize: 15, color: LaTerciaColors.tan)),
+                style:
+                    const TextStyle(fontSize: 15, color: LaTerciaColors.tan)),
             const SizedBox(height: 40),
             // Module cards
             Wrap(
@@ -216,7 +216,8 @@ class _ModuleCardState extends State<_ModuleCard> {
           border: Border.all(color: LaTerciaColors.border),
           boxShadow: [
             BoxShadow(
-              color: const Color(0xFF462D0A).withValues(alpha: _hover ? 0.14 : 0.05),
+              color: const Color(0xFF462D0A)
+                  .withValues(alpha: _hover ? 0.14 : 0.05),
               blurRadius: _hover ? 26 : 14,
               offset: Offset(0, _hover ? 12 : 6),
             ),

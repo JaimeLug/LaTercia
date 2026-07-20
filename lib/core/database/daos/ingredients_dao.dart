@@ -12,11 +12,10 @@ class IngredientsDao extends DatabaseAccessor<AppDatabase>
       (select(ingredients)..orderBy([(i) => OrderingTerm(expression: i.name)]))
           .get();
 
-  Future<List<Ingredient>> getActiveIngredients() =>
-      (select(ingredients)
-            ..where((i) => i.active.equals(true))
-            ..orderBy([(i) => OrderingTerm(expression: i.name)]))
-          .get();
+  Future<List<Ingredient>> getActiveIngredients() => (select(ingredients)
+        ..where((i) => i.active.equals(true))
+        ..orderBy([(i) => OrderingTerm(expression: i.name)]))
+      .get();
 
   Future<int> insertIngredient(IngredientsCompanion entry) =>
       into(ingredients).insert(entry);
@@ -62,6 +61,7 @@ class IngredientsDao extends DatabaseAccessor<AppDatabase>
 
   Future<List<Ingredient>> getLowStock() => (select(ingredients)
         ..where((i) =>
-            i.active.equals(true) & i.stockQuantity.isSmallerOrEqual(i.minStock)))
+            i.active.equals(true) &
+            i.stockQuantity.isSmallerOrEqual(i.minStock)))
       .get();
 }

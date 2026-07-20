@@ -11,7 +11,11 @@ import 'elapsed_timer.dart';
 
 const _typeInfo = {
   'mesa': (LaTerciaColors.mesa, 'MESA', Icons.table_restaurant),
-  'para_llevar': (LaTerciaColors.llevar, 'PARA LLEVAR', Icons.shopping_bag_outlined),
+  'para_llevar': (
+    LaTerciaColors.llevar,
+    'PARA LLEVAR',
+    Icons.shopping_bag_outlined
+  ),
   'delivery': (LaTerciaColors.delivery, 'DELIVERY', Icons.delivery_dining),
 };
 
@@ -19,10 +23,19 @@ class OrderCardKds extends ConsumerStatefulWidget {
   final OrderWithItems orderWithItems;
   final VoidCallback? onSoundPlay;
 
+  /// Controller de la lista de items. La cocina solo tiene 6 botones físicos
+  /// (sin mouse ni pantalla táctil) — `KdsScreen` necesita poder desplazar
+  /// ESTA tarjeta desde Anterior/Siguiente cuando le queda contenido oculto
+  /// (2026-07-20), así que le pasa su propio controller externo. Si se usa
+  /// esta tarjeta suelta (p.ej. en un test) y no se pasa ninguno, se crea y
+  /// gestiona uno internamente — comportamiento previo, sin cambios.
+  final ScrollController? itemsScrollController;
+
   const OrderCardKds({
     super.key,
     required this.orderWithItems,
     this.onSoundPlay,
+    this.itemsScrollController,
   });
 
   @override
@@ -34,6 +47,16 @@ class _OrderCardKdsState extends ConsumerState<OrderCardKds>
   late AnimationController _dismissController;
   late Animation<double> _opacityAnimation;
   bool _dismissing = false;
+
+  // 2026-07-20 — reporte del dueño: en pedidos con muchos productos, la
+  // lista YA tenía scroll interno, pero sin ninguna señal visual de que
+  // había más abajo — se leía como "eso es todo" y se podía perder un
+  // producto. `_itemsScrollController` + este flag pintan un degradado con
+  // flecha SOLO cuando de verdad falta contenido por ver.
+  ScrollController? _ownedController;
+  ScrollController get _itemsScrollController =>
+      widget.itemsScrollController ?? (_ownedController ??= ScrollController());
+  bool _hasMoreBelow = false;
 
   @override
   void initState() {
@@ -49,7 +72,22 @@ class _OrderCardKdsState extends ConsumerState<OrderCardKds>
   @override
   void dispose() {
     _dismissController.dispose();
+    // Solo si lo creamos nosotros: el externo (pasado por KdsScreen) lo
+    // gestiona y libera quien lo creó.
+    _ownedController?.dispose();
     super.dispose();
+  }
+
+  /// Recalcula si queda contenido por debajo del borde visible de la lista
+  /// de items. Se dispara solo por `NotificationListener<ScrollMetricsNotification>`
+  /// (layout inicial Y cualquier scroll), nunca desde `build()` — evita
+  /// "setState during build".
+  void _updateHasMoreBelow(ScrollMetrics m) {
+    final hasMore = m.maxScrollExtent > 0 && m.pixels < m.maxScrollExtent - 2;
+    if (hasMore == _hasMoreBelow) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) setState(() => _hasMoreBelow = hasMore);
+    });
   }
 
   Future<void> _markEnPrep() async {
@@ -84,7 +122,8 @@ class _OrderCardKdsState extends ConsumerState<OrderCardKds>
     final type = _typeInfo[order.type] ??
         (LaTerciaColors.kdsMuted, order.type.toUpperCase(), Icons.receipt_long);
 
-    final card = _buildCard(order, items, borderColor, type, warnYellow, warnRed);
+    final card =
+        _buildCard(order, items, borderColor, type, warnYellow, warnRed);
 
     return AnimatedSize(
       duration: const Duration(milliseconds: 300),
@@ -138,8 +177,7 @@ class _OrderCardKdsState extends ConsumerState<OrderCardKds>
             ),
             const SizedBox(height: 6),
             Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+              padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
               decoration: BoxDecoration(
                 color: typeColor.withValues(alpha: 0.18),
                 borderRadius: BorderRadius.circular(8),
@@ -161,78 +199,127 @@ class _OrderCardKdsState extends ConsumerState<OrderCardKds>
                 ],
               ),
             ),
-            Divider(color: LaTerciaColors.kdsBorder.withValues(alpha: 0.7), height: 22),
-            // Items
+            Divider(
+                color: LaTerciaColors.kdsBorder.withValues(alpha: 0.7),
+                height: 22),
+            // Items — con degradado + flecha si hay más abajo del corte
+            // visible (solo aparece cuando de verdad hace falta desplazar).
             Expanded(
-              child: SingleChildScrollView(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    for (final item in items)
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 8),
+              child: Stack(
+                children: [
+                  NotificationListener<ScrollMetricsNotification>(
+                    onNotification: (n) {
+                      _updateHasMoreBelow(n.metrics);
+                      return false;
+                    },
+                    child: Scrollbar(
+                      controller: _itemsScrollController,
+                      thumbVisibility: true,
+                      child: SingleChildScrollView(
+                        controller: _itemsScrollController,
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            RichText(
-                              text: TextSpan(
-                                style: const TextStyle(
-                                    fontSize: 16.5, color: Colors.white),
-                                children: [
-                                  TextSpan(
-                                    text: '${item.quantity}× ',
-                                    style: const TextStyle(
-                                        color: LaTerciaColors.gold,
-                                        fontWeight: FontWeight.w700),
-                                  ),
-                                  TextSpan(text: item.productName),
-                                ],
-                              ),
-                            ),
-                            if (item.modifiersJson != null &&
-                                item.modifiersJson!.isNotEmpty)
-                              ..._parseModifiers(item.modifiersJson!).map(
-                                (m) => Padding(
-                                  padding: const EdgeInsets.only(
-                                      left: 16, top: 2),
-                                  child: Text(
-                                    m['included'] == true
-                                        ? '↳ ${m['name']} (incluido)'
-                                        : '↳ ${m['name']}',
-                                    style: const TextStyle(
-                                      color: LaTerciaColors.kdsMuted,
-                                      fontSize: 13,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            if (item.itemNote != null &&
-                                item.itemNote!.isNotEmpty)
+                            for (final item in items)
                               Padding(
-                                padding:
-                                    const EdgeInsets.only(left: 16, top: 2),
-                                child: Text(
-                                  item.itemNote!,
-                                  style: const TextStyle(
-                                    color: LaTerciaColors.kdsNoteText,
-                                    fontStyle: FontStyle.italic,
-                                    fontSize: 12.5,
-                                  ),
+                                padding: const EdgeInsets.only(bottom: 8),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    RichText(
+                                      text: TextSpan(
+                                        style: const TextStyle(
+                                            fontSize: 16.5,
+                                            color: Colors.white),
+                                        children: [
+                                          TextSpan(
+                                            text: '${item.quantity}× ',
+                                            style: const TextStyle(
+                                                color: LaTerciaColors.gold,
+                                                fontWeight: FontWeight.w700),
+                                          ),
+                                          TextSpan(text: item.productName),
+                                        ],
+                                      ),
+                                    ),
+                                    if (item.modifiersJson != null &&
+                                        item.modifiersJson!.isNotEmpty)
+                                      ..._parseModifiers(item.modifiersJson!)
+                                          .map(
+                                        (m) => Padding(
+                                          padding: const EdgeInsets.only(
+                                              left: 16, top: 2),
+                                          child: Text(
+                                            m['included'] == true
+                                                ? '↳ ${m['name']} (incluido)'
+                                                : '↳ ${m['name']}',
+                                            style: const TextStyle(
+                                              color: LaTerciaColors.kdsMuted,
+                                              fontSize: 13,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    if (item.itemNote != null &&
+                                        item.itemNote!.isNotEmpty)
+                                      Padding(
+                                        padding: const EdgeInsets.only(
+                                            left: 16, top: 2),
+                                        child: Text(
+                                          item.itemNote!,
+                                          style: const TextStyle(
+                                            color: LaTerciaColors.kdsNoteText,
+                                            fontStyle: FontStyle.italic,
+                                            fontSize: 12.5,
+                                          ),
+                                        ),
+                                      ),
+                                  ],
                                 ),
                               ),
+                            if (order.customerName != null &&
+                                order.customerName!.isNotEmpty)
+                              _buildNoteBox('Cliente: ${order.customerName}'),
+                            if (order.note != null && order.note!.isNotEmpty)
+                              _buildNoteBox(order.note!),
                           ],
                         ),
                       ),
-                    if (order.customerName != null &&
-                        order.customerName!.isNotEmpty)
-                      _buildNoteBox('Cliente: ${order.customerName}'),
-                    if (order.note != null && order.note!.isNotEmpty)
-                      _buildNoteBox(order.note!),
-                  ],
-                ),
+                    ),
+                  ),
+                  if (_hasMoreBelow)
+                    Positioned(
+                      left: 0,
+                      right: 0,
+                      bottom: 0,
+                      child: IgnorePointer(
+                        child: Container(
+                          height: 30,
+                          alignment: Alignment.bottomCenter,
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                              colors: [
+                                LaTerciaColors.kdsCard.withValues(alpha: 0),
+                                LaTerciaColors.kdsCard,
+                              ],
+                            ),
+                          ),
+                          child: const Icon(
+                            Icons.keyboard_arrow_down_rounded,
+                            color: LaTerciaColors.gold,
+                            size: 20,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
               ),
             ),
-            Divider(color: LaTerciaColors.kdsBorder.withValues(alpha: 0.7), height: 22),
+            Divider(
+                color: LaTerciaColors.kdsBorder.withValues(alpha: 0.7),
+                height: 22),
             // Footer: timer + actions
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -287,8 +374,8 @@ class _OrderCardKdsState extends ConsumerState<OrderCardKds>
                       borderRadius: BorderRadius.circular(14)),
                 ),
                 child: const Text('En prep',
-                    style: TextStyle(
-                        fontSize: 13.5, fontWeight: FontWeight.w600)),
+                    style:
+                        TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600)),
               ),
             ),
           ),
@@ -306,8 +393,8 @@ class _OrderCardKdsState extends ConsumerState<OrderCardKds>
                 ),
                 icon: const Icon(Icons.check, size: 17),
                 label: const Text('Listo',
-                    style: TextStyle(
-                        fontSize: 13.5, fontWeight: FontWeight.w700)),
+                    style:
+                        TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700)),
               ),
             ),
           ),
@@ -345,7 +432,8 @@ class _OrderCardKdsState extends ConsumerState<OrderCardKds>
       decoration: BoxDecoration(
         color: LaTerciaColors.timerOk.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: LaTerciaColors.timerOk.withValues(alpha: 0.5)),
+        border:
+            Border.all(color: LaTerciaColors.timerOk.withValues(alpha: 0.5)),
       ),
       child: const Center(
         child: Text(

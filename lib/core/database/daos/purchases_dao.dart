@@ -16,7 +16,10 @@ class PurchaseItemDraft {
 
 /// Cabecera de compra + nombre del proveedor (o null si no se asignó uno),
 /// para pintar la lista sin una segunda consulta por fila.
-typedef PurchaseWithSupplier = ({IngredientPurchase purchase, String? supplierName});
+typedef PurchaseWithSupplier = ({
+  IngredientPurchase purchase,
+  String? supplierName
+});
 
 /// Línea de compra + nombre/unidad del insumo, para el detalle de una compra.
 typedef PurchaseItemWithIngredient = ({
@@ -25,8 +28,13 @@ typedef PurchaseItemWithIngredient = ({
   String unit,
 });
 
-@DriftAccessor(
-    tables: [IngredientPurchases, IngredientPurchaseItems, Ingredients, Suppliers, IngredientMovements])
+@DriftAccessor(tables: [
+  IngredientPurchases,
+  IngredientPurchaseItems,
+  Ingredients,
+  Suppliers,
+  IngredientMovements
+])
 class PurchasesDao extends DatabaseAccessor<AppDatabase>
     with _$PurchasesDaoMixin {
   PurchasesDao(super.db);
@@ -67,7 +75,8 @@ class PurchasesDao extends DatabaseAccessor<AppDatabase>
             .getSingleOrNull();
         if (ingredient == null) continue;
 
-        await (update(ingredients)..where((i) => i.id.equals(item.ingredientId)))
+        await (update(ingredients)
+              ..where((i) => i.id.equals(item.ingredientId)))
             .write(IngredientsCompanion(
           stockQuantity: Value(ingredient.stockQuantity + item.quantity),
           lastUnitCost: Value(item.unitCost),

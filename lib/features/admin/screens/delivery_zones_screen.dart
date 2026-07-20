@@ -177,7 +177,8 @@ class _ZoneFormDialogState extends ConsumerState<_ZoneFormDialog> {
             TextFormField(
               controller: _feeCtrl,
               decoration: const InputDecoration(labelText: 'Cargo'),
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true),
             ),
           ],
         ),

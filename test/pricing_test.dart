@@ -30,8 +30,8 @@ void main() {
     });
 
     test('porcentaje', () {
-      expect(discountAmountFor(_discount(type: 'percentage', value: 15), 200),
-          30);
+      expect(
+          discountAmountFor(_discount(type: 'percentage', value: 15), 200), 30);
     });
 
     test('fijo', () {
@@ -76,7 +76,8 @@ void main() {
         TaxLine(lineTotal: total, taxRate: rate, taxIncluded: included);
 
     test('IVA incluido: el precio ya trae el impuesto, el total no cambia', () {
-      final t = computeTaxedTotals(lines: [line(116, rate: 16, included: true)]);
+      final t =
+          computeTaxedTotals(lines: [line(116, rate: 16, included: true)]);
       expect(t.subtotal, 116);
       expect(t.tax, closeTo(16, 1e-9));
       expect(t.total, closeTo(116, 1e-9));

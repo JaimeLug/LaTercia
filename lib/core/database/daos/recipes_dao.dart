@@ -24,7 +24,8 @@ class RecipesDao extends DatabaseAccessor<AppDatabase> with _$RecipesDaoMixin {
   Future<List<RecipeLineWithIngredient>> getRecipeForProduct(
       int productId) async {
     final query = select(recipeItems).join([
-      innerJoin(ingredients, ingredients.id.equalsExp(recipeItems.ingredientId)),
+      innerJoin(
+          ingredients, ingredients.id.equalsExp(recipeItems.ingredientId)),
     ])
       ..where(recipeItems.productId.equals(productId));
     final rows = await query.get();

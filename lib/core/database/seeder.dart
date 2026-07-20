@@ -56,8 +56,10 @@ class SeederService {
       // 'termica' (ESC/POS por red/usb, default) | 'grafica' (PDF a cualquier
       // impresora de Windows vía el paquete printing).
       'printer_mode': 'termica',
-      'printer_transport': 'red', // 'red' (socket 9100) | 'usb' (spooler Windows)
-      'printer_address': '', // IP[:puerto] para red, nombre de impresora para usb
+      'printer_transport':
+          'red', // 'red' (socket 9100) | 'usb' (spooler Windows)
+      'printer_address':
+          '', // IP[:puerto] para red, nombre de impresora para usb
       'printer_width': '80', // '58' (32 cols) | '80' (48 cols)
       // FASE 4: ventas avanzadas (opcionales, default OFF).
       'propinas_activas': 'false',

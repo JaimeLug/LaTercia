@@ -22,8 +22,7 @@ class CashMovementDialog extends ConsumerStatefulWidget {
   });
 
   @override
-  ConsumerState<CashMovementDialog> createState() =>
-      _CashMovementDialogState();
+  ConsumerState<CashMovementDialog> createState() => _CashMovementDialogState();
 }
 
 class _CashMovementDialogState extends ConsumerState<CashMovementDialog> {
@@ -71,9 +70,8 @@ class _CashMovementDialogState extends ConsumerState<CashMovementDialog> {
             employeeId: widget.actor.id,
             type: _type,
             amount: amount,
-            reason: _reasonController.text.isEmpty
-                ? null
-                : _reasonController.text,
+            reason:
+                _reasonController.text.isEmpty ? null : _reasonController.text,
           );
       await ref.read(currentShiftProvider.notifier).refresh();
       if (mounted) Navigator.pop(context, true);

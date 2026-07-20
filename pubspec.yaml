@@ -48,6 +48,10 @@ dependencies:
   esc_pos_utils_plus: ^2.0.0
   win32: ^5.5.0
   ffi: ^2.1.0
+  # Decodificar/reescalar el logo para imprimirlo en el ticket térmico (ya
+  # era dependencia transitiva de esc_pos_utils_plus; se declara directa
+  # porque usamos su API — decodeImage/copyResize — sin pasar por ella).
+  image: ^4.5.4
 
   # Impresión gráfica (modo 'grafica'): render del ticket a PDF y envío a
   # cualquier impresora de Windows (inyección, láser, térmica-con-driver).
@@ -68,6 +72,7 @@ flutter:
     - assets/sounds/chime_order_done.mp3
     - assets/images/logo-color.png
     - assets/images/logo-white.png
+    - assets/images/8.png
   fonts:
     - family: Poppins
       fonts:

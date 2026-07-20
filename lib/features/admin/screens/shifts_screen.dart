@@ -96,8 +96,7 @@ class ShiftsScreen extends ConsumerWidget {
                             '${formatDateTime(s.startedAt)}  →  '
                             '${s.endedAt != null ? formatDateTime(s.endedAt!) : '—'}',
                             style: const TextStyle(
-                                fontSize: 12.5,
-                                color: LaTerciaColors.tan),
+                                fontSize: 12.5, color: LaTerciaColors.tan),
                           ),
                         ),
                         Expanded(
@@ -132,8 +131,7 @@ class ShiftsScreen extends ConsumerWidget {
       context: context,
       builder: (_) => AlertDialog(
         backgroundColor: LaTerciaColors.creamAlt,
-        shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
         content: SizedBox(
           width: 420,
           child: SingleChildScrollView(

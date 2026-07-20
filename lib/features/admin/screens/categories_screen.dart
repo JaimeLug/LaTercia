@@ -26,8 +26,7 @@ class CategoriesScreen extends ConsumerWidget {
       body: categoriesAsync.when(
         data: (cats) => GridView.builder(
           padding: const EdgeInsets.all(16),
-          gridDelegate:
-              const SliverGridDelegateWithMaxCrossAxisExtent(
+          gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
             maxCrossAxisExtent: 200,
             childAspectRatio: 1,
             crossAxisSpacing: 12,
@@ -56,8 +55,7 @@ class CategoriesScreen extends ConsumerWidget {
                         const SizedBox(height: 8),
                         Text(
                           cat.name,
-                          style: const TextStyle(
-                              fontWeight: FontWeight.bold),
+                          style: const TextStyle(fontWeight: FontWeight.bold),
                           textAlign: TextAlign.center,
                         ),
                       ],
@@ -71,15 +69,12 @@ class CategoriesScreen extends ConsumerWidget {
                       children: [
                         IconButton(
                           icon: const Icon(Icons.edit, size: 16),
-                          onPressed: () =>
-                              _showForm(context, ref, cat),
+                          onPressed: () => _showForm(context, ref, cat),
                         ),
                         IconButton(
                           icon: Icon(Icons.delete,
                               size: 16,
-                              color: Theme.of(context)
-                                  .colorScheme
-                                  .error),
+                              color: Theme.of(context).colorScheme.error),
                           onPressed: () => _delete(context, ref, cat),
                         ),
                       ],
@@ -90,8 +85,7 @@ class CategoriesScreen extends ConsumerWidget {
             );
           },
         ),
-        loading: () =>
-            const Center(child: CircularProgressIndicator()),
+        loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => Center(child: Text('Error: $e')),
       ),
     );
@@ -160,8 +154,7 @@ class _CategoryFormDialog extends ConsumerStatefulWidget {
       _CategoryFormDialogState();
 }
 
-class _CategoryFormDialogState
-    extends ConsumerState<_CategoryFormDialog> {
+class _CategoryFormDialogState extends ConsumerState<_CategoryFormDialog> {
   final _formKey = GlobalKey<FormState>();
   late TextEditingController _nameCtrl;
   late TextEditingController _sortCtrl;
@@ -174,12 +167,10 @@ class _CategoryFormDialogState
     final c = widget.category;
     _nameCtrl = TextEditingController(text: c?.name ?? '');
     _iconKey = c?.icon ?? 'restaurant';
-    _sortCtrl = TextEditingController(
-        text: c != null ? '${c.sortOrder}' : '0');
+    _sortCtrl = TextEditingController(text: c != null ? '${c.sortOrder}' : '0');
     if (c != null) {
       try {
-        _color = Color(
-            int.parse(c.color.replaceFirst('#', '0xFF')));
+        _color = Color(int.parse(c.color.replaceFirst('#', '0xFF')));
       } catch (e, st) {
         appLogger.warn(
             'No se pudo parsear el color de la categoría "${c.name}": ${c.color}',
@@ -204,9 +195,8 @@ class _CategoryFormDialogState
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: Text(widget.category == null
-          ? 'Nueva categoría'
-          : 'Editar categoría'),
+      title: Text(
+          widget.category == null ? 'Nueva categoría' : 'Editar categoría'),
       content: SizedBox(
         width: 400,
         child: Form(
@@ -216,10 +206,8 @@ class _CategoryFormDialogState
             children: [
               TextFormField(
                 controller: _nameCtrl,
-                decoration:
-                    const InputDecoration(labelText: 'Nombre *'),
-                validator: (v) =>
-                    v!.isEmpty ? 'Requerido' : null,
+                decoration: const InputDecoration(labelText: 'Nombre *'),
+                validator: (v) => v!.isEmpty ? 'Requerido' : null,
               ),
               const SizedBox(height: 12),
               Row(
@@ -247,8 +235,8 @@ class _CategoryFormDialogState
               const SizedBox(height: 8),
               TextFormField(
                 controller: _sortCtrl,
-                decoration: const InputDecoration(
-                    labelText: 'Orden de visualización'),
+                decoration:
+                    const InputDecoration(labelText: 'Orden de visualización'),
                 keyboardType: TextInputType.number,
               ),
               const SizedBox(height: 12),

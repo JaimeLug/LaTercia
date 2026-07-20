@@ -17,7 +17,8 @@ void main() {
         IngredientsCompanion.insert(name: name, unit: unit),
       );
 
-  Future<Product> newProduct({bool usesRecipe = false, bool trackInventory = false}) async {
+  Future<Product> newProduct(
+      {bool usesRecipe = false, bool trackInventory = false}) async {
     final cats = await db.categoriesDao.getAllCategories();
     final id = await db.productsDao.insertProduct(
       ProductsCompanion.insert(
@@ -29,7 +30,8 @@ void main() {
         stockQuantity: const Value(10),
       ),
     );
-    return (await db.productsDao.getAllProducts()).firstWhere((p) => p.id == id);
+    return (await db.productsDao.getAllProducts())
+        .firstWhere((p) => p.id == id);
   }
 
   group('IngredientsDao — CRUD', () {
@@ -58,8 +60,8 @@ void main() {
       final id = await newIngredient();
       await db.ingredientsDao.adjustStock(id, 500, 'ajuste', 'conteo inicial');
 
-      final ingredient =
-          (await db.ingredientsDao.getAllIngredients()).firstWhere((i) => i.id == id);
+      final ingredient = (await db.ingredientsDao.getAllIngredients())
+          .firstWhere((i) => i.id == id);
       expect(ingredient.stockQuantity, 500);
 
       final movements = await db.ingredientsDao.getMovementsForIngredient(id);
@@ -89,8 +91,8 @@ void main() {
 
       await db.inventoryDao.decrementForSale(product.id, 2);
 
-      final updated =
-          (await db.productsDao.getAllProducts()).firstWhere((p) => p.id == product.id);
+      final updated = (await db.productsDao.getAllProducts())
+          .firstWhere((p) => p.id == product.id);
       expect(updated.stockQuantity, 8);
     });
 
@@ -98,36 +100,40 @@ void main() {
         () async {
       final ingredientId = await newIngredient();
       final product = await newProduct(usesRecipe: true);
-      await db.recipesDao.setRecipe(
-        product.id, [RecipeLineDraft(ingredientId: ingredientId, quantity: 18)]);
+      await db.recipesDao.setRecipe(product.id,
+          [RecipeLineDraft(ingredientId: ingredientId, quantity: 18)]);
       await db.settingsDao.setValue('insumos_activo', 'false');
 
       await db.inventoryDao.decrementForSale(product.id, 2);
 
-      final ingredient =
-          (await db.ingredientsDao.getAllIngredients()).firstWhere((i) => i.id == ingredientId);
-      expect(ingredient.stockQuantity, 0, reason: 'insumos apagado — no se toca nada');
+      final ingredient = (await db.ingredientsDao.getAllIngredients())
+          .firstWhere((i) => i.id == ingredientId);
+      expect(ingredient.stockQuantity, 0,
+          reason: 'insumos apagado — no se toca nada');
     });
 
-    test('con el flag activo, un producto con receta descuenta insumos por '
+    test(
+        'con el flag activo, un producto con receta descuenta insumos por '
         'cantidad vendida', () async {
       final ingredientId = await newIngredient(name: 'Café molido', unit: 'g');
       await db.ingredientsDao.adjustStock(ingredientId, 1000, 'ajuste', null);
       final product = await newProduct(usesRecipe: true);
-      await db.recipesDao.setRecipe(
-        product.id, [RecipeLineDraft(ingredientId: ingredientId, quantity: 18)]);
+      await db.recipesDao.setRecipe(product.id,
+          [RecipeLineDraft(ingredientId: ingredientId, quantity: 18)]);
       await db.settingsDao.setValue('insumos_activo', 'true');
       final orderId = await db.ordersDao.insertOrder(
-        OrdersCompanion.insert(orderNumber: '#0001', type: 'mesa', employeeId: 1),
+        OrdersCompanion.insert(
+            orderNumber: '#0001', type: 'mesa', employeeId: 1),
       );
 
       await db.inventoryDao.decrementForSale(product.id, 2, orderId: orderId);
 
-      final ingredient =
-          (await db.ingredientsDao.getAllIngredients()).firstWhere((i) => i.id == ingredientId);
+      final ingredient = (await db.ingredientsDao.getAllIngredients())
+          .firstWhere((i) => i.id == ingredientId);
       expect(ingredient.stockQuantity, 1000 - 18 * 2);
 
-      final movements = await db.ingredientsDao.getMovementsForIngredient(ingredientId);
+      final movements =
+          await db.ingredientsDao.getMovementsForIngredient(ingredientId);
       final sale = movements.firstWhere((m) => m.reason == 'venta');
       expect(sale.delta, -36);
       expect(sale.orderId, orderId);
@@ -137,16 +143,17 @@ void main() {
       final ingredientId = await newIngredient(name: 'Leche', unit: 'ml');
       await db.ingredientsDao.adjustStock(ingredientId, 1000, 'ajuste', null);
       final product = await newProduct(usesRecipe: true);
-      await db.recipesDao.setRecipe(
-        product.id, [RecipeLineDraft(ingredientId: ingredientId, quantity: 200)]);
+      await db.recipesDao.setRecipe(product.id,
+          [RecipeLineDraft(ingredientId: ingredientId, quantity: 200)]);
       await db.settingsDao.setValue('insumos_activo', 'true');
 
       await db.inventoryDao.decrementForSale(product.id, 1);
       await db.inventoryDao.incrementForSale(product.id, 1, 'cancelacion');
 
-      final ingredient =
-          (await db.ingredientsDao.getAllIngredients()).firstWhere((i) => i.id == ingredientId);
-      expect(ingredient.stockQuantity, 1000, reason: 'venta + cancelación se cancelan');
+      final ingredient = (await db.ingredientsDao.getAllIngredients())
+          .firstWhere((i) => i.id == ingredientId);
+      expect(ingredient.stockQuantity, 1000,
+          reason: 'venta + cancelación se cancelan');
     });
   });
 }

@@ -15,15 +15,18 @@ typedef BackupInfo = ({DateTime modified, int sizeBytes, String path});
 /// FASE 5.2 — Backups automáticos.
 ///
 /// Copia la base con checkpoint del WAL a `%APPDATA%/latercia/backups/`
-/// (en Linux: `~/.local/share/latercia/backups/`), con retención de N días.
-/// Corre a diario (una vez por día calendario) y al cerrar turno. Todo
-/// best-effort: nunca lanza hacia el caller ni bloquea el flujo de venta.
+/// (en Linux, desde A3 2026-07-20: `~/Documentos/latercia/backups/`), con
+/// retención de N días. Corre a diario (una vez por día calendario) y al
+/// cerrar turno. Todo best-effort: nunca lanza hacia el caller ni bloquea el
+/// flujo de venta.
 class BackupService {
   /// [baseDir] resuelve la carpeta de datos de la app, donde viven backups y
-  /// logs (por defecto `getApplicationSupportDirectory`). [dbDir] resuelve la
-  /// carpeta donde vive el archivo **real** de la BD (por defecto
-  /// `getApplicationDocumentsDirectory` — así es como `driftDatabase(name:
-  /// 'latercia', ...)` la resuelve, ver `_openConnection` en `database.dart`).
+  /// logs — por defecto `getApplicationDocumentsDirectory` (A3: pensada para
+  /// que un técnico la encuentre y copie a mano, por eso Documentos y no la
+  /// carpeta de soporte de la app). [dbDir] resuelve la carpeta donde vive
+  /// el archivo **real** de la BD — por defecto `getApplicationSupportDirectory`
+  /// (así es como `driftDatabase(name: 'latercia', databaseDirectory: ...)`
+  /// la resuelve ahora, ver `_openConnection` en `database.dart`).
   /// Son dos carpetas DISTINTAS a propósito — antes ambas asumían la misma
   /// (soporte de la app), y los backups automáticos fallaban en silencio
   /// (best-effort) sin respaldar nada real porque la BD nunca estuvo ahí.
@@ -44,12 +47,12 @@ class BackupService {
   Future<Directory> _appDir() async {
     final override = _baseDir;
     if (override != null) return override();
-    return getApplicationSupportDirectory();
+    return getApplicationDocumentsDirectory();
   }
 
   Future<String> _dbPath() async {
     final override = _dbDir;
-    final dir = await (override ?? getApplicationDocumentsDirectory)();
+    final dir = await (override ?? getApplicationSupportDirectory)();
     return p.join(dir.path, 'latercia.sqlite');
   }
 
@@ -83,7 +86,8 @@ class BackupService {
         final busy = row['busy'] as int?;
         final log = row['log'] as int?;
         final checkpointed = row['checkpointed'] as int?;
-        if (busy == 1 || (log != null && checkpointed != null && checkpointed < log)) {
+        if (busy == 1 ||
+            (log != null && checkpointed != null && checkpointed < log)) {
           appLogger.warn(
               'Checkpoint del WAL incompleto antes del backup ($reason): '
               'busy=$busy log=$log checkpointed=$checkpointed — el respaldo '
@@ -126,8 +130,7 @@ class BackupService {
 
   /// Corre un backup diario si `backup_auto` está ON y aún no se hizo hoy.
   Future<void> autoBackupIfDue() async {
-    final enabled =
-        (await _db.settingsDao.getValue('backup_auto')) != 'false';
+    final enabled = (await _db.settingsDao.getValue('backup_auto')) != 'false';
     if (!enabled) return;
     final lastStr = await _db.settingsDao.getValue('last_backup_at');
     final last = lastStr == null ? null : DateTime.tryParse(lastStr);
@@ -143,8 +146,7 @@ class BackupService {
 
   /// Backup al cerrar turno (si el flag está ON). Independiente del diario.
   Future<void> backupOnShiftClose() async {
-    final enabled =
-        (await _db.settingsDao.getValue('backup_auto')) != 'false';
+    final enabled = (await _db.settingsDao.getValue('backup_auto')) != 'false';
     if (!enabled) return;
     await backupNow(reason: 'cierre_turno');
   }

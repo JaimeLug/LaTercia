@@ -31,8 +31,38 @@ class _KdsScreenState extends ConsumerState<KdsScreen>
 
   // FASE 5.3 — alto tráfico.
   bool _allDay = false; // vista consolidada "7× Frappé de Café"
-  int _page = 0; // página actual de tarjetas
-  int _pageCount = 1; // calculado en build; lo usa el auto-rotate
+
+  // 2026-07-20 — rediseño: antes las tarjetas se repartían en páginas fijas
+  // y "Siguiente" saltaba de golpe a un lienzo completamente distinto (con 6-7
+  // pedidos activos, las órdenes 5+ quedaban en otra "pantalla" invisible
+  // hasta darle clic). Ahora es una cuadrícula con scroll continuo: todas las
+  // órdenes activas viven en el mismo lienzo, y avanzar es desplazarse, no
+  // saltar. El controller también sirve para llevar la vista hasta la tarjeta
+  // seleccionada por la botonera (`_selectAndReveal`).
+  final ScrollController _gridScrollController = ScrollController();
+  // Una GlobalKey por orden activa, para poder ubicar su posición en el
+  // scroll y traerla a la vista (Scrollable.ensureVisible).
+  final Map<int, GlobalKey> _cardKeys = {};
+
+  GlobalKey _cardKeyFor(int orderId) =>
+      _cardKeys.putIfAbsent(orderId, () => GlobalKey());
+
+  // 2026-07-20 — cocina solo tiene 6 botones físicos (sin mouse ni pantalla
+  // táctil): dos flechas, recall, prep, listo, tiempo. Anterior/Siguiente
+  // hacían un movimiento horizontal (cambiar de orden), pero no había forma
+  // de desplazarse VERTICALMENTE dentro de un pedido largo ni en la vista
+  // All-day. Fix: `KdsScreen` posee un ScrollController por orden (en vez de
+  // que cada tarjeta gestione el suyo aislado) para poder leer/mover su
+  // posición desde `_onButton` — ver `_scrollSelectedCard`.
+  final Map<int, ScrollController> _itemScrollControllers = {};
+
+  ScrollController _itemsControllerFor(int orderId) =>
+      _itemScrollControllers.putIfAbsent(orderId, () => ScrollController());
+
+  // Scroll de la vista All-day (lista vertical consolidada) — mismo problema
+  // y misma solución: Anterior/Siguiente la desplazan cuando esa vista está
+  // activa (ahí no tiene sentido "cambiar de orden").
+  final ScrollController _allDayScrollController = ScrollController();
 
   // FASE 3.5 — botonera física (ESP32). Cursor de la tarjeta "seleccionada":
   // ANTERIOR/SIGUIENTE la mueven; PREP/LISTO actúan sobre ella.
@@ -52,11 +82,20 @@ class _KdsScreenState extends ConsumerState<KdsScreen>
     _updateClock();
     _clockTimer =
         Timer.periodic(const Duration(seconds: 1), (_) => _updateClock());
-    // Auto-rotación de páginas para un tablero de pared sin tocar (5.3).
+    // Auto-scroll para un tablero de pared sin tocar (5.3) — antes saltaba de
+    // golpe a la "siguiente página"; ahora se desplaza suave un lienzo hacia
+    // abajo (y vuelve arriba al llegar al final), consistente con el resto
+    // del rediseño de scroll continuo.
     _rotateTimer = Timer.periodic(const Duration(seconds: 12), (_) {
-      if (!_allDay && _pageCount > 1 && mounted) {
-        setState(() => _page = (_page + 1) % _pageCount);
-      }
+      if (_allDay || !mounted || !_gridScrollController.hasClients) return;
+      final position = _gridScrollController.position;
+      if (position.maxScrollExtent <= 0) return; // todo cabe, nada que mover
+      final target = position.pixels + position.viewportDimension;
+      _gridScrollController.animateTo(
+        target > position.maxScrollExtent ? 0 : target,
+        duration: const Duration(milliseconds: 600),
+        curve: Curves.easeInOut,
+      );
     });
     _pulseController = AnimationController(
       vsync: this,
@@ -90,8 +129,7 @@ class _KdsScreenState extends ConsumerState<KdsScreen>
     _messengerKey.currentState?.showSnackBar(
       SnackBar(
         duration: const Duration(seconds: 2),
-        backgroundColor:
-            warn ? LaTerciaColors.gold : LaTerciaColors.kdsPanel,
+        backgroundColor: warn ? LaTerciaColors.gold : LaTerciaColors.kdsPanel,
         content: Text(message,
             style: TextStyle(
                 color: warn ? LaTerciaColors.darkBrown : Colors.white,
@@ -107,6 +145,11 @@ class _KdsScreenState extends ConsumerState<KdsScreen>
     _buttonSub?.cancel();
     _rawButtonSub?.cancel();
     _pulseController.dispose();
+    _gridScrollController.dispose();
+    _allDayScrollController.dispose();
+    for (final c in _itemScrollControllers.values) {
+      c.dispose();
+    }
     _player.dispose();
     super.dispose();
   }
@@ -134,8 +177,7 @@ class _KdsScreenState extends ConsumerState<KdsScreen>
     final orders = ref.read(ordersProvider);
     return orders
         .where((o) =>
-            o.order.status == 'pendiente' ||
-            o.order.status == 'en_preparacion')
+            o.order.status == 'pendiente' || o.order.status == 'en_preparacion')
         .toList()
       ..sort((a, b) => a.order.createdAt.compareTo(b.order.createdAt));
   }
@@ -168,22 +210,34 @@ class _KdsScreenState extends ConsumerState<KdsScreen>
         return;
       case KdsButton.anterior:
       case KdsButton.siguiente:
+        final forward = btn == KdsButton.siguiente;
+        // Cocina solo tiene estos 6 botones (sin mouse ni touch, 2026-07-20)
+        // — en All-day, Anterior/Siguiente son la ÚNICA forma de bajar la
+        // lista consolidada (no hay "órdenes" entre las que cambiar aquí).
         if (_allDay) {
-          _toast('Cambia a vista Tarjetas (botón TIEMPO) para navegar',
-              warn: true);
+          _scrollAllDay(forward);
           return;
         }
         if (ids.isEmpty) {
           _toast('Sin pedidos activos para navegar', warn: true);
           return;
         }
+        // Si la tarjeta seleccionada tiene más contenido en esa dirección
+        // (pedido largo, varios productos), desplázala primero — recién
+        // cuando ya no queda más que ver ahí, el botón cambia de orden. Para
+        // un pedido corto que cabe completo, esto es un no-op y el botón
+        // cambia de orden directo, como siempre.
+        if (current != null && _scrollSelectedCard(current, forward)) {
+          return;
+        }
         final idx = current == null ? -1 : ids.indexOf(current);
-        final nextIdx = btn == KdsButton.siguiente
+        final nextIdx = forward
             ? (idx + 1) % ids.length
             : (idx - 1 + ids.length) % ids.length;
         final newId = ids[nextIdx];
-        setState(() => _selectedOrderId = newId);
-        final num = active.firstWhere((o) => o.order.id == newId).order.orderNumber;
+        _selectAndReveal(newId);
+        final num =
+            active.firstWhere((o) => o.order.id == newId).order.orderNumber;
         _toast('→ Orden $num seleccionada');
         return;
       case KdsButton.prep:
@@ -197,18 +251,84 @@ class _KdsScreenState extends ConsumerState<KdsScreen>
             active.firstWhere((o) => o.order.id == current).order.orderNumber;
         if (btn == KdsButton.prep) {
           notifier.updateStatus(current, 'en_preparacion');
-          setState(() => _selectedOrderId = current);
+          _selectAndReveal(current);
           _toast('👨‍🍳 En preparación: $num');
         } else {
           _playOrderDone();
           notifier.markReady(current);
           // Encadena a la siguiente tarjeta (cadencia de bump bar) en vez de
           // exigir otra navegación manual tras cada "listo".
-          setState(() => _selectedOrderId = nextAfterReady(ids, current));
+          _selectAndReveal(nextAfterReady(ids, current));
           _toast('✅ Listo: $num');
         }
         return;
     }
+  }
+
+  /// Fija la selección de la botonera Y desplaza el scroll para que esa
+  /// tarjeta quede a la vista — sin esto, con la cuadrícula de scroll
+  /// continuo (2026-07-20) la botonera podía "seleccionar" una orden que
+  /// quedó fuera de la pantalla, invisible hasta que alguien desplazara a
+  /// mano. `id == null` limpia la selección sin intentar desplazar nada.
+  void _selectAndReveal(int? id) {
+    setState(() => _selectedOrderId = id);
+    if (id == null) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final ctx = _cardKeys[id]?.currentContext;
+      if (ctx != null && mounted) {
+        Scrollable.ensureVisible(
+          ctx,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeInOut,
+          alignment: 0.5,
+        );
+      }
+    });
+  }
+
+  /// Desplaza la tarjeta [orderId] en la dirección [forward] si le queda
+  /// contenido por ver ahí (2026-07-20 — cocina solo tiene 6 botones, sin
+  /// mouse ni touch). Devuelve `true` si desplazó algo (el botón "se
+  /// consume" en el scroll) o `false` si no había nada más que ver en esa
+  /// dirección — ahí el caller (`_onButton`) debe cambiar de orden. Para un
+  /// pedido corto que cabe completo (`maxScrollExtent == 0`), esto siempre
+  /// devuelve `false` de inmediato: cambia de orden directo, sin pausa.
+  bool _scrollSelectedCard(int orderId, bool forward) {
+    final controller = _itemScrollControllers[orderId];
+    if (controller == null || !controller.hasClients) return false;
+    final position = controller.position;
+    if (forward
+        ? position.pixels >= position.maxScrollExtent - 2
+        : position.pixels <= 2) {
+      return false;
+    }
+    final step = position.viewportDimension;
+    final target = (forward ? position.pixels + step : position.pixels - step)
+        .clamp(0.0, position.maxScrollExtent);
+    controller.animateTo(target,
+        duration: const Duration(milliseconds: 300), curve: Curves.easeInOut);
+    return true;
+  }
+
+  /// Anterior/Siguiente en la vista All-day: ahí no hay "órdenes" entre las
+  /// que cambiar, así que desplazan la lista consolidada — es la única forma
+  /// de bajarla sin mouse ni touch (2026-07-20).
+  void _scrollAllDay(bool forward) {
+    if (!_allDayScrollController.hasClients) return;
+    final position = _allDayScrollController.position;
+    if (forward && position.pixels >= position.maxScrollExtent - 2) {
+      _toast('Fin de la lista', warn: true);
+      return;
+    }
+    if (!forward && position.pixels <= 2) {
+      _toast('Inicio de la lista', warn: true);
+      return;
+    }
+    final step = position.viewportDimension;
+    final target = (forward ? position.pixels + step : position.pixels - step)
+        .clamp(0.0, position.maxScrollExtent);
+    _allDayScrollController.animateTo(target,
+        duration: const Duration(milliseconds: 300), curve: Curves.easeInOut);
   }
 
   void _updateClock() {
@@ -264,8 +384,8 @@ class _KdsScreenState extends ConsumerState<KdsScreen>
     // primera activa — así siempre hay una tarjeta claramente operable, aun
     // antes de que la botonera navegue por primera vez. Es solo para pintar;
     // el estado real (_selectedOrderId) lo fija _onButton.
-    final highlightId =
-        effectiveSelection(active.map((o) => o.order.id).toList(), _selectedOrderId);
+    final highlightId = effectiveSelection(
+        active.map((o) => o.order.id).toList(), _selectedOrderId);
 
     // ScaffoldMessenger PROPIO: sin esto, los avisos de la botonera
     // (_toast/SnackBar) suben al ScaffoldMessenger raíz de MaterialApp y se
@@ -277,41 +397,41 @@ class _KdsScreenState extends ConsumerState<KdsScreen>
     return ScaffoldMessenger(
       key: _messengerKey,
       child: Scaffold(
-      backgroundColor: LaTerciaColors.kdsBg,
-      body: Column(
-        children: [
-          _buildHeader(businessName, active.length),
-          // Barra PERMANENTE (no un aviso que desaparece, no solo un borde en
-          // la tarjeta): siempre visible mientras la botonera está activa, para
-          // que sea imposible no notar cuál pedido está seleccionado.
-          if (settings['botonera_activa'] == 'true')
-            _buildSelectionBar(active, highlightId),
-          Expanded(
-            child: active.isEmpty
-                ? const Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.check_circle,
-                            color: LaTerciaColors.timerOk, size: 56),
-                        SizedBox(height: 14),
-                        Text(
-                          'Sin pedidos',
-                          style: TextStyle(
-                            fontFamily: 'DM Serif Display',
-                            color: LaTerciaColors.timerOk,
-                            fontSize: 40,
+        backgroundColor: LaTerciaColors.kdsBg,
+        body: Column(
+          children: [
+            _buildHeader(businessName, active.length),
+            // Barra PERMANENTE (no un aviso que desaparece, no solo un borde en
+            // la tarjeta): siempre visible mientras la botonera está activa, para
+            // que sea imposible no notar cuál pedido está seleccionado.
+            if (settings['botonera_activa'] == 'true')
+              _buildSelectionBar(active, highlightId),
+            Expanded(
+              child: active.isEmpty
+                  ? const Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.check_circle,
+                              color: LaTerciaColors.timerOk, size: 56),
+                          SizedBox(height: 14),
+                          Text(
+                            'Sin pedidos',
+                            style: TextStyle(
+                              fontFamily: 'DM Serif Display',
+                              color: LaTerciaColors.timerOk,
+                              fontSize: 40,
+                            ),
                           ),
-                        ),
-                      ],
-                    ),
-                  )
-                : _allDay
-                    ? _buildAllDay(active)
-                    : _buildPaginatedGrid(active, highlightId),
-          ),
-        ],
-      ),
+                        ],
+                      ),
+                    )
+                  : _allDay
+                      ? _buildAllDay(active)
+                      : _buildScrollableGrid(active, highlightId),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -328,8 +448,7 @@ class _KdsScreenState extends ConsumerState<KdsScreen>
     } else {
       final idx = active.indexWhere((o) => o.order.id == highlightId);
       final num = idx >= 0 ? active[idx].order.orderNumber : '—';
-      label =
-          'Botonera → Seleccionada: $num  (${idx + 1} de ${active.length})';
+      label = 'Botonera → Seleccionada: $num  (${idx + 1} de ${active.length})';
     }
     return Container(
       width: double.infinity,
@@ -349,90 +468,28 @@ class _KdsScreenState extends ConsumerState<KdsScreen>
     );
   }
 
-  /// Tarjetas paginadas de tamaño fijo: nunca se encogen (legibilidad a 2 m).
-  /// Lo que no cabe en la pantalla pasa a la siguiente página (5.3).
-  Widget _buildPaginatedGrid(List<OrderWithItems> active, int? highlightId) {
-    return LayoutBuilder(builder: (ctx, c) {
-      const cardW = 320.0, cardH = 452.0, gap = 16.0, pad = 20.0, barH = 46.0;
-      final cols =
-          ((c.maxWidth - pad * 2 + gap) / (cardW + gap)).floor().clamp(1, 99);
-      final rows = ((c.maxHeight - pad * 2 - barH + gap) / (cardH + gap))
-          .floor()
-          .clamp(1, 99);
-      final perPage = (cols * rows).clamp(1, 999);
-      final pageCount = (active.length / perPage).ceil().clamp(1, 999);
-      // Guardado para el auto-rotate; clamp de la página actual.
-      _pageCount = pageCount;
-      final page = _page.clamp(0, pageCount - 1);
-      if (_page != page) _page = page;
-
-      final start = page * perPage;
-      final end = (start + perPage) > active.length
-          ? active.length
-          : (start + perPage);
-      final slice = active.sublist(start, end);
-
-      return Column(
-        children: [
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.all(pad),
-              child: Align(
-                alignment: Alignment.topLeft,
-                child: Wrap(
-                  spacing: gap,
-                  runSpacing: gap,
-                  children: [
-                    for (final o in slice)
-                      SizedBox(
-                        width: cardW,
-                        height: cardH,
-                        child: _SelectableCard(
-                          selected: o.order.id == highlightId,
-                          child: OrderCardKds(
-                            key: ValueKey(o.order.id),
-                            orderWithItems: o,
-                            onSoundPlay: _playOrderDone,
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-          if (pageCount > 1) _buildPageBar(page, pageCount),
-        ],
-      );
+  /// Cuadrícula de tarjetas con scroll continuo (2026-07-20) — ver
+  /// [KdsOrderGrid] para el detalle del rediseño. Poda las GlobalKeys y los
+  /// ScrollController de órdenes que ya no están activas (higiene, para no
+  /// acumularlos indefinidamente en un turno largo — los controllers, a
+  /// diferencia de las keys, hay que liberarlos explícitamente) y delega el
+  /// layout al widget.
+  Widget _buildScrollableGrid(List<OrderWithItems> active, int? highlightId) {
+    final activeIds = active.map((o) => o.order.id).toSet();
+    _cardKeys.removeWhere((id, _) => !activeIds.contains(id));
+    _itemScrollControllers.removeWhere((id, controller) {
+      final stale = !activeIds.contains(id);
+      if (stale) controller.dispose();
+      return stale;
     });
-  }
 
-  Widget _buildPageBar(int page, int pageCount) {
-    return Container(
-      height: 46,
-      color: LaTerciaColors.kdsPanel,
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          IconButton(
-            icon: const Icon(Icons.chevron_left, color: Colors.white),
-            onPressed: () => setState(
-                () => _page = (page - 1 + pageCount) % pageCount),
-          ),
-          Text(
-            'Página ${page + 1} / $pageCount',
-            style: const TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.w700,
-                fontSize: 14),
-          ),
-          IconButton(
-            icon: const Icon(Icons.chevron_right, color: Colors.white),
-            onPressed: () => setState(() => _page = (page + 1) % pageCount),
-          ),
-        ],
-      ),
+    return KdsOrderGrid(
+      orders: active,
+      highlightId: highlightId,
+      controller: _gridScrollController,
+      cardKeyFor: _cardKeyFor,
+      itemsControllerFor: _itemsControllerFor,
+      onSoundPlay: _playOrderDone,
     );
   }
 
@@ -450,6 +507,10 @@ class _KdsScreenState extends ConsumerState<KdsScreen>
       ..sort((a, b) => b.value.compareTo(a.value));
 
     return ListView.separated(
+      // 2026-07-20: controller propio para que Anterior/Siguiente puedan
+      // desplazarla desde la botonera (`_scrollAllDay`) — sin mouse ni
+      // touch, es la única forma de bajar esta lista.
+      controller: _allDayScrollController,
       padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
       itemCount: entries.length,
       separatorBuilder: (_, __) =>
@@ -540,9 +601,8 @@ class _KdsScreenState extends ConsumerState<KdsScreen>
           if (ref.read(ordersProvider.notifier).canRecall) ...[
             _RecallButton(
               onRecall: () async {
-                final done = await ref
-                    .read(ordersProvider.notifier)
-                    .recallLastReady();
+                final done =
+                    await ref.read(ordersProvider.notifier).recallLastReady();
                 if (done && mounted) {
                   _messengerKey.currentState?.showSnackBar(
                     const SnackBar(
@@ -559,14 +619,12 @@ class _KdsScreenState extends ConsumerState<KdsScreen>
           AnimatedBuilder(
             animation: _pulseController,
             builder: (context, child) {
-              final t = activeCount > 0
-                  ? (0.5 + 0.5 * _pulseController.value)
-                  : 1.0;
+              final t =
+                  activeCount > 0 ? (0.5 + 0.5 * _pulseController.value) : 1.0;
               return Opacity(opacity: activeCount > 0 ? t : 1, child: child);
             },
             child: Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
               decoration: BoxDecoration(
                 color: (activeCount > 0
                         ? LaTerciaColors.gold
@@ -607,15 +665,93 @@ class _KdsScreenState extends ConsumerState<KdsScreen>
   }
 }
 
+/// Cuadrícula de tarjetas de órdenes con SCROLL CONTINUO (2026-07-20).
+///
+/// Antes las tarjetas se repartían en páginas de tamaño fijo y "Siguiente"
+/// saltaba de golpe a un lienzo completamente distinto — con 6-7 pedidos
+/// activos, las órdenes 5+ quedaban invisibles en "otra pantalla" hasta
+/// hacer clic (reporte del dueño en sitio, café abierto). Ahora TODAS las
+/// órdenes activas conviven en el mismo lienzo desplazable — avanzar es
+/// desplazarse, no saltar.
+///
+/// Extraído como widget propio (en vez de un método de `_KdsScreenState`)
+/// para poder probarlo sin depender del resto de `KdsScreen` (audio, sockets
+/// de la botonera, timers de reloj/auto-scroll).
+class KdsOrderGrid extends StatelessWidget {
+  const KdsOrderGrid({
+    super.key,
+    required this.orders,
+    required this.highlightId,
+    required this.controller,
+    required this.cardKeyFor,
+    this.itemsControllerFor,
+    this.onSoundPlay,
+  });
+
+  final List<OrderWithItems> orders;
+  final int? highlightId;
+  final ScrollController controller;
+  final Key Function(int orderId) cardKeyFor;
+  // Controller del scroll de items DENTRO de cada tarjeta — opcional (si no
+  // se pasa, cada OrderCardKds gestiona el suyo internamente). KdsScreen lo
+  // pasa para poder desplazar la tarjeta seleccionada desde la botonera
+  // (2026-07-20, ver `KdsScreen._scrollSelectedCard`).
+  final ScrollController Function(int orderId)? itemsControllerFor;
+  final VoidCallback? onSoundPlay;
+
+  // Un poco más grandes que la versión paginada (320×452 → 340×480): menos
+  // necesidad de hacer scroll dentro de la tarjeta en órdenes con varios
+  // productos (pedido explícito del dueño, 2026-07-20).
+  static const cardW = 340.0, cardH = 480.0, gap = 16.0, pad = 20.0;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scrollbar(
+      // Key propia: cada OrderCardKds trae además su propio Scrollbar interno
+      // para su lista de items (2026-07-20), así que `find.byType(Scrollbar)`
+      // ya no basta para identificar el de la cuadrícula en los tests.
+      key: const Key('kds-grid-scrollbar'),
+      controller: controller,
+      thumbVisibility: true,
+      child: SingleChildScrollView(
+        controller: controller,
+        padding: const EdgeInsets.all(pad),
+        child: Wrap(
+          spacing: gap,
+          runSpacing: gap,
+          children: [
+            for (final o in orders)
+              SizedBox(
+                key: cardKeyFor(o.order.id),
+                width: cardW,
+                height: cardH,
+                child: SelectableOrderCard(
+                  selected: o.order.id == highlightId,
+                  child: OrderCardKds(
+                    key: ValueKey(o.order.id),
+                    orderWithItems: o,
+                    onSoundPlay: onSoundPlay,
+                    itemsScrollController: itemsControllerFor?.call(o.order.id),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 /// Envuelve una tarjeta del KDS con un anillo visible cuando está seleccionada
 /// (cursor de la botonera, 3.5). Necesita padding propio: la tarjeta interior
 /// ya pinta su borde y su fondo hasta el borde, así que sin ese hueco el
 /// anillo exterior queda completamente tapado y no se ve — el bug reportado
 /// era justo este.
-class _SelectableCard extends StatelessWidget {
+class SelectableOrderCard extends StatelessWidget {
   final bool selected;
   final Widget child;
-  const _SelectableCard({required this.selected, required this.child});
+  const SelectableOrderCard(
+      {super.key, required this.selected, required this.child});
 
   @override
   Widget build(BuildContext context) {
@@ -681,8 +817,7 @@ class _RecallButton extends StatelessWidget {
         foregroundColor: LaTerciaColors.gold,
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
         side: const BorderSide(color: LaTerciaColors.gold),
-        shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       ),
       icon: const Icon(Icons.undo, size: 18),
       label: const Text('Recall',

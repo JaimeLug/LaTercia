@@ -4,8 +4,7 @@ import '../database.dart';
 part 'reports_dao.g.dart';
 
 @DriftAccessor(tables: [Orders, OrderItems, Payments, Employees])
-class ReportsDao extends DatabaseAccessor<AppDatabase>
-    with _$ReportsDaoMixin {
+class ReportsDao extends DatabaseAccessor<AppDatabase> with _$ReportsDaoMixin {
   ReportsDao(super.db);
 
   Future<double> getTotalRevenueForRange(DateTime from, DateTime to) async {
@@ -33,8 +32,7 @@ class ReportsDao extends DatabaseAccessor<AppDatabase>
       final start = DateTime(day.year, day.month, day.day);
       final end = start.add(const Duration(days: 1));
       final rev = await getTotalRevenueForRange(start, end);
-      final label =
-          '${day.day}/${day.month}';
+      final label = '${day.day}/${day.month}';
       result[label] = rev;
     }
     return result;

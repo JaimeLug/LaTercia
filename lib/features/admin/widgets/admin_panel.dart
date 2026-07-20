@@ -93,8 +93,7 @@ class AdminRow extends StatelessWidget {
                     bottom: BorderSide(color: LaTerciaColors.border)),
           ),
           child: DefaultTextStyle(
-            style: const TextStyle(
-                fontSize: 13.5, color: LaTerciaColors.cocoa),
+            style: const TextStyle(fontSize: 13.5, color: LaTerciaColors.cocoa),
             child: Row(children: cells),
           ),
         ),
@@ -172,8 +171,8 @@ class AdminEmptyState extends StatelessWidget {
             const SizedBox(height: 12),
             Text(message,
                 textAlign: TextAlign.center,
-                style: const TextStyle(
-                    color: LaTerciaColors.tan, fontSize: 15)),
+                style:
+                    const TextStyle(color: LaTerciaColors.tan, fontSize: 15)),
           ],
         ),
       ),
@@ -181,8 +180,8 @@ class AdminEmptyState extends StatelessWidget {
   }
 }
 
-Widget adminLoading() => const Center(
-    child: CircularProgressIndicator(color: LaTerciaColors.gold));
+Widget adminLoading() =>
+    const Center(child: CircularProgressIndicator(color: LaTerciaColors.gold));
 
 /// Tarjeta de categoría para landings tipo Ajustes (Configuración, Inventario):
 /// ícono + título + subtítulo, tocable. Reusada por cualquier pantalla que
@@ -226,7 +225,8 @@ class CategoryCard extends StatelessWidget {
                     color: LaTerciaColors.burntOrange.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(11),
                   ),
-                  child: Icon(icon, size: 21, color: LaTerciaColors.burntOrange),
+                  child:
+                      Icon(icon, size: 21, color: LaTerciaColors.burntOrange),
                 ),
                 const SizedBox(height: 14),
                 Text(title,

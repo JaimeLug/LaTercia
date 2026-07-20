@@ -47,55 +47,54 @@ class ComprasBodyState extends ConsumerState<ComprasBody> {
     final symbol = settings['currency_symbol'] ?? r'$';
 
     return FutureBuilder<List<PurchaseWithSupplier>>(
-        future: _future,
-        builder: (ctx, snapshot) {
-          if (!snapshot.hasData) return adminLoading();
-          final purchases = snapshot.data!;
-          if (purchases.isEmpty) {
-            return const AdminEmptyState(
-              icon: Icons.shopping_cart_outlined,
-              message: 'Sin compras registradas todavía.\n'
-                  'Toca "+" para registrar la primera reposición de insumos.',
-            );
-          }
-          return SingleChildScrollView(
-            padding: const EdgeInsets.all(20),
-            child: AdminPanel(
-              child: Column(
-                children: [
-                  const AdminHeaderRow(cells: [
-                    Expanded(flex: 2, child: Text('FECHA')),
-                    Expanded(flex: 3, child: Text('PROVEEDOR')),
-                    Expanded(flex: 2, child: Text('TOTAL')),
-                  ]),
-                  ...purchases.asMap().entries.map((entry) {
-                    final p = entry.value.purchase;
-                    final isLast = entry.key == purchases.length - 1;
-                    return AdminRow(
-                      isLast: isLast,
-                      cells: [
-                        Expanded(
-                            flex: 2, child: Text(formatDate(p.createdAt))),
-                        Expanded(
-                            flex: 3,
-                            child: Text(
-                                entry.value.supplierName ?? 'Sin proveedor')),
-                        Expanded(
-                          flex: 2,
-                          child: Text(formatCurrency(p.totalCost, symbol),
-                              style: const TextStyle(
-                                  fontWeight: FontWeight.w600,
-                                  color: LaTerciaColors.darkBrown)),
-                        ),
-                      ],
-                    );
-                  }),
-                ],
-              ),
-            ),
+      future: _future,
+      builder: (ctx, snapshot) {
+        if (!snapshot.hasData) return adminLoading();
+        final purchases = snapshot.data!;
+        if (purchases.isEmpty) {
+          return const AdminEmptyState(
+            icon: Icons.shopping_cart_outlined,
+            message: 'Sin compras registradas todavía.\n'
+                'Toca "+" para registrar la primera reposición de insumos.',
           );
-        },
-      );
+        }
+        return SingleChildScrollView(
+          padding: const EdgeInsets.all(20),
+          child: AdminPanel(
+            child: Column(
+              children: [
+                const AdminHeaderRow(cells: [
+                  Expanded(flex: 2, child: Text('FECHA')),
+                  Expanded(flex: 3, child: Text('PROVEEDOR')),
+                  Expanded(flex: 2, child: Text('TOTAL')),
+                ]),
+                ...purchases.asMap().entries.map((entry) {
+                  final p = entry.value.purchase;
+                  final isLast = entry.key == purchases.length - 1;
+                  return AdminRow(
+                    isLast: isLast,
+                    cells: [
+                      Expanded(flex: 2, child: Text(formatDate(p.createdAt))),
+                      Expanded(
+                          flex: 3,
+                          child: Text(
+                              entry.value.supplierName ?? 'Sin proveedor')),
+                      Expanded(
+                        flex: 2,
+                        child: Text(formatCurrency(p.totalCost, symbol),
+                            style: const TextStyle(
+                                fontWeight: FontWeight.w600,
+                                color: LaTerciaColors.darkBrown)),
+                      ),
+                    ],
+                  );
+                }),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 }
 
@@ -155,19 +154,21 @@ class _PurchaseFormDialogState extends ConsumerState<_PurchaseFormDialog> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               FutureBuilder<List<Supplier>>(
-                future:
-                    ref.read(databaseProvider).suppliersDao.getActiveSuppliers(),
+                future: ref
+                    .read(databaseProvider)
+                    .suppliersDao
+                    .getActiveSuppliers(),
                 builder: (ctx, snapshot) {
                   final suppliers = snapshot.data ?? [];
                   return DropdownButtonFormField<int?>(
                     value: _supplierId,
-                    decoration:
-                        const InputDecoration(labelText: 'Proveedor (opcional)'),
+                    decoration: const InputDecoration(
+                        labelText: 'Proveedor (opcional)'),
                     items: [
                       const DropdownMenuItem<int?>(
                           value: null, child: Text('Sin proveedor')),
-                      ...suppliers.map((s) =>
-                          DropdownMenuItem<int?>(value: s.id, child: Text(s.name))),
+                      ...suppliers.map((s) => DropdownMenuItem<int?>(
+                          value: s.id, child: Text(s.name))),
                     ],
                     onChanged: (v) => setState(() => _supplierId = v),
                   );
@@ -219,7 +220,8 @@ class _PurchaseFormDialogState extends ConsumerState<_PurchaseFormDialog> {
               ),
               if (_error != null) ...[
                 const SizedBox(height: 8),
-                Text(_error!, style: const TextStyle(color: LaTerciaColors.danger)),
+                Text(_error!,
+                    style: const TextStyle(color: LaTerciaColors.danger)),
               ],
             ],
           ),
@@ -250,8 +252,8 @@ class _PurchaseFormDialogState extends ConsumerState<_PurchaseFormDialog> {
               value: line.ingredientId,
               decoration: const InputDecoration(labelText: 'Insumo'),
               items: ingredients
-                  .map((i) =>
-                      DropdownMenuItem(value: i.id, child: Text(i.name)))
+                  .map(
+                      (i) => DropdownMenuItem(value: i.id, child: Text(i.name)))
                   .toList(),
               onChanged: (v) => setState(() => line.ingredientId = v),
             ),
@@ -262,7 +264,8 @@ class _PurchaseFormDialogState extends ConsumerState<_PurchaseFormDialog> {
             child: TextFormField(
               controller: line.qtyCtrl,
               decoration: const InputDecoration(labelText: 'Cantidad'),
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true),
               onChanged: (_) => setState(() {}),
             ),
           ),
@@ -272,13 +275,15 @@ class _PurchaseFormDialogState extends ConsumerState<_PurchaseFormDialog> {
             child: TextFormField(
               controller: line.costCtrl,
               decoration: const InputDecoration(labelText: 'Costo unit.'),
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true),
               onChanged: (_) => setState(() {}),
             ),
           ),
           if (_lines.length > 1)
             IconButton(
-              icon: const Icon(Icons.close, size: 18, color: LaTerciaColors.danger),
+              icon: const Icon(Icons.close,
+                  size: 18, color: LaTerciaColors.danger),
               visualDensity: VisualDensity.compact,
               onPressed: () => setState(() => _lines.removeAt(index)),
             ),
@@ -298,7 +303,8 @@ class _PurchaseFormDialogState extends ConsumerState<_PurchaseFormDialog> {
           ingredientId: l.ingredientId!, quantity: qty, unitCost: cost));
     }
     if (drafts.isEmpty) {
-      setState(() => _error = 'Agrega al menos una línea con insumo y cantidad válidos.');
+      setState(() =>
+          _error = 'Agrega al menos una línea con insumo y cantidad válidos.');
       return;
     }
     final employeeId = ref.read(sessionProvider)?.id;

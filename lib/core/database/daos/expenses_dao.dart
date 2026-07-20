@@ -9,12 +9,9 @@ class ExpensesDao extends DatabaseAccessor<AppDatabase>
   ExpensesDao(super.db);
 
   Future<List<Expense>> getAllExpenses() =>
-      (select(expenses)
-            ..orderBy([(e) => OrderingTerm.desc(e.date)]))
-          .get();
+      (select(expenses)..orderBy([(e) => OrderingTerm.desc(e.date)])).get();
 
-  Future<List<Expense>> getExpensesByDateRange(
-          DateTime from, DateTime to) =>
+  Future<List<Expense>> getExpensesByDateRange(DateTime from, DateTime to) =>
       (select(expenses)
             ..where((e) => e.date.isBetweenValues(from, to))
             ..orderBy([(e) => OrderingTerm.desc(e.date)]))

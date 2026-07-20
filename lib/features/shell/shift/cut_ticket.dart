@@ -41,8 +41,7 @@ class CutTicket extends ConsumerWidget {
           Text(
             isZ ? 'CORTE Z' : 'CORTE X (parcial)',
             textAlign: TextAlign.center,
-            style: const TextStyle(
-                fontSize: 20, fontWeight: FontWeight.bold),
+            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
           ),
           if (isZ && shift.zNumber != null)
             Text(
@@ -65,8 +64,8 @@ class CutTicket extends ConsumerWidget {
               bold: true),
           if (s.countedCash != null) ...[
             const SizedBox(height: 6),
-            _row('Efectivo contado',
-                formatCurrency(s.countedCash!, symbol), bold: true),
+            _row('Efectivo contado', formatCurrency(s.countedCash!, symbol),
+                bold: true),
             _row(
               'Diferencia',
               '${s.difference! >= 0 ? '+' : ''}${formatCurrency(s.difference!, symbol)}',
@@ -86,8 +85,8 @@ class CutTicket extends ConsumerWidget {
           ...s.paymentsByMethod.entries
               .map((e) => _row(e.key, formatCurrency(e.value, symbol))),
           const Divider(height: 24),
-          _row('Descuentos otorgados',
-              formatCurrency(s.discountsTotal, symbol)),
+          _row(
+              'Descuentos otorgados', formatCurrency(s.discountsTotal, symbol)),
           if (s.tipsTotal > 0)
             _row('Propinas', formatCurrency(s.tipsTotal, symbol)),
           if (s.refundsTotal > 0)

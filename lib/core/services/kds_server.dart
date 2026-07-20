@@ -173,7 +173,7 @@ class KdsServer {
 
   static String _generateToken() {
     final r = Random.secure();
-    return List.generate(24, (_) => r.nextInt(256).toRadixString(16).padLeft(2, '0'))
-        .join();
+    return List.generate(
+        24, (_) => r.nextInt(256).toRadixString(16).padLeft(2, '0')).join();
   }
 }

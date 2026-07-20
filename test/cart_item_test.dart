@@ -19,16 +19,19 @@ void main() {
   Future<Product> product(double price) async {
     final cats = await db.categoriesDao.getAllCategories();
     final id = await db.productsDao.insertProduct(
-      ProductsCompanion.insert(name: 'Waffle', price: price, categoryId: cats.first.id),
+      ProductsCompanion.insert(
+          name: 'Waffle', price: price, categoryId: cats.first.id),
     );
-    return (await db.productsDao.getAllProducts()).firstWhere((p) => p.id == id);
+    return (await db.productsDao.getAllProducts())
+        .firstWhere((p) => p.id == id);
   }
 
   Future<Modifier> modifier(String name, double priceDelta) async {
     final id = await db.modifiersDao.insertModifier(
       ModifiersCompanion.insert(name: name, priceDelta: Value(priceDelta)),
     );
-    return (await db.modifiersDao.getAllModifiers()).firstWhere((m) => m.id == id);
+    return (await db.modifiersDao.getAllModifiers())
+        .firstWhere((m) => m.id == id);
   }
 
   test('sin modificadores incluidos, unitPrice suma todos los priceDelta',
@@ -52,8 +55,7 @@ void main() {
     expect(item.unitPrice, 60, reason: 'el topping incluido es gratis');
   });
 
-  test('con varios modificadores, solo se salta el marcado incluido',
-      () async {
+  test('con varios modificadores, solo se salta el marcado incluido', () async {
     final p = await product(60);
     final nutella = await modifier('Nutella', 10);
     final lechera = await modifier('Lechera', 10);

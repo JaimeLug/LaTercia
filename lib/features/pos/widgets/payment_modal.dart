@@ -98,9 +98,8 @@ class _PaymentModalState extends ConsumerState<PaymentModal> {
 
   /// Cambio del tramo actual: solo en efectivo y solo sobre lo que excede el
   /// saldo (el cambio se da únicamente sobre el tramo en efectivo, 4.2).
-  double get _currentChange => _isCash
-      ? (_receivedAmount - _remaining).clamp(0.0, double.infinity)
-      : 0;
+  double get _currentChange =>
+      _isCash ? (_receivedAmount - _remaining).clamp(0.0, double.infinity) : 0;
 
   /// Cuánto del saldo cubre el tramo actual (sin contar el cambio).
   double get _currentApplied {
@@ -251,12 +250,12 @@ class _PaymentModalState extends ConsumerState<PaymentModal> {
         settings['gaveta_auto_efectivo'] != 'false') {
       unawaited(printService.openDrawer(settings));
       await ref.read(auditServiceProvider).log(
-            employeeId: employee?.id,
-            action: 'apertura_gaveta',
-            entity: 'order',
-            entityId: order.order.id,
-            detail: {'auto': true, 'orderId': order.order.id},
-          );
+        employeeId: employee?.id,
+        action: 'apertura_gaveta',
+        entity: 'order',
+        entityId: order.order.id,
+        detail: {'auto': true, 'orderId': order.order.id},
+      );
     }
 
     if (mounted) {
@@ -313,7 +312,8 @@ class _PaymentModalState extends ConsumerState<PaymentModal> {
                   ),
                 ),
                 if (tipsEnabled && !hasSplit && _tip > 0)
-                  Text('Venta ${formatCurrency(widget.total, symbol)} + '
+                  Text(
+                      'Venta ${formatCurrency(widget.total, symbol)} + '
                       'propina ${formatCurrency(_tip, symbol)}',
                       style: const TextStyle(
                           fontSize: 11.5, color: LaTerciaColors.tan)),
@@ -345,11 +345,9 @@ class _PaymentModalState extends ConsumerState<PaymentModal> {
                 const SizedBox(height: 20),
                 if (_isCash) _buildCash(symbol),
                 if (_method == 'tarjeta')
-                  _buildAmountAndReference(
-                      symbol, 'Últimos 4 dígitos, etc.'),
+                  _buildAmountAndReference(symbol, 'Últimos 4 dígitos, etc.'),
                 if (_method == 'transferencia')
-                  _buildAmountAndReference(
-                      symbol, 'Número de confirmación'),
+                  _buildAmountAndReference(symbol, 'Número de confirmación'),
                 const SizedBox(height: 14),
                 // Botón para agregar el tramo actual como pago parcial.
                 if (_isPartial)
@@ -377,9 +375,8 @@ class _PaymentModalState extends ConsumerState<PaymentModal> {
                     Expanded(
                       flex: 2,
                       child: FilledButton(
-                        onPressed: _closesBalance && !_processing
-                            ? _confirm
-                            : null,
+                        onPressed:
+                            _closesBalance && !_processing ? _confirm : null,
                         child: _processing
                             ? const SizedBox(
                                 width: 18,
@@ -484,7 +481,8 @@ class _PaymentModalState extends ConsumerState<PaymentModal> {
           backgroundColor:
               selected ? LaTerciaColors.surfaceVariant : Colors.transparent,
           side: BorderSide(
-            color: selected ? LaTerciaColors.burntOrange : LaTerciaColors.border,
+            color:
+                selected ? LaTerciaColors.burntOrange : LaTerciaColors.border,
             width: selected ? 1.6 : 1,
           ),
           foregroundColor:
@@ -510,8 +508,7 @@ class _PaymentModalState extends ConsumerState<PaymentModal> {
         TextField(
           controller: _receivedController,
           autofocus: true,
-          keyboardType:
-              const TextInputType.numberWithOptions(decimal: true),
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
           inputFormatters: [
             FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}')),
           ],
@@ -596,8 +593,7 @@ class _PaymentModalState extends ConsumerState<PaymentModal> {
       children: [
         TextField(
           controller: _receivedController,
-          keyboardType:
-              const TextInputType.numberWithOptions(decimal: true),
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
           inputFormatters: [
             FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}')),
           ],
@@ -653,9 +649,8 @@ class _MethodTile extends StatelessWidget {
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(14),
             border: Border.all(
-              color: selected
-                  ? LaTerciaColors.burntOrange
-                  : LaTerciaColors.border,
+              color:
+                  selected ? LaTerciaColors.burntOrange : LaTerciaColors.border,
               width: selected ? 1.6 : 1,
             ),
           ),

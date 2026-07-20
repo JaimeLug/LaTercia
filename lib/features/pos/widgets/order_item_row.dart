@@ -113,8 +113,7 @@ class _OrderItemRowState extends State<OrderItemRow> {
                 onDecrement: item.quantity > 1
                     ? () => widget.onQuantityChanged(item.quantity - 1)
                     : null,
-                onIncrement: () =>
-                    widget.onQuantityChanged(item.quantity + 1),
+                onIncrement: () => widget.onQuantityChanged(item.quantity + 1),
               ),
               const Spacer(),
               IconButton(
@@ -128,8 +127,7 @@ class _OrderItemRowState extends State<OrderItemRow> {
                 onPressed: () => setState(() => _showNote = !_showNote),
                 padding: EdgeInsets.zero,
                 visualDensity: VisualDensity.compact,
-                constraints:
-                    const BoxConstraints(minWidth: 30, minHeight: 30),
+                constraints: const BoxConstraints(minWidth: 30, minHeight: 30),
               ),
               IconButton(
                 icon: const Icon(Icons.close,
@@ -137,8 +135,7 @@ class _OrderItemRowState extends State<OrderItemRow> {
                 onPressed: widget.onRemove,
                 padding: EdgeInsets.zero,
                 visualDensity: VisualDensity.compact,
-                constraints:
-                    const BoxConstraints(minWidth: 30, minHeight: 30),
+                constraints: const BoxConstraints(minWidth: 30, minHeight: 30),
               ),
             ],
           ),

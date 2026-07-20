@@ -6,7 +6,9 @@ import 'dart:typed_data';
 
 import 'package:esc_pos_utils_plus/esc_pos_utils_plus.dart';
 import 'package:ffi/ffi.dart';
+import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image/image.dart' as img;
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
@@ -123,8 +125,7 @@ class WindowsRawPrinterTransport implements PrinterTransport {
     try {
       // Abrir la impresora por nombre.
       if (OpenPrinter(printerNamePtr, hPrinterPtr, nullptr) == 0) {
-        throw OSError(
-            'OpenPrinter falló para "$printerName"', GetLastError());
+        throw OSError('OpenPrinter falló para "$printerName"', GetLastError());
       }
       final hPrinter = hPrinterPtr.value;
 
@@ -147,8 +148,7 @@ class WindowsRawPrinterTransport implements PrinterTransport {
             final buffer = dataPtr.asTypedList(bytes.length);
             buffer.setAll(0, bytes);
 
-            if (WritePrinter(
-                    hPrinter, dataPtr, bytes.length, bytesWritten) ==
+            if (WritePrinter(hPrinter, dataPtr, bytes.length, bytesWritten) ==
                 0) {
               throw OSError('WritePrinter falló', GetLastError());
             }
@@ -183,7 +183,8 @@ class WindowsRawPrinterTransport implements PrinterTransport {
 /// los builders. La impresora de RED (socket 9100) ya es cross-platform y no
 /// necesita esto.
 class LinuxPrinterTransport implements PrinterTransport {
-  LinuxPrinterTransport(this.target, {this.timeout = const Duration(seconds: 8)});
+  LinuxPrinterTransport(this.target,
+      {this.timeout = const Duration(seconds: 8)});
 
   final String target;
   final Duration timeout;
@@ -227,8 +228,7 @@ class LinuxPrinterTransport implements PrinterTransport {
           'lp no respondió en ${timeout.inSeconds}s (impresora desconectada o CUPS colgado).');
     }
     if (code != 0) {
-      final err =
-          await process.stderr.transform(systemEncoding.decoder).join();
+      final err = await process.stderr.transform(systemEncoding.decoder).join();
       throw Exception('lp devolvió $code: $err');
     }
   }
@@ -434,7 +434,8 @@ List<String> kitchenTicketLines(Order order, List<OrderItem> items) {
   for (final item in items) {
     lines.add('${item.quantity}x ${item.productName}');
     for (final mod in _parseModifiers(item.modifiersJson)) {
-      lines.add(mod.included ? '  + ${mod.name} (incluido)' : '  + ${mod.name}');
+      lines
+          .add(mod.included ? '  + ${mod.name} (incluido)' : '  + ${mod.name}');
     }
     if (item.itemNote != null && item.itemNote!.trim().isNotEmpty) {
       lines.add('  * ${item.itemNote!.trim()}');
@@ -496,8 +497,8 @@ class PrintQueue {
     String description,
   ) async {
     if (transport == null) {
-      appLogger.warn(
-          'Impresión omitida ($description): impresora no configurada.');
+      appLogger
+          .warn('Impresión omitida ($description): impresora no configurada.');
       lastJobFailed = true;
       lastError = description;
       return false;
@@ -602,7 +603,13 @@ class PrintService {
     final bytes = <int>[];
     bytes.addAll(g.reset());
 
-    // Encabezado.
+    // Encabezado: logo arriba (2026-07-20 — rediseño; antes el ticket
+    // arrancaba directo en texto). Best-effort: si no carga ningún logo,
+    // el ticket sigue con el nombre del negocio como antes.
+    final logo = await _resolveThermalLogo(settings);
+    if (logo != null) {
+      bytes.addAll(g.image(logo, align: PosAlign.center));
+    }
     bytes.addAll(g.text(_san(businessName),
         styles: const PosStyles(
           align: PosAlign.center,
@@ -629,7 +636,7 @@ class PrintService {
           styles: const PosStyles(align: PosAlign.center)));
     }
 
-    bytes.addAll(g.hr());
+    bytes.addAll(_brandDivider(g, settings));
 
     // Desglose de items: "cant× nombre ............ precio".
     for (final item in items) {
@@ -671,12 +678,16 @@ class PrintService {
       bytes.addAll(_kv(g, label, money(order.deliveryFee)));
     }
 
-    // TOTAL en negrita/grande.
+    // TOTAL en video invertido (2026-07-20 — rediseño): `reverse` es una
+    // capacidad NATIVA de la impresora (texto blanco sobre franja negra), no
+    // una imagen — se ve como una "caja" resaltada sin costar tiempo extra
+    // de impresión ni depender de ningún archivo.
     bytes.addAll(g.row([
       PosColumn(
         text: 'TOTAL',
         width: 6,
-        styles: const PosStyles(bold: true, height: PosTextSize.size2),
+        styles: const PosStyles(
+            bold: true, height: PosTextSize.size2, reverse: true),
       ),
       PosColumn(
         text: _san(money(order.total)),
@@ -685,11 +696,12 @@ class PrintService {
           bold: true,
           align: PosAlign.right,
           height: PosTextSize.size2,
+          reverse: true,
         ),
       ),
     ]));
 
-    bytes.addAll(g.hr());
+    bytes.addAll(_brandDivider(g, settings));
 
     // Método de pago y cambio (si efectivo).
     if (payment.method == 'efectivo') {
@@ -710,6 +722,24 @@ class PrintService {
 
     bytes.addAll(g.cut());
     return bytes;
+  }
+
+  /// Separador de marca para el ticket de venta (rediseño 2026-07-20): un
+  /// patrón repetido en vez de la línea plana `g.hr()`, para que el ticket
+  /// se sienta más de la casa sin depender de una imagen (más rápido de
+  /// imprimir, y no se puede ver "corrupto" en ninguna impresora).
+  ///
+  /// A propósito usa SOLO caracteres ASCII (0-127): las tablas de códigos de
+  /// las térmicas varían por marca/modelo en el rango 128-255 (ahí es donde
+  /// van los acentos, y por eso el resto del ticket sí los usa vía
+  /// [sanitizeTicketText] con la tabla ya validada en sitio), pero el rango
+  /// ASCII es idéntico en todas — cero riesgo de que salga un símbolo
+  /// distinto al elegido en una impresora que no se ha podido probar aún.
+  List<int> _brandDivider(Generator g, Map<String, String> settings) {
+    const unit = '*  ';
+    final width = paperColumns(settings);
+    final line = (unit * (width ~/ unit.length + 1)).substring(0, width);
+    return g.text(line);
   }
 
   List<int> _kv(Generator g, String label, String value) {
@@ -735,8 +765,7 @@ class PrintService {
     final profile = await _profile();
     final g = Generator(_paperSize(settings), profile);
 
-    final typeLabel =
-        _orderTypeLabels[order.type] ?? order.type.toUpperCase();
+    final typeLabel = _orderTypeLabels[order.type] ?? order.type.toUpperCase();
 
     final bytes = <int>[];
     bytes.addAll(g.reset());
@@ -766,10 +795,12 @@ class PrintService {
     for (final item in items) {
       bytes.addAll(g.text(_san('${item.quantity}x ${item.productName}'),
           styles: const PosStyles(
-              bold: true, height: PosTextSize.size2, width: PosTextSize.size2)));
+              bold: true,
+              height: PosTextSize.size2,
+              width: PosTextSize.size2)));
       for (final mod in _parseModifiers(item.modifiersJson)) {
-        bytes.addAll(g.text(
-            _san(mod.included ? '  + ${mod.name} (incluido)' : '  + ${mod.name}')));
+        bytes.addAll(g.text(_san(
+            mod.included ? '  + ${mod.name} (incluido)' : '  + ${mod.name}')));
       }
       if (item.itemNote != null && item.itemNote!.trim().isNotEmpty) {
         bytes.addAll(g.text(_san('  * ${item.itemNote!.trim()}'),
@@ -782,6 +813,95 @@ class PrintService {
       bytes.addAll(g.hr());
       bytes.addAll(g.text(_san('NOTA: ${order.note!.trim()}'),
           styles: const PosStyles(bold: true)));
+    }
+
+    bytes.addAll(g.cut());
+    return bytes;
+  }
+
+  // ─── Comanda de reparto (delivery) ──────────────────────────────────────
+
+  /// Documento ESC/POS de la comanda de REPARTO: datos del cliente (nombre,
+  /// teléfono, dirección, zona) + lista corta de items, para que el
+  /// repartidor sepa a dónde ir y qué lleva. Se imprime aparte de la comanda
+  /// de cocina (2026-07-20 — antes no existía; la cocina solo veía qué
+  /// preparar, nunca a dónde iba el pedido).
+  ///
+  /// Si la orden aún no está pagada, marca "COBRAR AL ENTREGAR" con el
+  /// total — es el caso típico de delivery pagado contra entrega.
+  Future<List<int>> buildDeliveryTicket({
+    required Order order,
+    required List<OrderItem> items,
+    required Map<String, String> settings,
+  }) async {
+    final profile = await _profile();
+    final g = Generator(_paperSize(settings), profile);
+    final symbol = settings['currency_symbol'] ?? r'$';
+    final decimals = int.tryParse(settings['currency_decimals'] ?? '2') ?? 2;
+    String money(double v) => formatCurrency(v, symbol, decimals: decimals);
+
+    final bytes = <int>[];
+    bytes.addAll(g.reset());
+
+    bytes.addAll(g.text(_san('COMANDA DE REPARTO'),
+        styles: const PosStyles(
+          align: PosAlign.center,
+          bold: true,
+          height: PosTextSize.size2,
+          width: PosTextSize.size2,
+        )));
+    bytes.addAll(g.text(_san('Folio: ${order.orderNumber}'),
+        styles: const PosStyles(align: PosAlign.center)));
+    bytes.addAll(g.text(_san('Hora: ${formatTime(order.createdAt)}'),
+        styles: const PosStyles(align: PosAlign.center)));
+
+    bytes.addAll(g.hr());
+
+    // Datos del cliente — lo que necesita el repartidor para llegar.
+    bytes.addAll(g.text(_san('Cliente: ${order.customerName ?? "—"}'),
+        styles: const PosStyles(bold: true)));
+    if (order.customerPhone != null && order.customerPhone!.trim().isNotEmpty) {
+      bytes.addAll(g.text(_san('Tel: ${order.customerPhone}'),
+          styles: const PosStyles(bold: true, height: PosTextSize.size2)));
+    }
+    if (order.deliveryZone != null) {
+      bytes.addAll(g.text(_san('Zona: ${order.deliveryZone}')));
+    }
+    if (order.customerAddress != null &&
+        order.customerAddress!.trim().isNotEmpty) {
+      bytes.addAll(g.text(_san('Dirección:')));
+      bytes.addAll(g.text(_san(order.customerAddress!),
+          styles: const PosStyles(bold: true)));
+    }
+
+    bytes.addAll(g.hr());
+
+    // Lista corta de lo que lleva (sin precios ni modificadores: eso ya lo
+    // tiene la comanda de cocina; aquí solo interesa el bulto a entregar).
+    for (final item in items) {
+      bytes.addAll(g.text(_san('${item.quantity}x ${item.productName}')));
+    }
+
+    bytes.addAll(g.hr());
+
+    if (order.paymentStatus != 'pagado') {
+      bytes.addAll(g.text(_san('COBRAR AL ENTREGAR'),
+          styles: const PosStyles(align: PosAlign.center, bold: true)));
+      bytes.addAll(g.row([
+        PosColumn(
+            text: 'TOTAL',
+            width: 6,
+            styles: const PosStyles(bold: true, height: PosTextSize.size2)),
+        PosColumn(
+          text: _san(money(order.total)),
+          width: 6,
+          styles: const PosStyles(
+              bold: true, align: PosAlign.right, height: PosTextSize.size2),
+        ),
+      ]));
+    } else {
+      bytes.addAll(g.text(_san('YA PAGADO — no cobrar'),
+          styles: const PosStyles(align: PosAlign.center, bold: true)));
     }
 
     bytes.addAll(g.cut());
@@ -839,9 +959,7 @@ class PrintService {
     bytes.addAll(_kv(g, 'Esperado en caja', money(summary.expectedCash)));
     if (summary.countedCash != null) {
       bytes.addAll(_kv(g, 'Efectivo contado', money(summary.countedCash!)));
-      bytes.addAll(_kv(
-          g,
-          'Diferencia',
+      bytes.addAll(_kv(g, 'Diferencia',
           '${summary.difference! >= 0 ? '+' : ''}${money(summary.difference!)}'));
     }
 
@@ -909,6 +1027,28 @@ class PrintService {
         child: pw.Divider(height: 1, thickness: 0.5),
       );
 
+  /// Divisor de marca para la vista previa PDF — mismo patrón ASCII que
+  /// [_brandDivider] (ver ese comentario), para que la vista previa refleje
+  /// lo que realmente sale de la térmica.
+  pw.Widget _brandDividerPdf() => _center('*  ' * 14, _mono);
+
+  /// TOTAL en "caja" (fondo negro, texto blanco) — el PDF sí puede pintar un
+  /// fondo real (a diferencia de la térmica, que usa `reverse` nativo para
+  /// el mismo efecto visual). Ver comentario de `reverse` en [buildSalesTicket].
+  pw.Widget _boxedTotalPdf(String label, String value) => pw.Container(
+        color: PdfColors.black,
+        padding: const pw.EdgeInsets.symmetric(horizontal: 4, vertical: 3),
+        child: pw.Row(
+          mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+          children: [
+            pw.Text(sanitizeTicketText(label),
+                style: _monoMed.copyWith(color: PdfColors.white)),
+            pw.Text(sanitizeTicketText(value),
+                style: _monoMed.copyWith(color: PdfColors.white)),
+          ],
+        ),
+      );
+
   /// Fila "etiqueta …… valor" (valor alineado a la derecha).
   pw.Widget _kvPdf(String label, String value, {pw.TextStyle? style}) {
     final s = style ?? _mono;
@@ -920,6 +1060,52 @@ class PrintService {
         pw.Text(sanitizeTicketText(value), style: s),
       ],
     );
+  }
+
+  /// Logo para el encabezado del ticket TÉRMICO (ESC/POS): el personalizado
+  /// si el negocio subió uno en Configuración → Negocio, o el de La Tercia
+  /// por defecto (`assets/images/8.png` — negro puro sobre blanco, mejor
+  /// contraste que el logo a color al convertirse a 1-bit) si no.
+  ///
+  /// Se reescala a un ancho fijo ANTES de mandarlo al generador ESC/POS: el
+  /// archivo puede venir en resolución muy alta (el default trae 3780×3780
+  /// px) y mandarlo tal cual sería lentísimo y ocuparía rollo de más.
+  /// Best-effort (2026-07-20): si nada carga, el ticket se sigue imprimiendo
+  /// sin logo — nunca rompe la venta.
+  Future<img.Image?> _resolveThermalLogo(Map<String, String> settings) async {
+    const logoWidth = 300;
+    img.Image? decoded;
+
+    final path = (settings['logo_path'] ?? '').trim();
+    if (path.isNotEmpty) {
+      try {
+        final file = File(path);
+        if (await file.exists()) {
+          decoded = img.decodeImage(await file.readAsBytes());
+        }
+      } catch (e, st) {
+        appLogger.warn(
+            'No se pudo cargar el logo personalizado para el ticket térmico.',
+            e,
+            st);
+      }
+    }
+
+    if (decoded == null) {
+      try {
+        final data = await rootBundle.load('assets/images/8.png');
+        decoded = img.decodePng(data.buffer.asUint8List());
+      } catch (e, st) {
+        appLogger.warn(
+            'No se pudo cargar el logo por defecto para el ticket térmico.',
+            e,
+            st);
+        return null;
+      }
+    }
+
+    if (decoded == null) return null;
+    return img.copyResize(decoded, width: logoWidth);
   }
 
   /// Logo para el encabezado del ticket PDF: el personalizado si el negocio
@@ -942,7 +1128,8 @@ class PrintService {
     try {
       return await imageFromAssetBundle('assets/images/logo-color.png');
     } catch (e, st) {
-      appLogger.warn('No se pudo cargar el logo por defecto para el ticket.', e, st);
+      appLogger.warn(
+          'No se pudo cargar el logo por defecto para el ticket.', e, st);
       return null;
     }
   }
@@ -970,8 +1157,7 @@ class PrintService {
     final children = <pw.Widget>[
       if (logo != null) ...[
         pw.Center(
-          child: pw.SizedBox(
-              height: 46, width: 46, child: pw.Image(logo)),
+          child: pw.SizedBox(height: 46, width: 46, child: pw.Image(logo)),
         ),
         pw.SizedBox(height: 4),
       ],
@@ -981,7 +1167,7 @@ class PrintService {
       _center(formatDateTime(order.createdAt), _mono),
       _center('Folio: ${order.orderNumber}', _mono),
       if (showEmployee) _center('Atendió: ${employee.name}', _mono),
-      _hrPdf(),
+      _brandDividerPdf(),
       for (final item in items)
         _kvPdf('${item.quantity}x ${item.productName}',
             money(item.unitPrice * item.quantity)),
@@ -1006,8 +1192,10 @@ class PrintService {
                 ? 'Envío (${order.deliveryZone})'
                 : 'Envío',
             money(order.deliveryFee)),
-      _kvPdf('TOTAL', money(order.total), style: _monoMed),
-      _hrPdf(),
+      pw.SizedBox(height: 3),
+      _boxedTotalPdf('TOTAL', money(order.total)),
+      pw.SizedBox(height: 3),
+      _brandDividerPdf(),
       if (payment.method == 'efectivo') ...[
         _kvPdf('Efectivo', money(payment.amountTendered)),
         if (payment.changeGiven > 0)
@@ -1055,13 +1243,13 @@ class PrintService {
           style: _monoMed));
       for (final mod in _parseModifiers(item.modifiersJson)) {
         children.add(pw.Text(
-            sanitizeTicketText(
-                mod.included ? '  + ${mod.name} (incluido)' : '  + ${mod.name}'),
+            sanitizeTicketText(mod.included
+                ? '  + ${mod.name} (incluido)'
+                : '  + ${mod.name}'),
             style: _mono));
       }
       if (item.itemNote != null && item.itemNote!.trim().isNotEmpty) {
-        children.add(pw.Text(
-            sanitizeTicketText('  * ${item.itemNote!.trim()}'),
+        children.add(pw.Text(sanitizeTicketText('  * ${item.itemNote!.trim()}'),
             style: _monoBold));
       }
     }
@@ -1071,6 +1259,65 @@ class PrintService {
         ..add(_hrPdf())
         ..add(pw.Text(sanitizeTicketText('NOTA: ${order.note!.trim()}'),
             style: _monoBold));
+    }
+
+    final doc = pw.Document();
+    doc.addPage(pw.Page(
+      pageFormat: _rollMargins(settings),
+      build: (context) => pw.Column(
+        crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+        mainAxisSize: pw.MainAxisSize.min,
+        children: children,
+      ),
+    ));
+    return doc.save();
+  }
+
+  /// PDF de la comanda de reparto — mismo contenido que [buildDeliveryTicket].
+  Future<Uint8List> buildDeliveryTicketPdf({
+    required Order order,
+    required List<OrderItem> items,
+    required Map<String, String> settings,
+  }) async {
+    final symbol = settings['currency_symbol'] ?? r'$';
+    final decimals = int.tryParse(settings['currency_decimals'] ?? '2') ?? 2;
+    String money(double v) => formatCurrency(v, symbol, decimals: decimals);
+
+    final children = <pw.Widget>[
+      _center('COMANDA DE REPARTO', _monoBig),
+      _center('Folio: ${order.orderNumber}', _mono),
+      _center('Hora: ${formatTime(order.createdAt)}', _mono),
+      _hrPdf(),
+      pw.Text(sanitizeTicketText('Cliente: ${order.customerName ?? "—"}'),
+          style: _monoBold),
+      if (order.customerPhone != null && order.customerPhone!.trim().isNotEmpty)
+        pw.Text(sanitizeTicketText('Tel: ${order.customerPhone}'),
+            style: _monoMed),
+      if (order.deliveryZone != null)
+        pw.Text(sanitizeTicketText('Zona: ${order.deliveryZone}'),
+            style: _mono),
+      if (order.customerAddress != null &&
+          order.customerAddress!.trim().isNotEmpty) ...[
+        pw.Text(sanitizeTicketText('Dirección:'), style: _mono),
+        pw.Text(sanitizeTicketText(order.customerAddress!), style: _monoBold),
+      ],
+      _hrPdf(),
+    ];
+
+    for (final item in items) {
+      children.add(pw.Text(
+          sanitizeTicketText('${item.quantity}x ${item.productName}'),
+          style: _mono));
+    }
+
+    children.add(_hrPdf());
+    if (order.paymentStatus != 'pagado') {
+      children
+        ..add(_center('COBRAR AL ENTREGAR', _monoBold))
+        ..add(pw.Text(sanitizeTicketText('TOTAL: ${money(order.total)}'),
+            style: _monoBig));
+    } else {
+      children.add(_center('YA PAGADO — no cobrar', _monoBold));
     }
 
     final doc = pw.Document();
@@ -1118,8 +1365,7 @@ class PrintService {
       _kvPdf('Esperado en caja', money(summary.expectedCash)),
       if (summary.countedCash != null) ...[
         _kvPdf('Efectivo contado', money(summary.countedCash!)),
-        _kvPdf(
-            'Diferencia',
+        _kvPdf('Diferencia',
             '${summary.difference! >= 0 ? '+' : ''}${money(summary.difference!)}'),
       ],
       _hrPdf(),
@@ -1218,9 +1464,9 @@ class PrintService {
         }
       }
       if (printer == null) {
-        appLogger.warn(
-            'Impresión gráfica ($jobName): no se encontró la impresora '
-            '"$printerName" en Windows.');
+        appLogger
+            .warn('Impresión gráfica ($jobName): no se encontró la impresora '
+                '"$printerName" en Windows.');
         return false;
       }
       await Printing.directPrintPdf(
@@ -1277,6 +1523,17 @@ class PrintService {
           );
           await printPdfToWindows(
               printerName, kitchen, 'Comanda ${order.orderNumber}');
+          // Comanda de reparto aparte (2026-07-20): solo en delivery, con los
+          // datos del cliente para el repartidor.
+          if (order.type == 'delivery') {
+            final delivery = await buildDeliveryTicketPdf(
+              order: order,
+              items: items,
+              settings: settings,
+            );
+            await printPdfToWindows(
+                printerName, delivery, 'Reparto ${order.orderNumber}');
+          }
         }
         return;
       }
@@ -1291,8 +1548,7 @@ class PrintService {
         employee: employee,
         reprint: reprint,
       );
-      await queue.enqueue(
-          transport, ticket, 'Ticket ${order.orderNumber}');
+      await queue.enqueue(transport, ticket, 'Ticket ${order.orderNumber}');
 
       if (includeKitchen && !reprint) {
         final kitchen = await buildKitchenTicket(
@@ -1300,8 +1556,17 @@ class PrintService {
           items: items,
           settings: settings,
         );
-        await queue.enqueue(
-            transport, kitchen, 'Comanda ${order.orderNumber}');
+        await queue.enqueue(transport, kitchen, 'Comanda ${order.orderNumber}');
+
+        if (order.type == 'delivery') {
+          final delivery = await buildDeliveryTicket(
+            order: order,
+            items: items,
+            settings: settings,
+          );
+          await queue.enqueue(
+              transport, delivery, 'Reparto ${order.orderNumber}');
+        }
       }
     } catch (e, st) {
       appLogger.warn('No se pudo construir el documento de impresión.', e, st);
@@ -1326,6 +1591,15 @@ class PrintService {
         );
         await printPdfToWindows(
             printerName, kitchen, 'Comanda ${order.orderNumber}');
+        if (order.type == 'delivery') {
+          final delivery = await buildDeliveryTicketPdf(
+            order: order,
+            items: items,
+            settings: settings,
+          );
+          await printPdfToWindows(
+              printerName, delivery, 'Reparto ${order.orderNumber}');
+        }
         return;
       }
 
@@ -1335,8 +1609,17 @@ class PrintService {
         items: items,
         settings: settings,
       );
-      await queue.enqueue(
-          transport, kitchen, 'Comanda ${order.orderNumber}');
+      await queue.enqueue(transport, kitchen, 'Comanda ${order.orderNumber}');
+
+      if (order.type == 'delivery') {
+        final delivery = await buildDeliveryTicket(
+          order: order,
+          items: items,
+          settings: settings,
+        );
+        await queue.enqueue(
+            transport, delivery, 'Reparto ${order.orderNumber}');
+      }
     } catch (e, st) {
       appLogger.warn('No se pudo construir la comanda de cocina.', e, st);
     }
@@ -1356,8 +1639,8 @@ class PrintService {
     try {
       if (printerMode(settings) == 'grafica') {
         final printerName = (settings['printer_address'] ?? '').trim();
-        final pdf =
-            await buildCutTicketPdf(summary: summary, settings: settings, isZ: isZ);
+        final pdf = await buildCutTicketPdf(
+            summary: summary, settings: settings, isZ: isZ);
         await printPdfToWindows(printerName, pdf, jobName);
         return;
       }
@@ -1409,14 +1692,16 @@ class PrintService {
       bytes.addAll(g.text(_san('Folio: ${order.orderNumber}'),
           styles: const PosStyles(align: PosAlign.center)));
       bytes.addAll(g.hr());
-      bytes.addAll(g.text(_san('CANCELADO: ${item.quantity}x ${item.productName}'),
+      bytes.addAll(g.text(
+          _san('CANCELADO: ${item.quantity}x ${item.productName}'),
           styles: const PosStyles(
-              bold: true, height: PosTextSize.size2, width: PosTextSize.size2)));
+              bold: true,
+              height: PosTextSize.size2,
+              width: PosTextSize.size2)));
       bytes.addAll(g.cut());
 
       final transport = transportFor(settings);
-      await queue.enqueue(
-          transport, bytes, 'Cancelación ${order.orderNumber}');
+      await queue.enqueue(transport, bytes, 'Cancelación ${order.orderNumber}');
     } catch (e, st) {
       appLogger.warn('No se pudo imprimir la comanda de cancelación.', e, st);
     }
@@ -1456,10 +1741,9 @@ class PrintService {
     bytes.addAll(g.text('TICKET DE PRUEBA',
         styles: const PosStyles(align: PosAlign.center, bold: true)));
     bytes.addAll(g.hr());
-    bytes.addAll(g.text(_san(
-        'Ancho: ${settings['printer_width'] ?? '80'}mm')));
-    bytes.addAll(g.text(_san(
-        'Transporte: ${settings['printer_transport'] ?? 'red'}')));
+    bytes.addAll(g.text(_san('Ancho: ${settings['printer_width'] ?? '80'}mm')));
+    bytes.addAll(
+        g.text(_san('Transporte: ${settings['printer_transport'] ?? 'red'}')));
     bytes.addAll(g.text(_san(formatDateTime(DateTime.now()))));
     bytes.addAll(g.hr());
     bytes.addAll(g.text('Si lees esto, la impresora funciona.',

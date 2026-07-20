@@ -23,7 +23,8 @@ void main() {
     );
   }
 
-  test('un modificador sin alcance aplica a cualquier categoría (I3)', () async {
+  test('un modificador sin alcance aplica a cualquier categoría (I3)',
+      () async {
     await addModifier('Salsa libre'); // scope null
 
     final forAny = await db.modifiersDao.getModifiersForCategoryName('Postres');
@@ -66,7 +67,8 @@ void main() {
 
   // FASE 8 — un modificador puede aplicar a varias categorías (ej. un
   // topping que se usa tanto en Frappés como en Especialidades).
-  test('un alcance con varias categorías separadas por coma aplica a '
+  test(
+      'un alcance con varias categorías separadas por coma aplica a '
       'cualquiera de ellas', () async {
     await addModifier('Topping 1', scope: 'Frappés,Especialidades');
 

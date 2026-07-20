@@ -20,14 +20,20 @@ void main() {
     Future<WebSocket> connectAsEsp32() =>
         WebSocket.connect('ws://127.0.0.1:$testPort');
 
-    test('cada string del firmware produce el KdsButton correcto (mapeo '
+    test(
+        'cada string del firmware produce el KdsButton correcto (mapeo '
         'literal)', () async {
       final ws = await connectAsEsp32();
       final events = <KdsButton>[];
       final sub = service.botonPresionado.listen(events.add);
 
       const secuencia = [
-        'ANTERIOR', 'SIGUIENTE', 'PREP', 'LISTO', 'RECALL', 'TIEMPO'
+        'ANTERIOR',
+        'SIGUIENTE',
+        'PREP',
+        'LISTO',
+        'RECALL',
+        'TIEMPO'
       ];
       for (final s in secuencia) {
         ws.add(s);
@@ -64,7 +70,8 @@ void main() {
     });
 
     // Auditoría 2026-07-17 — rebote mecánico del botón físico.
-    test('mensajes idénticos y seguidos (rebote) se colapsan en un solo '
+    test(
+        'mensajes idénticos y seguidos (rebote) se colapsan en un solo '
         'evento', () async {
       final ws = await connectAsEsp32();
       final events = <KdsButton>[];
@@ -103,7 +110,8 @@ void main() {
       await ws.close();
     });
 
-    test('el mismo botón presionado de nuevo DESPUÉS de la ventana de '
+    test(
+        'el mismo botón presionado de nuevo DESPUÉS de la ventana de '
         'debounce sí cuenta dos veces', () async {
       final ws = await connectAsEsp32();
       final events = <KdsButton>[];
@@ -153,8 +161,7 @@ void main() {
 
       final b = KdsButtonService();
       await b.start(port: port); // no debe lanzar
-      expect(b.isRunning, isFalse,
-          reason: 'el puerto ya está tomado por "a"');
+      expect(b.isRunning, isFalse, reason: 'el puerto ya está tomado por "a"');
 
       await a.dispose();
       await b.dispose();

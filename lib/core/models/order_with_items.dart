@@ -26,7 +26,8 @@ class CartItem {
     this.note,
   });
 
-  double get unitPrice => product.price +
+  double get unitPrice =>
+      product.price +
       modifiers
           .where((m) => !includedModifierIds.contains(m.id))
           .fold(0.0, (sum, m) => sum + m.priceDelta);

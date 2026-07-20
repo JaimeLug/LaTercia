@@ -55,7 +55,8 @@ void main() {
 
   // ─── Happy path ────────────────────────────────────────────────────────
 
-  test('camino feliz: orden + items + inventario + pago + visitas quedan '
+  test(
+      'camino feliz: orden + items + inventario + pago + visitas quedan '
       'consistentes tras una sola transacción', () async {
     final product = await trackedProduct(stock: 10);
     final customer = await anyCustomer();
@@ -85,8 +86,8 @@ void main() {
     expect(payments.first.method, 'efectivo');
     expect(payments.first.amountTendered, 100);
 
-    final table = (await db.tablesDao.getAllTables())
-        .firstWhere((t) => t.id == 1);
+    final table =
+        (await db.tablesDao.getAllTables()).firstWhere((t) => t.id == 1);
     expect(table.status, 'occupied');
 
     final refreshedCustomer = (await db.customersDao.getAllCustomers())
@@ -142,7 +143,8 @@ void main() {
 
   // ─── Insumos y recetas (FASE 7) ────────────────────────────────────────
 
-  test('con insumos_activo=true, un producto con receta descuenta el insumo '
+  test(
+      'con insumos_activo=true, un producto con receta descuenta el insumo '
       'en vez del stock simple del producto', () async {
     final cats = await db.categoriesDao.getAllCategories();
     final ingredientId = await db.ingredientsDao.insertIngredient(
@@ -160,8 +162,8 @@ void main() {
     await db.recipesDao.setRecipe(
         productId, [RecipeLineDraft(ingredientId: ingredientId, quantity: 18)]);
     await db.settingsDao.setValue('insumos_activo', 'true');
-    final product =
-        (await db.productsDao.getAllProducts()).firstWhere((p) => p.id == productId);
+    final product = (await db.productsDao.getAllProducts())
+        .firstWhere((p) => p.id == productId);
 
     await checkout.checkout(
       cartItems: [CartItem(product: product, quantity: 2)],
@@ -178,7 +180,8 @@ void main() {
     expect(ingredient.stockQuantity, 1000 - 18 * 2);
   });
 
-  test('con insumos_activo=false, un producto con receta cargada NO toca '
+  test(
+      'con insumos_activo=false, un producto con receta cargada NO toca '
       'insumos (el flag manda, no solo si el producto tiene receta)', () async {
     final cats = await db.categoriesDao.getAllCategories();
     final ingredientId = await db.ingredientsDao.insertIngredient(
@@ -196,8 +199,8 @@ void main() {
     await db.recipesDao.setRecipe(
         productId, [RecipeLineDraft(ingredientId: ingredientId, quantity: 18)]);
     await db.settingsDao.setValue('insumos_activo', 'false');
-    final product =
-        (await db.productsDao.getAllProducts()).firstWhere((p) => p.id == productId);
+    final product = (await db.productsDao.getAllProducts())
+        .firstWhere((p) => p.id == productId);
 
     await checkout.checkout(
       cartItems: [CartItem(product: product, quantity: 2)],
@@ -211,12 +214,14 @@ void main() {
 
     final ingredient = (await db.ingredientsDao.getAllIngredients())
         .firstWhere((i) => i.id == ingredientId);
-    expect(ingredient.stockQuantity, 1000, reason: 'flag apagado — sin tocar insumos');
+    expect(ingredient.stockQuantity, 1000,
+        reason: 'flag apagado — sin tocar insumos');
   });
 
   // ─── Atomicity ─────────────────────────────────────────────────────────
 
-  test('un fallo a mitad del checkout revierte todo: sin orden, sin pago, '
+  test(
+      'un fallo a mitad del checkout revierte todo: sin orden, sin pago, '
       'sin inventario descontado, sin cliente actualizado', () async {
     final product = await trackedProduct(stock: 10);
     final customer = await anyCustomer();
@@ -269,11 +274,12 @@ void main() {
     expect(payments, isEmpty);
 
     // Inventory must not have been decremented.
-    expect(await stockOf(product.id), 10, reason: 'rollback total del inventario');
+    expect(await stockOf(product.id), 10,
+        reason: 'rollback total del inventario');
 
     // Table must not have been marked occupied.
-    final table = (await db.tablesDao.getAllTables())
-        .firstWhere((t) => t.id == 2);
+    final table =
+        (await db.tablesDao.getAllTables()).firstWhere((t) => t.id == 2);
     expect(table.status, 'available');
 
     // Customer visits/spend must be untouched.
@@ -319,7 +325,8 @@ void main() {
     });
   }
 
-  test('cobrar una orden pendiente registra el pago y la marca pagada sin '
+  test(
+      'cobrar una orden pendiente registra el pago y la marca pagada sin '
       'volver a descontar inventario', () async {
     final product = await trackedProduct(stock: 10);
     final customer = await anyCustomer();
@@ -394,7 +401,8 @@ void main() {
     );
 
     final payments = await db.paymentsDao.getPaymentsForOrder(orderId);
-    expect(payments, hasLength(1), reason: 'el segundo cobro no debe registrarse');
+    expect(payments, hasLength(1),
+        reason: 'el segundo cobro no debe registrarse');
   });
 
   // ─── Propinas (4.1) ──────────────────────────────────────────────────────
@@ -420,8 +428,8 @@ void main() {
   });
 
   test('el corte de turno suma las propinas como línea aparte', () async {
-    final shift = await ShiftService(db)
-        .openShift(employeeId: 1, startingCash: 0);
+    final shift =
+        await ShiftService(db).openShift(employeeId: 1, startingCash: 0);
     final product = await trackedProduct(stock: 10);
 
     await checkout.checkout(
@@ -442,7 +450,8 @@ void main() {
 
   // ─── Pagos mixtos (4.2) ──────────────────────────────────────────────────
 
-  test('un cobro con dos tramos (tarjeta + efectivo) registra dos pagos y el '
+  test(
+      'un cobro con dos tramos (tarjeta + efectivo) registra dos pagos y el '
       'cambio solo en el efectivo', () async {
     final product = await trackedProduct(stock: 10);
 
@@ -455,7 +464,9 @@ void main() {
       payments: const [
         PaymentDraft(method: 'tarjeta', amountTendered: 60), // parcial
         PaymentDraft(
-            method: 'efectivo', amountTendered: 50, changeGiven: 10), // 40 aplica
+            method: 'efectivo',
+            amountTendered: 50,
+            changeGiven: 10), // 40 aplica
       ],
     );
 
@@ -465,15 +476,14 @@ void main() {
     final applied =
         payments.fold(0.0, (a, p) => a + p.amountTendered - p.changeGiven);
     expect(applied, 100, reason: 'los tramos cubren exactamente el total');
-    expect(
-        payments.firstWhere((p) => p.method == 'efectivo').changeGiven, 10);
-    expect(
-        payments.firstWhere((p) => p.method == 'tarjeta').changeGiven, 0);
+    expect(payments.firstWhere((p) => p.method == 'efectivo').changeGiven, 10);
+    expect(payments.firstWhere((p) => p.method == 'tarjeta').changeGiven, 0);
   });
 
   // ─── Anulación de línea (4.3) ────────────────────────────────────────────
 
-  test('anular una línea de una orden no pagada devuelve su stock y reduce los '
+  test(
+      'anular una línea de una orden no pagada devuelve su stock y reduce los '
       'montos de la orden', () async {
     final product = await trackedProduct(stock: 10);
 
@@ -531,7 +541,8 @@ void main() {
 
   // ─── Reembolsos (4.4) ────────────────────────────────────────────────────
 
-  test('reembolsar una orden pagada registra el contra-movimiento, devuelve '
+  test(
+      'reembolsar una orden pagada registra el contra-movimiento, devuelve '
       'stock y lo resta del efectivo esperado del turno', () async {
     final shift =
         await ShiftService(db).openShift(employeeId: 1, startingCash: 100);

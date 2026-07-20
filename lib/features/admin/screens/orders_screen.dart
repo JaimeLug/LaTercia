@@ -74,8 +74,12 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> {
                 _FilterDropdown<String>(
                   value: _statusFilter,
                   items: const [
-                    'Todos', 'pendiente', 'en_preparacion',
-                    'listo', 'entregado', 'cancelado'
+                    'Todos',
+                    'pendiente',
+                    'en_preparacion',
+                    'listo',
+                    'entregado',
+                    'cancelado'
                   ],
                   labelOf: (s) => s,
                   onChanged: (v) => setState(() => _statusFilter = v!),
@@ -96,20 +100,17 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> {
               future: ref
                   .read(databaseProvider)
                   .ordersDao
-                  .getOrdersByDateRange(
-                      _dateRange.start, _dateRange.end),
+                  .getOrdersByDateRange(_dateRange.start, _dateRange.end),
               builder: (ctx, snapshot) {
                 if (!snapshot.hasData) return adminLoading();
                 var orders = snapshot.data!;
                 if (_statusFilter != 'Todos') {
-                  orders = orders
-                      .where((o) => o.status == _statusFilter)
-                      .toList();
+                  orders =
+                      orders.where((o) => o.status == _statusFilter).toList();
                 }
                 if (_employeeFilter != null) {
                   orders = orders
-                      .where(
-                          (o) => o.employeeId == _employeeFilter)
+                      .where((o) => o.employeeId == _employeeFilter)
                       .toList();
                 }
                 if (orders.isEmpty) {
@@ -119,9 +120,7 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> {
                   );
                 }
 
-                final empMap = {
-                  for (final e in employees) e.id: e.name
-                };
+                final empMap = {for (final e in employees) e.id: e.name};
 
                 return SingleChildScrollView(
                   padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
@@ -153,25 +152,20 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> {
                               ),
                               Expanded(flex: 2, child: Text(o.type)),
                               Expanded(
-                                  flex: 2,
-                                  child: Text(o.customerName ?? '—')),
+                                  flex: 2, child: Text(o.customerName ?? '—')),
                               Expanded(
                                   flex: 2,
-                                  child:
-                                      Text(empMap[o.employeeId] ?? '—')),
+                                  child: Text(empMap[o.employeeId] ?? '—')),
                               Expanded(
                                 flex: 2,
-                                child: Text(
-                                    formatCurrency(o.total, symbol),
+                                child: Text(formatCurrency(o.total, symbol),
                                     style: const TextStyle(
                                         fontWeight: FontWeight.w600)),
                               ),
-                              Expanded(
-                                  flex: 2, child: _StatusChip(o.status)),
+                              Expanded(flex: 2, child: _StatusChip(o.status)),
                               Expanded(
                                   flex: 3,
-                                  child: Text(
-                                      formatDateTime(o.createdAt),
+                                  child: Text(formatDateTime(o.createdAt),
                                       style: const TextStyle(
                                           color: LaTerciaColors.tan,
                                           fontSize: 12.5))),
@@ -221,38 +215,30 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> {
               children: [
                 Text('Tipo: ${order.type}'),
                 Text('Estado: ${order.status}'),
-                Text(
-                    'Pago: ${order.paymentStatus}'),
-                if (order.note != null)
-                  Text('Nota: ${order.note}'),
+                Text('Pago: ${order.paymentStatus}'),
+                if (order.note != null) Text('Nota: ${order.note}'),
                 const Divider(),
                 const Text('Artículos:',
-                    style: TextStyle(
-                        fontWeight: FontWeight.bold)),
+                    style: TextStyle(fontWeight: FontWeight.bold)),
                 ...items.map((i) => Text(
                     '${i.quantity}× ${i.productName} — ${formatCurrency(i.unitPrice * i.quantity, symbol)}')),
                 const Divider(),
-                Text(
-                    'Subtotal: ${formatCurrency(order.subtotal, symbol)}'),
+                Text('Subtotal: ${formatCurrency(order.subtotal, symbol)}'),
                 if (order.discountAmount > 0)
                   Text(
                       'Descuento: -${formatCurrency(order.discountAmount, symbol)}'),
-                Text(
-                    'Total: ${formatCurrency(order.total, symbol)}'),
+                Text('Total: ${formatCurrency(order.total, symbol)}'),
                 if (payments.isNotEmpty) ...[
                   const Divider(),
                   const Text('Pago:',
-                      style: TextStyle(
-                          fontWeight: FontWeight.bold)),
-                  ...payments.map((p) =>
-                      Text('${p.method}: ${formatCurrency(p.amountTendered, symbol)}')),
+                      style: TextStyle(fontWeight: FontWeight.bold)),
+                  ...payments.map((p) => Text(
+                      '${p.method}: ${formatCurrency(p.amountTendered, symbol)}')),
                 ],
                 if (order.cancelReason != null) ...[
                   const Divider(),
-                  Text(
-                      'Razón de cancelación: ${order.cancelReason}',
-                      style: const TextStyle(
-                          color: Colors.red)),
+                  Text('Razón de cancelación: ${order.cancelReason}',
+                      style: const TextStyle(color: Colors.red)),
                 ],
               ],
             ),
@@ -263,8 +249,7 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> {
             TextButton.icon(
               icon: const Icon(Icons.print, size: 17),
               label: const Text('Reimprimir ticket'),
-              onPressed: () =>
-                  _reprintTicket(context, order, items, payments),
+              onPressed: () => _reprintTicket(context, order, items, payments),
             ),
           if (order.paymentStatus == 'pagado')
             TextButton.icon(
@@ -272,14 +257,11 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> {
               label: const Text('Reembolsar'),
               onPressed: () => _showRefundDialog(context, order),
             ),
-          if (order.status != 'entregado' &&
-              order.status != 'cancelado')
+          if (order.status != 'entregado' && order.status != 'cancelado')
             TextButton(
-              onPressed: () =>
-                  _showCancelDialog(context, order),
+              onPressed: () => _showCancelDialog(context, order),
               style: TextButton.styleFrom(
-                  foregroundColor:
-                      Theme.of(context).colorScheme.error),
+                  foregroundColor: Theme.of(context).colorScheme.error),
               child: const Text('Cancelar orden'),
             ),
           FilledButton(
@@ -461,8 +443,7 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> {
     }
   }
 
-  Future<void> _showCancelDialog(
-      BuildContext context, Order order) async {
+  Future<void> _showCancelDialog(BuildContext context, Order order) async {
     final reasonCtrl = TextEditingController();
     final confirmed = await showDialog<bool>(
       context: context,
@@ -470,8 +451,7 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> {
         title: const Text('Cancelar orden'),
         content: TextField(
           controller: reasonCtrl,
-          decoration: const InputDecoration(
-              labelText: 'Razón de cancelación'),
+          decoration: const InputDecoration(labelText: 'Razón de cancelación'),
         ),
         actions: [
           TextButton(
@@ -498,11 +478,9 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> {
         if (!allowed) return;
       }
       if (!context.mounted) return;
-      await ref
-          .read(ordersProvider.notifier)
-          .cancelOrder(
-              order.id, reasonCtrl.text, order.tableId,
-              employeeId: actor?.id);
+      await ref.read(ordersProvider.notifier).cancelOrder(
+          order.id, reasonCtrl.text, order.tableId,
+          employeeId: actor?.id);
       if (context.mounted) {
         Navigator.pop(context);
       }
@@ -517,14 +495,16 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> {
     if (!context.mounted) return;
     await exportToCSV(
       context: context,
-      rows: orders.map((o) => {
-        'Número': o.orderNumber,
-        'Tipo': o.type,
-        'Cliente': o.customerName ?? '',
-        'Total': o.total.toString(),
-        'Estado': o.status,
-        'Fecha': formatDateTime(o.createdAt),
-      }).toList(),
+      rows: orders
+          .map((o) => {
+                'Número': o.orderNumber,
+                'Tipo': o.type,
+                'Cliente': o.customerName ?? '',
+                'Total': o.total.toString(),
+                'Estado': o.status,
+                'Fecha': formatDateTime(o.createdAt),
+              })
+          .toList(),
       headers: ['Número', 'Tipo', 'Cliente', 'Total', 'Estado', 'Fecha'],
       defaultFileName: 'ordenes-${formatDate(DateTime.now())}.csv',
     );
@@ -583,8 +563,7 @@ class _FilterDropdown<T> extends StatelessWidget {
               fontWeight: FontWeight.w600),
           dropdownColor: LaTerciaColors.creamAlt,
           items: items
-              .map((v) =>
-                  DropdownMenuItem(value: v, child: Text(labelOf(v))))
+              .map((v) => DropdownMenuItem(value: v, child: Text(labelOf(v))))
               .toList(),
           onChanged: onChanged,
         ),

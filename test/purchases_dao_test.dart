@@ -11,10 +11,11 @@ void main() {
   });
   tearDown(() => db.close());
 
-  Future<int> newIngredient(String name) => db.ingredientsDao.insertIngredient(
-      IngredientsCompanion.insert(name: name, unit: 'g'));
+  Future<int> newIngredient(String name) => db.ingredientsDao
+      .insertIngredient(IngredientsCompanion.insert(name: name, unit: 'g'));
 
-  test('createPurchase incrementa stock, registra movimiento y actualiza '
+  test(
+      'createPurchase incrementa stock, registra movimiento y actualiza '
       'el último costo unitario', () async {
     final cafeId = await newIngredient('Café');
     final lecheId = await newIngredient('Leche');
@@ -28,14 +29,15 @@ void main() {
       note: 'Reposición semanal',
       items: [
         PurchaseItemDraft(ingredientId: cafeId, quantity: 5000, unitCost: 0.4),
-        PurchaseItemDraft(ingredientId: lecheId, quantity: 2000, unitCost: 0.02),
+        PurchaseItemDraft(
+            ingredientId: lecheId, quantity: 2000, unitCost: 0.02),
       ],
     );
 
-    final cafe =
-        (await db.ingredientsDao.getAllIngredients()).firstWhere((i) => i.id == cafeId);
-    final leche =
-        (await db.ingredientsDao.getAllIngredients()).firstWhere((i) => i.id == lecheId);
+    final cafe = (await db.ingredientsDao.getAllIngredients())
+        .firstWhere((i) => i.id == cafeId);
+    final leche = (await db.ingredientsDao.getAllIngredients())
+        .firstWhere((i) => i.id == lecheId);
     expect(cafe.stockQuantity, 5000);
     expect(cafe.lastUnitCost, 0.4);
     expect(leche.stockQuantity, 2000);
@@ -60,7 +62,9 @@ void main() {
     final cafeId = await newIngredient('Café');
     final purchaseId = await db.purchasesDao.createPurchase(
       employeeId: 1,
-      items: [PurchaseItemDraft(ingredientId: cafeId, quantity: 100, unitCost: 0.5)],
+      items: [
+        PurchaseItemDraft(ingredientId: cafeId, quantity: 100, unitCost: 0.5)
+      ],
     );
 
     final purchases = await db.purchasesDao.getAllPurchases();

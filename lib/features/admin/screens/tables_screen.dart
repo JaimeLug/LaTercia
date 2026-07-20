@@ -21,8 +21,7 @@ class TablesScreen extends ConsumerWidget {
       body: tablesAsync.when(
         data: (tables) => GridView.builder(
           padding: const EdgeInsets.all(16),
-          gridDelegate:
-              const SliverGridDelegateWithMaxCrossAxisExtent(
+          gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
             maxCrossAxisExtent: 220,
             childAspectRatio: 1.2,
             crossAxisSpacing: 12,
@@ -54,8 +53,7 @@ class TablesScreen extends ConsumerWidget {
                           fontSize: 18, fontWeight: FontWeight.bold),
                     ),
                     Text('${t.capacity} personas',
-                        style: const TextStyle(
-                            color: Colors.grey)),
+                        style: const TextStyle(color: Colors.grey)),
                     const SizedBox(height: 8),
                     Chip(
                       label: Text(t.status.toUpperCase()),
@@ -63,8 +61,7 @@ class TablesScreen extends ConsumerWidget {
                       side: BorderSide(color: color),
                     ),
                     TextButton(
-                      onPressed: () =>
-                          _showForm(context, ref, t),
+                      onPressed: () => _showForm(context, ref, t),
                       child: const Text('Editar'),
                     ),
                   ],
@@ -73,8 +70,7 @@ class TablesScreen extends ConsumerWidget {
             );
           },
         ),
-        loading: () =>
-            const Center(child: CircularProgressIndicator()),
+        loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => Center(child: Text('Error: $e')),
       ),
     );
@@ -94,8 +90,7 @@ class _TableFormDialog extends ConsumerStatefulWidget {
   const _TableFormDialog({this.table});
 
   @override
-  ConsumerState<_TableFormDialog> createState() =>
-      _TableFormDialogState();
+  ConsumerState<_TableFormDialog> createState() => _TableFormDialogState();
 }
 
 class _TableFormDialogState extends ConsumerState<_TableFormDialog> {
@@ -129,8 +124,7 @@ class _TableFormDialogState extends ConsumerState<_TableFormDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title:
-          Text(widget.table == null ? 'Nueva mesa' : 'Editar mesa'),
+      title: Text(widget.table == null ? 'Nueva mesa' : 'Editar mesa'),
       content: Form(
         key: _formKey,
         child: Column(
@@ -138,33 +132,23 @@ class _TableFormDialogState extends ConsumerState<_TableFormDialog> {
           children: [
             TextFormField(
               controller: _nameCtrl,
-              decoration:
-                  const InputDecoration(labelText: 'Nombre *'),
-              validator: (v) =>
-                  v!.isEmpty ? 'Requerido' : null,
+              decoration: const InputDecoration(labelText: 'Nombre *'),
+              validator: (v) => v!.isEmpty ? 'Requerido' : null,
             ),
             const SizedBox(height: 8),
             TextFormField(
               controller: _capacityCtrl,
-              decoration:
-                  const InputDecoration(labelText: 'Capacidad'),
+              decoration: const InputDecoration(labelText: 'Capacidad'),
               keyboardType: TextInputType.number,
             ),
             const SizedBox(height: 8),
             DropdownButtonFormField<String>(
               value: _status,
-              decoration:
-                  const InputDecoration(labelText: 'Estado'),
+              decoration: const InputDecoration(labelText: 'Estado'),
               items: const [
-                DropdownMenuItem(
-                    value: 'available',
-                    child: Text('Disponible')),
-                DropdownMenuItem(
-                    value: 'occupied',
-                    child: Text('Ocupada')),
-                DropdownMenuItem(
-                    value: 'reserved',
-                    child: Text('Reservada')),
+                DropdownMenuItem(value: 'available', child: Text('Disponible')),
+                DropdownMenuItem(value: 'occupied', child: Text('Ocupada')),
+                DropdownMenuItem(value: 'reserved', child: Text('Reservada')),
               ],
               onChanged: (v) => setState(() => _status = v!),
             ),
@@ -195,14 +179,11 @@ class _TableFormDialogState extends ConsumerState<_TableFormDialog> {
     if (!_formKey.currentState!.validate()) return;
     final db = ref.read(databaseProvider);
     final companion = TablesLayoutCompanion(
-      id: widget.table != null
-          ? Value(widget.table!.id)
-          : const Value.absent(),
+      id: widget.table != null ? Value(widget.table!.id) : const Value.absent(),
       name: Value(_nameCtrl.text.trim()),
       capacity: Value(int.tryParse(_capacityCtrl.text) ?? 4),
       status: Value(_status),
-      notes: Value(
-          _notesCtrl.text.isEmpty ? null : _notesCtrl.text),
+      notes: Value(_notesCtrl.text.isEmpty ? null : _notesCtrl.text),
       active: Value(_active),
     );
 

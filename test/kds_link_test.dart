@@ -27,7 +27,10 @@ void main() {
       );
       final oid = await db.ordersDao.insertOrder(
         OrdersCompanion.insert(
-            orderNumber: 'A-1', type: 'mesa', employeeId: 1, total: const Value(90)),
+            orderNumber: 'A-1',
+            type: 'mesa',
+            employeeId: 1,
+            total: const Value(90)),
       );
       await db.orderItemsDao.insertOrderItems([
         OrderItemsCompanion.insert(
@@ -41,8 +44,7 @@ void main() {
           .firstWhere((o) => o.order.id == oid);
 
       final encoded = encodeOrdersMessage([order], true);
-      final decoded = decodeOrders(
-          jsonDecode(encoded) as Map<String, dynamic>);
+      final decoded = decodeOrders(jsonDecode(encoded) as Map<String, dynamic>);
 
       expect(decoded, hasLength(1));
       expect(decoded.first.order.orderNumber, 'A-1');
@@ -76,8 +78,7 @@ void main() {
 
     test('rechaza conexiones sin el token correcto', () async {
       await expectLater(
-        WebSocket.connect(
-            'ws://127.0.0.1:${server.port}$kdsWsPath?token=malo'),
+        WebSocket.connect('ws://127.0.0.1:${server.port}$kdsWsPath?token=malo'),
         throwsA(isA<WebSocketException>()),
       );
     });

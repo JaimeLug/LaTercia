@@ -36,8 +36,8 @@ class OrdersNotifier extends StateNotifier<List<OrderWithItems>> {
     // same SQLite file) stay in sync — Drift streams only fire for writes
     // made by the same process. En modo cliente WS conectado, loadActiveOrders
     // hace no-op (el estado lo empuja el servidor).
-    _pollTimer = Timer.periodic(
-        const Duration(seconds: 2), (_) => loadActiveOrders());
+    _pollTimer =
+        Timer.periodic(const Duration(seconds: 2), (_) => loadActiveOrders());
   }
 
   final AppDatabase _db;
@@ -88,6 +88,8 @@ class OrdersNotifier extends StateNotifier<List<OrderWithItems>> {
     int? tableId,
     String? customerName,
     int? customerId,
+    String? customerPhone,
+    String? customerAddress,
     String? note,
     double subtotal = 0,
     double discountAmount = 0,
@@ -114,6 +116,8 @@ class OrdersNotifier extends StateNotifier<List<OrderWithItems>> {
           tableId: Value(tableId),
           customerName: Value(customerName),
           customerId: Value(customerId),
+          customerPhone: Value(customerPhone),
+          customerAddress: Value(customerAddress),
           note: Value(note),
           subtotal: Value(subtotal),
           discountAmount: Value(discountAmount),
@@ -348,7 +352,6 @@ class OrdersNotifier extends StateNotifier<List<OrderWithItems>> {
     });
     await loadActiveOrders();
   }
-
 }
 
 /// In-memory snapshot of the last "listo" action, enough to undo it.

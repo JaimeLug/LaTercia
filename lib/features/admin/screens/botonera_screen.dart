@@ -38,8 +38,9 @@ class _BotoneraScreenState extends ConsumerState<BotoneraScreen> {
     _puerto.text = s['botonera_puerto'] ?? '8080';
   }
 
-  Future<void> _setActiva(bool v) =>
-      ref.read(settingsProvider.notifier).setSetting('botonera_activa', v.toString());
+  Future<void> _setActiva(bool v) => ref
+      .read(settingsProvider.notifier)
+      .setSetting('botonera_activa', v.toString());
 
   Future<void> _guardarPuerto() async {
     final v = _puerto.text.trim().isEmpty ? '8080' : _puerto.text.trim();

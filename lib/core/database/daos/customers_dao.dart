@@ -9,21 +9,16 @@ class CustomersDao extends DatabaseAccessor<AppDatabase>
   CustomersDao(super.db);
 
   Future<List<Customer>> getAllCustomers() =>
-      (select(customers)
-            ..orderBy([(c) => OrderingTerm.asc(c.name)]))
-          .get();
+      (select(customers)..orderBy([(c) => OrderingTerm.asc(c.name)])).get();
 
   Stream<List<Customer>> watchAllCustomers() =>
-      (select(customers)
-            ..orderBy([(c) => OrderingTerm.asc(c.name)]))
-          .watch();
+      (select(customers)..orderBy([(c) => OrderingTerm.asc(c.name)])).watch();
 
-  Future<List<Customer>> searchCustomers(String query) =>
-      (select(customers)
-            ..where((c) =>
-                c.name.lower().contains(query.toLowerCase()) |
-                c.phone.lower().contains(query.toLowerCase())))
-          .get();
+  Future<List<Customer>> searchCustomers(String query) => (select(customers)
+        ..where((c) =>
+            c.name.lower().contains(query.toLowerCase()) |
+            c.phone.lower().contains(query.toLowerCase())))
+      .get();
 
   Future<int> insertCustomer(CustomersCompanion customer) =>
       into(customers).insert(customer);
@@ -32,9 +27,8 @@ class CustomersDao extends DatabaseAccessor<AppDatabase>
       update(customers).replace(customer);
 
   Future<void> incrementVisits(int id, double amountSpent) async {
-    final customer =
-        await (select(customers)..where((c) => c.id.equals(id)))
-            .getSingleOrNull();
+    final customer = await (select(customers)..where((c) => c.id.equals(id)))
+        .getSingleOrNull();
     if (customer != null) {
       await (update(customers)..where((c) => c.id.equals(id))).write(
         CustomersCompanion(

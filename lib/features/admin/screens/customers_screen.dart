@@ -57,8 +57,9 @@ class _CustomersScreenState extends ConsumerState<CustomersScreen> {
                     ? customers
                     : customers
                         .where((c) =>
-                            c.name.toLowerCase().contains(
-                                _search.toLowerCase()) ||
+                            c.name
+                                .toLowerCase()
+                                .contains(_search.toLowerCase()) ||
                             (c.phone?.contains(_search) ?? false))
                         .toList();
 
@@ -74,14 +75,12 @@ class _CustomersScreenState extends ConsumerState<CustomersScreen> {
                     ],
                     rows: filtered.map((c) {
                       return DataRow(
-                        onSelectChanged: (_) =>
-                            _showDetail(context, c),
+                        onSelectChanged: (_) => _showDetail(context, c),
                         cells: [
                           DataCell(Text(c.name)),
                           DataCell(Text(c.phone ?? '-')),
                           DataCell(Text('${c.visits}')),
-                          DataCell(Text(formatCurrency(
-                              c.totalSpent, symbol))),
+                          DataCell(Text(formatCurrency(c.totalSpent, symbol))),
                           DataCell(IconButton(
                             icon: const Icon(Icons.edit, size: 18),
                             onPressed: () => _showForm(context, c),
@@ -92,8 +91,7 @@ class _CustomersScreenState extends ConsumerState<CustomersScreen> {
                   ),
                 );
               },
-              loading: () => const Center(
-                  child: CircularProgressIndicator()),
+              loading: () => const Center(child: CircularProgressIndicator()),
               error: (e, _) => Center(child: Text('Error: $e')),
             ),
           ),
@@ -102,19 +100,16 @@ class _CustomersScreenState extends ConsumerState<CustomersScreen> {
     );
   }
 
-  Future<void> _showForm(
-      BuildContext context, Customer? customer) async {
+  Future<void> _showForm(BuildContext context, Customer? customer) async {
     await showDialog(
       context: context,
       builder: (_) => _CustomerFormDialog(customer: customer),
     );
   }
 
-  Future<void> _showDetail(
-      BuildContext context, Customer customer) async {
+  Future<void> _showDetail(BuildContext context, Customer customer) async {
     final db = ref.read(databaseProvider);
-    final orders =
-        await db.ordersDao.getOrdersByDateRange(
+    final orders = await db.ordersDao.getOrdersByDateRange(
       DateTime(2020),
       DateTime.now().add(const Duration(days: 1)),
     );
@@ -132,10 +127,8 @@ class _CustomersScreenState extends ConsumerState<CustomersScreen> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              if (customer.phone != null)
-                Text('📞 ${customer.phone}'),
-              if (customer.email != null)
-                Text('✉ ${customer.email}'),
+              if (customer.phone != null) Text('📞 ${customer.phone}'),
+              if (customer.email != null) Text('✉ ${customer.email}'),
               Text('Visitas: ${customer.visits}'),
               const Divider(),
               const Text('Órdenes recientes:'),
@@ -146,10 +139,8 @@ class _CustomersScreenState extends ConsumerState<CustomersScreen> {
                     return ListTile(
                       dense: true,
                       title: Text(o.orderNumber),
-                      subtitle:
-                          Text(formatDateTime(o.createdAt)),
-                      trailing: Text(
-                          formatCurrency(o.total, r'$')),
+                      subtitle: Text(formatDateTime(o.createdAt)),
+                      trailing: Text(formatCurrency(o.total, r'$')),
                     );
                   }).toList(),
                 ),
@@ -176,8 +167,7 @@ class _CustomerFormDialog extends ConsumerStatefulWidget {
       _CustomerFormDialogState();
 }
 
-class _CustomerFormDialogState
-    extends ConsumerState<_CustomerFormDialog> {
+class _CustomerFormDialogState extends ConsumerState<_CustomerFormDialog> {
   final _formKey = GlobalKey<FormState>();
   late TextEditingController _nameCtrl;
   late TextEditingController _phoneCtrl;
@@ -206,8 +196,7 @@ class _CustomerFormDialogState
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: Text(
-          widget.customer == null ? 'Nuevo cliente' : 'Editar cliente'),
+      title: Text(widget.customer == null ? 'Nuevo cliente' : 'Editar cliente'),
       content: Form(
         key: _formKey,
         child: Column(
@@ -215,23 +204,19 @@ class _CustomerFormDialogState
           children: [
             TextFormField(
               controller: _nameCtrl,
-              decoration:
-                  const InputDecoration(labelText: 'Nombre *'),
-              validator: (v) =>
-                  v!.isEmpty ? 'Requerido' : null,
+              decoration: const InputDecoration(labelText: 'Nombre *'),
+              validator: (v) => v!.isEmpty ? 'Requerido' : null,
             ),
             const SizedBox(height: 8),
             TextFormField(
               controller: _phoneCtrl,
-              decoration:
-                  const InputDecoration(labelText: 'Teléfono'),
+              decoration: const InputDecoration(labelText: 'Teléfono'),
               keyboardType: TextInputType.phone,
             ),
             const SizedBox(height: 8),
             TextFormField(
               controller: _emailCtrl,
-              decoration:
-                  const InputDecoration(labelText: 'Email'),
+              decoration: const InputDecoration(labelText: 'Email'),
               keyboardType: TextInputType.emailAddress,
             ),
             const SizedBox(height: 8),
@@ -260,12 +245,9 @@ class _CustomerFormDialogState
           ? Value(widget.customer!.id)
           : const Value.absent(),
       name: Value(_nameCtrl.text.trim()),
-      phone: Value(
-          _phoneCtrl.text.isEmpty ? null : _phoneCtrl.text),
-      email: Value(
-          _emailCtrl.text.isEmpty ? null : _emailCtrl.text),
-      notes: Value(
-          _notesCtrl.text.isEmpty ? null : _notesCtrl.text),
+      phone: Value(_phoneCtrl.text.isEmpty ? null : _phoneCtrl.text),
+      email: Value(_emailCtrl.text.isEmpty ? null : _emailCtrl.text),
+      notes: Value(_notesCtrl.text.isEmpty ? null : _notesCtrl.text),
     );
 
     if (widget.customer == null) {

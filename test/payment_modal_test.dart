@@ -64,7 +64,8 @@ void main() {
     expect(captured!.first.changeGiven, 50);
   });
 
-  testWidgets('pagos mixtos: tarjeta parcial + efectivo, cambio solo en efectivo',
+  testWidgets(
+      'pagos mixtos: tarjeta parcial + efectivo, cambio solo en efectivo',
       (tester) async {
     List<PaymentDraft>? captured;
     await pumpModal(tester, total: 100, onPayments: (p) => captured = p);
@@ -94,8 +95,8 @@ void main() {
     expect(cash.amountTendered, 50);
     expect(cash.changeGiven, 10, reason: 'cambio solo sobre el efectivo');
     // Aplicado total = (60-0)+(50-10) = 100 = total.
-    final applied = captured!
-        .fold(0.0, (a, d) => a + d.amountTendered - d.changeGiven);
+    final applied =
+        captured!.fold(0.0, (a, d) => a + d.amountTendered - d.changeGiven);
     expect(applied, 100);
   });
 }

@@ -67,8 +67,8 @@ class SystemHealthCard extends ConsumerWidget {
               children: [
                 const Expanded(
                   child: Text('Estado del sistema',
-                      style: TextStyle(
-                          fontWeight: FontWeight.w600, fontSize: 16)),
+                      style:
+                          TextStyle(fontWeight: FontWeight.w600, fontSize: 16)),
                 ),
                 IconButton(
                   icon: const Icon(Icons.refresh, size: 18),
@@ -98,9 +98,7 @@ class SystemHealthCard extends ConsumerWidget {
                     _HealthRow(
                       icon: Icons.gamepad_outlined,
                       label: 'Botonera',
-                      value: h.botoneraEnabled
-                          ? 'Activada'
-                          : 'No configurada',
+                      value: h.botoneraEnabled ? 'Activada' : 'No configurada',
                       ok: h.botoneraEnabled,
                       neutral: !h.botoneraEnabled,
                     ),
@@ -114,7 +112,8 @@ class SystemHealthCard extends ConsumerWidget {
                       ok: backup != null,
                       neutral: backup == null,
                       warn: backup != null &&
-                          DateTime.now().difference(backup.modified).inDays >= 2,
+                          DateTime.now().difference(backup.modified).inDays >=
+                              2,
                     ),
                     _HealthRow(
                       icon: Icons.description_outlined,
@@ -169,8 +168,7 @@ class _HealthRow extends StatelessWidget {
                 style: const TextStyle(fontWeight: FontWeight.w500)),
           ),
           Expanded(
-            child: Text(value,
-                style: const TextStyle(color: Colors.black87)),
+            child: Text(value, style: const TextStyle(color: Colors.black87)),
           ),
           Container(
             width: 10,

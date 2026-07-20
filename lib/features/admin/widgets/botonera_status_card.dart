@@ -22,8 +22,7 @@ class BotoneraStatusCard extends ConsumerStatefulWidget {
   const BotoneraStatusCard({super.key});
 
   @override
-  ConsumerState<BotoneraStatusCard> createState() =>
-      _BotoneraStatusCardState();
+  ConsumerState<BotoneraStatusCard> createState() => _BotoneraStatusCardState();
 }
 
 class _LogEntry {
@@ -150,8 +149,7 @@ class _BotoneraStatusCardState extends ConsumerState<BotoneraStatusCard> {
                         decoration: BoxDecoration(
                           color: LaTerciaColors.creamAlt,
                           borderRadius: BorderRadius.circular(8),
-                          border:
-                              Border.all(color: LaTerciaColors.border),
+                          border: Border.all(color: LaTerciaColors.border),
                         ),
                         child: SelectableText(ip,
                             style: const TextStyle(
@@ -217,14 +215,12 @@ class _BotoneraStatusCardState extends ConsumerState<BotoneraStatusCard> {
                   final e = _log[i];
                   final ok = e.boton != null;
                   return Padding(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 12, vertical: 7),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
                     child: Row(
                       children: [
                         Icon(
-                          ok
-                              ? Icons.check_circle
-                              : Icons.error_outline,
+                          ok ? Icons.check_circle : Icons.error_outline,
                           size: 15,
                           color: ok
                               ? LaTerciaColors.success
@@ -245,8 +241,7 @@ class _BotoneraStatusCardState extends ConsumerState<BotoneraStatusCard> {
                         ),
                         Text(formatTime(e.at),
                             style: const TextStyle(
-                                fontSize: 11.5,
-                                color: LaTerciaColors.tan)),
+                                fontSize: 11.5, color: LaTerciaColors.tan)),
                       ],
                     ),
                   );
@@ -305,8 +300,8 @@ class _ButtonGridState extends State<_ButtonGrid> {
 
   Widget _buildCell(KdsButton b) {
     final last = widget.lastSeen[b];
-    final flashing =
-        last != null && DateTime.now().difference(last) < const Duration(seconds: 2);
+    final flashing = last != null &&
+        DateTime.now().difference(last) < const Duration(seconds: 2);
     return AnimatedContainer(
       duration: const Duration(milliseconds: 200),
       decoration: BoxDecoration(

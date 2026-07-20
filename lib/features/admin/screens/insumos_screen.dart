@@ -219,8 +219,7 @@ class _IngredientsListState extends ConsumerState<_IngredientsList> {
 
   Future<void> _showAdjustDialog(
       BuildContext context, Ingredient ingredient) async {
-    final qtyCtrl =
-        TextEditingController(text: _fmt(ingredient.stockQuantity));
+    final qtyCtrl = TextEditingController(text: _fmt(ingredient.stockQuantity));
     final noteCtrl = TextEditingController();
     String reason = 'ajuste';
     const reasons = ['ajuste', 'compra', 'merma'];
@@ -254,8 +253,7 @@ class _IngredientsListState extends ConsumerState<_IngredientsList> {
               const SizedBox(height: 8),
               TextField(
                 controller: noteCtrl,
-                decoration:
-                    const InputDecoration(labelText: 'Nota (opcional)'),
+                decoration: const InputDecoration(labelText: 'Nota (opcional)'),
               ),
             ],
           ),
@@ -308,8 +306,7 @@ class _IngredientFormDialog extends ConsumerStatefulWidget {
       _IngredientFormDialogState();
 }
 
-class _IngredientFormDialogState
-    extends ConsumerState<_IngredientFormDialog> {
+class _IngredientFormDialogState extends ConsumerState<_IngredientFormDialog> {
   final _formKey = GlobalKey<FormState>();
   late TextEditingController _nameCtrl;
   late TextEditingController _unitCtrl;
@@ -323,7 +320,8 @@ class _IngredientFormDialogState
     _nameCtrl = TextEditingController(text: i?.name ?? '');
     _unitCtrl = TextEditingController(text: i?.unit ?? '');
     _minStockCtrl = TextEditingController(text: _fmt(i?.minStock ?? 0));
-    _initialStockCtrl = TextEditingController(text: _fmt(i?.stockQuantity ?? 0));
+    _initialStockCtrl =
+        TextEditingController(text: _fmt(i?.stockQuantity ?? 0));
   }
 
   @override
@@ -361,7 +359,8 @@ class _IngredientFormDialogState
             TextFormField(
               controller: _minStockCtrl,
               decoration: const InputDecoration(labelText: 'Stock mínimo'),
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true),
             ),
             if (isNew) ...[
               const SizedBox(height: 8),

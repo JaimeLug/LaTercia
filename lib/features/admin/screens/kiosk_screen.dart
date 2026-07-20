@@ -1,11 +1,15 @@
 import 'dart:io';
 
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:path/path.dart' as p;
 
 import '../../../core/providers/settings_provider.dart';
 import '../../../core/services/backup_service.dart';
+import '../../../core/services/update_service.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../core/utils/app_version.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../core/utils/network_info.dart';
 import '../../../core/utils/power_service.dart';
@@ -26,6 +30,17 @@ class _KioskScreenState extends ConsumerState<KioskScreen> {
   List<String> _ips = [];
   BackupInfo? _lastBackup;
   bool _loadedExtras = false;
+
+  // 2026-07-20 — módulo de actualizaciones por USB (ver
+  // PLAN_ACTUALIZACION_GRANDE_2026-07.md §7 y UpdateService). El técnico
+  // elige la carpeta del paquete (bundle + update_manifest.json) copiada al
+  // USB; esta pantalla valida integridad, compara versión y aplica.
+  String? _packagePath;
+  UpdateManifest? _packageManifest;
+  UpdateAvailability? _availability;
+  String? _pickError;
+  bool _applying = false;
+  UpdateApplyResult? _lastApplyResult;
 
   @override
   void initState() {
@@ -63,8 +78,7 @@ class _KioskScreenState extends ConsumerState<KioskScreen> {
               onPressed: () => Navigator.pop(context, false),
               child: const Text('Cancelar')),
           FilledButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: Text(verb)),
+              onPressed: () => Navigator.pop(context, true), child: Text(verb)),
         ],
       ),
     );
@@ -100,6 +114,100 @@ class _KioskScreenState extends ConsumerState<KioskScreen> {
       ),
     );
     if (ok == true) await const PowerService().restartApp();
+  }
+
+  /// Carpeta donde vive el bundle instalado (contiene el binario que
+  /// `Platform.resolvedExecutable` está corriendo ahora mismo) — el destino
+  /// de `UpdateService.applyUpdate`. En sitio es `/opt/latercia`.
+  Directory get _installDir =>
+      Directory(p.dirname(Platform.resolvedExecutable));
+
+  Future<void> _pickUpdatePackage() async {
+    final path = await FilePicker.platform.getDirectoryPath(
+      dialogTitle: 'Selecciona la carpeta del paquete de actualización',
+    );
+    if (path == null) return; // canceló el diálogo
+    setState(() {
+      _packagePath = path;
+      _packageManifest = null;
+      _availability = null;
+      _pickError = null;
+      _lastApplyResult = null;
+    });
+    try {
+      final manifest = await UpdateService.readManifest(Directory(path));
+      final availability =
+          await UpdateService.compareToInstalled(Directory(path));
+      if (mounted) {
+        setState(() {
+          _packageManifest = manifest;
+          _availability = availability;
+        });
+      }
+    } catch (e) {
+      if (mounted) setState(() => _pickError = e.toString());
+    }
+  }
+
+  Future<void> _applyUpdate() async {
+    final path = _packagePath;
+    final manifest = _packageManifest;
+    if (path == null || manifest == null) return;
+
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('¿Aplicar la actualización?'),
+        content:
+            Text('Se reemplazará la versión instalada ($appVersion) por la '
+                '${manifest.version}. La app se respalda automáticamente antes '
+                'de aplicar — si algo falla, vuelve sola a la versión actual. '
+                'Cierra el turno y evita cobrar mientras se aplica.'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancelar')),
+          FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Aplicar')),
+        ],
+      ),
+    );
+    if (ok != true) return;
+
+    setState(() {
+      _applying = true;
+      _lastApplyResult = null;
+    });
+    final result = await UpdateService.applyUpdate(
+      packageDir: Directory(path),
+      installDir: _installDir,
+    );
+    if (!mounted) return;
+    setState(() {
+      _applying = false;
+      _lastApplyResult = result;
+    });
+
+    if (result.success) {
+      final restart = await showDialog<bool>(
+        context: context,
+        builder: (_) => AlertDialog(
+          title: const Text('Actualización aplicada'),
+          content: const Text(
+              'Lista. Hay que reiniciar la app para usar la versión nueva.'),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Más tarde')),
+            FilledButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('Reiniciar ahora')),
+          ],
+        ),
+      );
+      if (restart == true) await const PowerService().restartApp();
+    }
   }
 
   @override
@@ -148,7 +256,9 @@ class _KioskScreenState extends ConsumerState<KioskScreen> {
                       _infoRow(
                         'IP en la red',
                         _ips.isEmpty
-                            ? (_loadedExtras ? 'Sin red detectada' : 'Cargando…')
+                            ? (_loadedExtras
+                                ? 'Sin red detectada'
+                                : 'Cargando…')
                             : _ips.join('  ·  '),
                       ),
                       _infoRow(
@@ -158,7 +268,88 @@ class _KioskScreenState extends ConsumerState<KioskScreen> {
                             : '${formatDateTime(_lastBackup!.modified)} · '
                                 '${(_lastBackup!.sizeBytes / 1024).toStringAsFixed(0)} KB',
                       ),
-                      _infoRow('Hora del sistema', formatDateTime(DateTime.now())),
+                      _infoRow(
+                          'Hora del sistema', formatDateTime(DateTime.now())),
+                      _infoRow('Versión instalada', appVersion),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+                AdminPanel(
+                  padding: const EdgeInsets.all(18),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('Actualizaciones',
+                          style: TextStyle(
+                              fontWeight: FontWeight.w700,
+                              fontSize: 15,
+                              color: LaTerciaColors.darkBrown)),
+                      const SizedBox(height: 4),
+                      const Text(
+                        'Selecciona la carpeta del paquete copiado al USB '
+                        '(bundle + update_manifest.json).',
+                        style: TextStyle(
+                            fontSize: 12.5, color: LaTerciaColors.tan),
+                      ),
+                      const SizedBox(height: 14),
+                      OutlinedButton.icon(
+                        icon: const Icon(Icons.usb),
+                        label: const Text('Buscar paquete'),
+                        onPressed: _applying ? null : _pickUpdatePackage,
+                      ),
+                      if (_packagePath != null) ...[
+                        const SizedBox(height: 12),
+                        _infoRow('Carpeta', _packagePath!),
+                      ],
+                      if (_pickError != null) ...[
+                        const SizedBox(height: 10),
+                        Text('No se pudo leer el paquete: $_pickError',
+                            style: const TextStyle(
+                                color: LaTerciaColors.danger, fontSize: 12.5)),
+                      ],
+                      if (_packageManifest != null &&
+                          _availability != null) ...[
+                        const SizedBox(height: 10),
+                        _infoRow(
+                            'Versión del paquete', _packageManifest!.version),
+                        _infoRow('Archivos',
+                            '${_packageManifest!.fileChecksums.length}'),
+                        const SizedBox(height: 4),
+                        Text(_availabilityLabel(_availability!),
+                            style: TextStyle(
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w700,
+                              color: _availability == UpdateAvailability.newer
+                                  ? LaTerciaColors.timerOk
+                                  : LaTerciaColors.tan,
+                            )),
+                        const SizedBox(height: 12),
+                        FilledButton.icon(
+                          icon: _applying
+                              ? const SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(
+                                      strokeWidth: 2, color: Colors.white),
+                                )
+                              : const Icon(Icons.system_update_alt),
+                          label: Text(_applying
+                              ? 'Aplicando…'
+                              : 'Aplicar actualización'),
+                          onPressed: (_applying ||
+                                  _availability != UpdateAvailability.newer)
+                              ? null
+                              : _applyUpdate,
+                        ),
+                      ],
+                      if (_lastApplyResult != null &&
+                          !_lastApplyResult!.success) ...[
+                        const SizedBox(height: 10),
+                        Text('No se pudo aplicar: ${_lastApplyResult!.error}',
+                            style: const TextStyle(
+                                color: LaTerciaColors.danger, fontSize: 12.5)),
+                      ],
                     ],
                   ),
                 ),
@@ -214,6 +405,14 @@ class _KioskScreenState extends ConsumerState<KioskScreen> {
     );
   }
 
+  String _availabilityLabel(UpdateAvailability a) => switch (a) {
+        UpdateAvailability.newer =>
+          '✓ Más nueva que la instalada — se puede aplicar.',
+        UpdateAvailability.same => 'Es la misma versión que ya está instalada.',
+        UpdateAvailability.older =>
+          'Es una versión ANTERIOR a la instalada — no se aplica.',
+      };
+
   Widget _infoRow(String label, String value) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 5),
@@ -230,8 +429,8 @@ class _KioskScreenState extends ConsumerState<KioskScreen> {
           ),
           Expanded(
             child: SelectableText(value,
-                style: const TextStyle(
-                    fontSize: 13, color: LaTerciaColors.cocoa)),
+                style:
+                    const TextStyle(fontSize: 13, color: LaTerciaColors.cocoa)),
           ),
         ],
       ),

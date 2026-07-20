@@ -52,19 +52,20 @@ void main() {
         ShiftsCompanion.insert(employeeId: 1, startedAt: DateTime.now()),
       );
       await db.into(db.cashMovements).insert(
-        CashMovementsCompanion.insert(
-          shiftId: shiftId,
-          employeeId: 1,
-          type: 'deposito',
-          amount: 50,
-        ),
-      );
+            CashMovementsCompanion.insert(
+              shiftId: shiftId,
+              employeeId: 1,
+              type: 'deposito',
+              amount: 50,
+            ),
+          );
       final rows = await db.select(db.cashMovements).get();
       expect(rows, hasLength(1));
       expect(rows.single.type, 'deposito');
     });
 
-    test('orders.shiftId, payments.shiftId, shifts.zNumber, '
+    test(
+        'orders.shiftId, payments.shiftId, shifts.zNumber, '
         'inventory_movements.orderId existen y son nullable', () async {
       final cats = await db.categoriesDao.getAllCategories();
       final productId = await db.productsDao.insertProduct(
@@ -76,7 +77,8 @@ void main() {
       );
 
       final orderId = await db.ordersDao.insertOrder(
-        OrdersCompanion.insert(orderNumber: '#0001', type: 'mesa', employeeId: 1),
+        OrdersCompanion.insert(
+            orderNumber: '#0001', type: 'mesa', employeeId: 1),
       );
       final order = await db.ordersDao.getOrderById(orderId);
       expect(order!.shiftId, isNull);
@@ -96,13 +98,13 @@ void main() {
       expect(shift.zNumber, isNull);
 
       await db.into(db.inventoryMovements).insert(
-        InventoryMovementsCompanion.insert(
-          productId: productId,
-          delta: -1,
-          reason: 'venta',
-          orderId: Value(orderId),
-        ),
-      );
+            InventoryMovementsCompanion.insert(
+              productId: productId,
+              delta: -1,
+              reason: 'venta',
+              orderId: Value(orderId),
+            ),
+          );
       final movements = await db.inventoryDao.getMovementsForProduct(productId);
       expect(movements.single.orderId, orderId);
     });
@@ -197,7 +199,8 @@ void main() {
       for (final action in PermissionAction.values) {
         expect(service.hasPermission(gerente, action), isTrue,
             reason: action.key);
-        expect(service.hasPermission(admin, action), isTrue, reason: action.key);
+        expect(service.hasPermission(admin, action), isTrue,
+            reason: action.key);
       }
     });
 

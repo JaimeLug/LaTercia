@@ -7,24 +7,20 @@ part 'tables_dao.g.dart';
 class TablesDao extends DatabaseAccessor<AppDatabase> with _$TablesDaoMixin {
   TablesDao(super.db);
 
-  Future<List<TablesLayoutData>> getAllTables() =>
-      (select(tablesLayout)
-            ..where((t) => t.active.equals(true))
-            ..orderBy([(t) => OrderingTerm.asc(t.id)]))
-          .get();
+  Future<List<TablesLayoutData>> getAllTables() => (select(tablesLayout)
+        ..where((t) => t.active.equals(true))
+        ..orderBy([(t) => OrderingTerm.asc(t.id)]))
+      .get();
 
-  Stream<List<TablesLayoutData>> watchAllTables() =>
-      (select(tablesLayout)
-            ..where((t) => t.active.equals(true))
-            ..orderBy([(t) => OrderingTerm.asc(t.id)]))
-          .watch();
+  Stream<List<TablesLayoutData>> watchAllTables() => (select(tablesLayout)
+        ..where((t) => t.active.equals(true))
+        ..orderBy([(t) => OrderingTerm.asc(t.id)]))
+      .watch();
 
-  Future<List<TablesLayoutData>> getAvailableTables() =>
-      (select(tablesLayout)
-            ..where((t) =>
-                t.active.equals(true) & t.status.equals('available'))
-            ..orderBy([(t) => OrderingTerm.asc(t.id)]))
-          .get();
+  Future<List<TablesLayoutData>> getAvailableTables() => (select(tablesLayout)
+        ..where((t) => t.active.equals(true) & t.status.equals('available'))
+        ..orderBy([(t) => OrderingTerm.asc(t.id)]))
+      .get();
 
   Future<void> updateTableStatus(int id, String status) =>
       (update(tablesLayout)..where((t) => t.id.equals(id)))

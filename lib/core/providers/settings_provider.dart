@@ -3,8 +3,7 @@ import '../services/audit_service.dart';
 import 'database_provider.dart';
 import 'session_provider.dart';
 
-class SettingsNotifier
-    extends AsyncNotifier<Map<String, String>> {
+class SettingsNotifier extends AsyncNotifier<Map<String, String>> {
   @override
   Future<Map<String, String>> build() async {
     final db = ref.watch(databaseProvider);

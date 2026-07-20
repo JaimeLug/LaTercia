@@ -69,13 +69,11 @@ class _ModifiersScreenState extends ConsumerState<ModifiersScreen> {
                           flex: 2,
                           child: m.priceDelta == 0
                               ? const Text('Sin costo',
-                                  style: TextStyle(
-                                      color: LaTerciaColors.tan))
+                                  style: TextStyle(color: LaTerciaColors.tan))
                               : Text(
                                   m.priceDelta > 0
                                       ? '+${formatCurrency(m.priceDelta, symbol)}'
-                                      : formatCurrency(
-                                          m.priceDelta, symbol),
+                                      : formatCurrency(m.priceDelta, symbol),
                                   style: const TextStyle(
                                       fontWeight: FontWeight.w600,
                                       color: LaTerciaColors.success)),
@@ -96,8 +94,7 @@ class _ModifiersScreenState extends ConsumerState<ModifiersScreen> {
                               ),
                               IconButton(
                                 icon: const Icon(Icons.delete_outline,
-                                    size: 18,
-                                    color: LaTerciaColors.danger),
+                                    size: 18, color: LaTerciaColors.danger),
                                 visualDensity: VisualDensity.compact,
                                 onPressed: () async {
                                   await ref
@@ -122,8 +119,7 @@ class _ModifiersScreenState extends ConsumerState<ModifiersScreen> {
     );
   }
 
-  Future<void> _showForm(
-      BuildContext context, Modifier? modifier) async {
+  Future<void> _showForm(BuildContext context, Modifier? modifier) async {
     await showDialog(
       context: context,
       builder: (_) => _ModifierFormDialog(modifier: modifier),
@@ -141,8 +137,7 @@ class _ModifierFormDialog extends ConsumerStatefulWidget {
       _ModifierFormDialogState();
 }
 
-class _ModifierFormDialogState
-    extends ConsumerState<_ModifierFormDialog> {
+class _ModifierFormDialogState extends ConsumerState<_ModifierFormDialog> {
   final _formKey = GlobalKey<FormState>();
   late TextEditingController _nameCtrl;
   late TextEditingController _deltaCtrl;
@@ -155,8 +150,8 @@ class _ModifierFormDialogState
     super.initState();
     final m = widget.modifier;
     _nameCtrl = TextEditingController(text: m?.name ?? '');
-    _deltaCtrl = TextEditingController(
-        text: m != null ? '${m.priceDelta}' : '0');
+    _deltaCtrl =
+        TextEditingController(text: m != null ? '${m.priceDelta}' : '0');
     _scopeCategories = (m?.categoryScope ?? '')
         .split(',')
         .map((s) => s.trim())
@@ -188,9 +183,8 @@ class _ModifierFormDialogState
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: Text(widget.modifier == null
-          ? 'Nuevo modificador'
-          : 'Editar modificador'),
+      title: Text(
+          widget.modifier == null ? 'Nuevo modificador' : 'Editar modificador'),
       content: Form(
         key: _formKey,
         child: Column(
@@ -198,16 +192,14 @@ class _ModifierFormDialogState
           children: [
             TextFormField(
               controller: _nameCtrl,
-              decoration:
-                  const InputDecoration(labelText: 'Nombre *'),
-              validator: (v) =>
-                  v!.isEmpty ? 'Requerido' : null,
+              decoration: const InputDecoration(labelText: 'Nombre *'),
+              validator: (v) => v!.isEmpty ? 'Requerido' : null,
             ),
             const SizedBox(height: 8),
             TextFormField(
               controller: _deltaCtrl,
-              decoration: const InputDecoration(
-                  labelText: 'Costo extra (0 = gratis)'),
+              decoration:
+                  const InputDecoration(labelText: 'Costo extra (0 = gratis)'),
               keyboardType: TextInputType.number,
             ),
             const SizedBox(height: 8),
@@ -256,10 +248,9 @@ class _ModifierFormDialogState
           ? Value(widget.modifier!.id)
           : const Value.absent(),
       name: Value(_nameCtrl.text.trim()),
-      priceDelta:
-          Value(double.tryParse(_deltaCtrl.text) ?? 0),
-      categoryScope: Value(
-          _scopeCategories.isEmpty ? null : _scopeCategories.join(',')),
+      priceDelta: Value(double.tryParse(_deltaCtrl.text) ?? 0),
+      categoryScope:
+          Value(_scopeCategories.isEmpty ? null : _scopeCategories.join(',')),
     );
 
     if (widget.modifier == null) {

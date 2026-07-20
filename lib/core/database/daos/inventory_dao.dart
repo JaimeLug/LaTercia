@@ -3,8 +3,13 @@ import '../database.dart';
 
 part 'inventory_dao.g.dart';
 
-@DriftAccessor(
-    tables: [InventoryMovements, Products, Ingredients, IngredientMovements, RecipeItems])
+@DriftAccessor(tables: [
+  InventoryMovements,
+  Products,
+  Ingredients,
+  IngredientMovements,
+  RecipeItems
+])
 class InventoryDao extends DatabaseAccessor<AppDatabase>
     with _$InventoryDaoMixin {
   InventoryDao(super.db);
@@ -102,9 +107,9 @@ class InventoryDao extends DatabaseAccessor<AppDatabase>
   }
 
   Future<bool> _shouldUseRecipe(int productId) async {
-    final product =
-        await (select(products)..where((p) => p.id.equals(productId)))
-            .getSingleOrNull();
+    final product = await (select(products)
+          ..where((p) => p.id.equals(productId)))
+        .getSingleOrNull();
     if (product == null || !product.usesRecipe) return false;
     final flag = await attachedDatabase.settingsDao.getValue('insumos_activo');
     return flag == 'true';
@@ -125,8 +130,9 @@ class InventoryDao extends DatabaseAccessor<AppDatabase>
           .getSingleOrNull();
       if (ingredient == null) continue;
       final delta = line.quantity * productQtyDelta;
-      final newQty =
-          (ingredient.stockQuantity + delta).clamp(0, double.infinity).toDouble();
+      final newQty = (ingredient.stockQuantity + delta)
+          .clamp(0, double.infinity)
+          .toDouble();
       await (update(ingredients)..where((i) => i.id.equals(line.ingredientId)))
           .write(IngredientsCompanion(stockQuantity: Value(newQty)));
       await into(ingredientMovements).insert(

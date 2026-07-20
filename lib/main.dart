@@ -18,7 +18,8 @@ void main(List<String> args) {
   runZonedGuarded(() async {
     await _mainImpl(args);
   }, (error, stackTrace) {
-    appLogger.error('Excepción no atrapada en runZonedGuarded', error, stackTrace);
+    appLogger.error(
+        'Excepción no atrapada en runZonedGuarded', error, stackTrace);
   });
 }
 
@@ -36,7 +37,8 @@ Future<void> _mainImpl(List<String> args) async {
   };
 
   PlatformDispatcher.instance.onError = (error, stackTrace) {
-    appLogger.error('Error no manejado en PlatformDispatcher', error, stackTrace);
+    appLogger.error(
+        'Error no manejado en PlatformDispatcher', error, stackTrace);
     return true;
   };
 
@@ -64,9 +66,8 @@ Future<void> _mainImpl(List<String> args) async {
       if (a.startsWith('--h=')) sh = double.tryParse(a.substring(4));
     }
 
-    final kdsSize = (sw != null && sh != null)
-        ? Size(sw, sh)
-        : const Size(1280, 800);
+    final kdsSize =
+        (sw != null && sh != null) ? Size(sw, sh) : const Size(1280, 800);
 
     final kdsOptions = WindowOptions(
       size: kdsSize,

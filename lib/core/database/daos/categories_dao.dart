@@ -8,17 +8,15 @@ class CategoriesDao extends DatabaseAccessor<AppDatabase>
     with _$CategoriesDaoMixin {
   CategoriesDao(super.db);
 
-  Future<List<Category>> getAllCategories() =>
-      (select(categories)
-            ..where((c) => c.active.equals(true))
-            ..orderBy([(c) => OrderingTerm.asc(c.sortOrder)]))
-          .get();
+  Future<List<Category>> getAllCategories() => (select(categories)
+        ..where((c) => c.active.equals(true))
+        ..orderBy([(c) => OrderingTerm.asc(c.sortOrder)]))
+      .get();
 
-  Stream<List<Category>> watchAllCategories() =>
-      (select(categories)
-            ..where((c) => c.active.equals(true))
-            ..orderBy([(c) => OrderingTerm.asc(c.sortOrder)]))
-          .watch();
+  Stream<List<Category>> watchAllCategories() => (select(categories)
+        ..where((c) => c.active.equals(true))
+        ..orderBy([(c) => OrderingTerm.asc(c.sortOrder)]))
+      .watch();
 
   Future<int> insertCategory(CategoriesCompanion cat) =>
       into(categories).insert(cat);

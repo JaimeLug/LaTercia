@@ -142,12 +142,10 @@ class _ModifierDialogState extends ConsumerState<ModifierDialog> {
                       final chosen = _modifiers
                           .where((m) => _selected.contains(m.id))
                           .toList();
-                      Navigator.pop(
-                          context,
-                          (
-                            modifiers: chosen,
-                            includedIds: Set<int>.from(_includedIds),
-                          ));
+                      Navigator.pop(context, (
+                        modifiers: chosen,
+                        includedIds: Set<int>.from(_includedIds),
+                      ));
                     },
                     child: Text(
                       _extraTotal > 0

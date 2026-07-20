@@ -101,7 +101,8 @@ class _CloseShiftDialogState extends ConsumerState<CloseShiftDialog> {
         content: SizedBox(
           width: 420,
           child: SingleChildScrollView(
-            child: CutTicket(summary: _result!, symbol: widget.symbol, isZ: true),
+            child:
+                CutTicket(summary: _result!, symbol: widget.symbol, isZ: true),
           ),
         ),
         actions: [

@@ -1,5 +1,6 @@
 import 'package:drift/drift.dart';
 import 'package:drift_flutter/drift_flutter.dart';
+import 'package:path_provider/path_provider.dart';
 import '../utils/app_logger.dart';
 import '../utils/pin_hasher.dart';
 import 'seeder.dart';
@@ -57,7 +58,8 @@ class Products extends Table {
   TextColumn get sku => text().nullable()();
   TextColumn get imagePath => text().nullable()();
   BoolColumn get available => boolean().withDefault(const Constant(true))();
-  BoolColumn get trackInventory => boolean().withDefault(const Constant(false))();
+  BoolColumn get trackInventory =>
+      boolean().withDefault(const Constant(false))();
   IntColumn get stockQuantity => integer().withDefault(const Constant(0))();
   IntColumn get minStock => integer().withDefault(const Constant(5))();
   // FASE 4.5 — Impuesto por producto. Ambas nullable: null = heredar el default
@@ -95,8 +97,8 @@ class TablesLayout extends Table {
   IntColumn get id => integer().autoIncrement()();
   TextColumn get name => text()();
   IntColumn get capacity => integer().withDefault(const Constant(4))();
-  TextColumn get status =>
-      text().withDefault(const Constant('available'))(); // 'available' | 'occupied' | 'reserved'
+  TextColumn get status => text().withDefault(
+      const Constant('available'))(); // 'available' | 'occupied' | 'reserved'
   TextColumn get notes => text().nullable()();
   BoolColumn get active => boolean().withDefault(const Constant(true))();
 }
@@ -116,7 +118,8 @@ class Employees extends Table {
   IntColumn get id => integer().autoIncrement()();
   TextColumn get name => text()();
   TextColumn get pin => text().unique()();
-  TextColumn get role => text()(); // 'admin' | 'cashier' | 'kitchen' | 'gerente'
+  TextColumn get role =>
+      text()(); // 'admin' | 'cashier' | 'kitchen' | 'gerente'
   BoolColumn get active => boolean().withDefault(const Constant(true))();
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
 }
@@ -140,13 +143,19 @@ class Orders extends Table {
   IntColumn get tableId => integer().nullable().references(TablesLayout, #id)();
   TextColumn get customerName => text().nullable()();
   IntColumn get customerId => integer().nullable().references(Customers, #id)();
+  // Datos de entrega para la comanda de DELIVERY (2026-07-20): el nombre ya
+  // existía, pero faltaban teléfono y dirección — sin ellos no se podía
+  // armar un ticket de reparto útil para el repartidor. Solo se capturan
+  // cuando type == 'delivery'; nulos para mesa/para llevar.
+  TextColumn get customerPhone => text().nullable()();
+  TextColumn get customerAddress => text().nullable()();
   IntColumn get employeeId => integer().references(Employees, #id)();
   IntColumn get shiftId => integer().nullable().references(Shifts, #id)();
   TextColumn get note => text().nullable()();
-  TextColumn get status =>
-      text().withDefault(const Constant('pendiente'))(); // 'pendiente'|'en_preparacion'|'listo'|'entregado'|'cancelado'
-  TextColumn get paymentStatus =>
-      text().withDefault(const Constant('pendiente'))(); // 'pendiente'|'pagado'|'cancelado'
+  TextColumn get status => text().withDefault(const Constant(
+      'pendiente'))(); // 'pendiente'|'en_preparacion'|'listo'|'entregado'|'cancelado'
+  TextColumn get paymentStatus => text().withDefault(
+      const Constant('pendiente'))(); // 'pendiente'|'pagado'|'cancelado'
   RealColumn get subtotal => real().withDefault(const Constant(0))();
   RealColumn get discountAmount => real().withDefault(const Constant(0))();
   RealColumn get taxAmount => real().withDefault(const Constant(0))();
@@ -171,8 +180,8 @@ class OrderItems extends Table {
   RealColumn get unitPrice => real()();
   TextColumn get modifiersJson => text().nullable()();
   TextColumn get itemNote => text().nullable()();
-  TextColumn get itemStatus =>
-      text().withDefault(const Constant('pendiente'))(); // 'pendiente' | 'listo'
+  TextColumn get itemStatus => text()
+      .withDefault(const Constant('pendiente'))(); // 'pendiente' | 'listo'
 }
 
 class Payments extends Table {
@@ -205,9 +214,9 @@ class Expenses extends Table {
 class InventoryMovements extends Table {
   IntColumn get id => integer().autoIncrement()();
   IntColumn get productId => integer().references(Products, #id)();
-  IntColumn get delta => integer()(); // positive = increase, negative = decrease
-  TextColumn get reason =>
-      text()(); // 'venta' | 'ajuste' | 'compra' | 'merma'
+  IntColumn get delta =>
+      integer()(); // positive = increase, negative = decrease
+  TextColumn get reason => text()(); // 'venta' | 'ajuste' | 'compra' | 'merma'
   TextColumn get note => text().nullable()();
   IntColumn get orderId => integer().nullable().references(Orders, #id)();
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
@@ -302,8 +311,7 @@ class IngredientMovements extends Table {
 /// Cabecera de una compra a proveedor — repone stock de N insumos a la vez.
 class IngredientPurchases extends Table {
   IntColumn get id => integer().autoIncrement()();
-  IntColumn get supplierId =>
-      integer().nullable().references(Suppliers, #id)();
+  IntColumn get supplierId => integer().nullable().references(Suppliers, #id)();
   IntColumn get employeeId => integer().references(Employees, #id)();
   RealColumn get totalCost => real().withDefault(const Constant(0))();
   TextColumn get note => text().nullable()();
@@ -312,8 +320,7 @@ class IngredientPurchases extends Table {
 
 class IngredientPurchaseItems extends Table {
   IntColumn get id => integer().autoIncrement()();
-  IntColumn get purchaseId =>
-      integer().references(IngredientPurchases, #id)();
+  IntColumn get purchaseId => integer().references(IngredientPurchases, #id)();
   IntColumn get ingredientId => integer().references(Ingredients, #id)();
   RealColumn get quantity => real()();
   RealColumn get unitCost => real()();
@@ -372,7 +379,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 8;
+  int get schemaVersion => 9;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -435,7 +442,8 @@ class AppDatabase extends _$AppDatabase {
                     'huérfanas al activar FKs (v6). Revisar integridad.');
               }
             } catch (e, st) {
-              appLogger.warn('No se pudo correr foreign_key_check en v6.', e, st);
+              appLogger.warn(
+                  'No se pudo correr foreign_key_check en v6.', e, st);
             }
           }
           if (from < 7) {
@@ -454,6 +462,12 @@ class AppDatabase extends _$AppDatabase {
             await m.createTable(deliveryZones);
             await m.addColumn(orders, orders.deliveryZone);
             await m.addColumn(orders, orders.deliveryFee);
+          }
+          if (from < 9) {
+            // Ticket de delivery (2026-07-20): datos del cliente para armar
+            // la comanda de reparto (nombre ya existía desde antes).
+            await m.addColumn(orders, orders.customerPhone);
+            await m.addColumn(orders, orders.customerAddress);
           }
         },
       );
@@ -488,6 +502,15 @@ QueryExecutor _openConnection() {
   return driftDatabase(
     name: 'latercia',
     native: DriftNativeOptions(
+      // A3 (2026-07-20): la base vive en la carpeta de soporte de la app
+      // (`~/.local/share/<APPLICATION_ID>/` en Linux — ver
+      // `linux/CMakeLists.txt`), NO en Documentos. Antes, sin este override,
+      // drift_flutter usaba `getApplicationDocumentsDirectory()` por
+      // default — así fue como la base terminó mezclada con los documentos
+      // del usuario en la instalación del 18-jul. Los backups (pensados para
+      // que un técnico los copie a mano) SÍ van a Documentos —
+      // ver `BackupService._appDir`.
+      databaseDirectory: getApplicationSupportDirectory,
       // POS and KDS are two separate processes sharing the same SQLite file.
       // WAL lets readers and writers proceed concurrently instead of
       // blocking on a single writer lock, and busy_timeout makes SQLite

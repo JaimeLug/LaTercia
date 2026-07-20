@@ -11,13 +11,13 @@ class AuditLogDao extends DatabaseAccessor<AppDatabase>
     with _$AuditLogDaoMixin {
   AuditLogDao(super.db);
 
-  Future<int> insertLog(AuditLogCompanion entry) => into(auditLog).insert(entry);
+  Future<int> insertLog(AuditLogCompanion entry) =>
+      into(auditLog).insert(entry);
 
-  Future<List<AuditLogData>> getRecent({int limit = 100}) =>
-      (select(auditLog)
-            ..orderBy([(a) => OrderingTerm.desc(a.ts)])
-            ..limit(limit))
-          .get();
+  Future<List<AuditLogData>> getRecent({int limit = 100}) => (select(auditLog)
+        ..orderBy([(a) => OrderingTerm.desc(a.ts)])
+        ..limit(limit))
+      .get();
 
   Future<List<AuditLogData>> getByAction(String action, {int limit = 200}) =>
       (select(auditLog)

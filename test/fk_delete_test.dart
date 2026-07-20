@@ -67,7 +67,8 @@ void main() {
     );
   });
 
-  test('borrar un producto con receta (sin órdenes) también lanza '
+  test(
+      'borrar un producto con receta (sin órdenes) también lanza '
       'SqliteException (FK)', () async {
     final cats = await db.categoriesDao.getAllCategories();
     final productId = await db.productsDao.insertProduct(

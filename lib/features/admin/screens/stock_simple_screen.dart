@@ -38,106 +38,106 @@ class _StockSimpleBodyState extends ConsumerState<StockSimpleBody> {
     final catMap = {for (final c in categories) c.id: c.name};
 
     return FutureBuilder<List<Product>>(
-        future: _future,
-        builder: (ctx, snapshot) {
-          if (!snapshot.hasData) return adminLoading();
-          final tracked =
-              snapshot.data!.where((p) => p.trackInventory).toList();
-          final lowStock =
-              tracked.where((p) => p.stockQuantity <= p.minStock).toList();
+      future: _future,
+      builder: (ctx, snapshot) {
+        if (!snapshot.hasData) return adminLoading();
+        final tracked = snapshot.data!.where((p) => p.trackInventory).toList();
+        final lowStock =
+            tracked.where((p) => p.stockQuantity <= p.minStock).toList();
 
-          if (tracked.isEmpty) {
-            return const AdminEmptyState(
-              icon: Icons.inventory_2_outlined,
-              message: 'Ningún producto tiene "Rastrear inventario" activo.\n'
-                  'Actívalo en Admin → Productos para verlo aquí.',
-            );
-          }
+        if (tracked.isEmpty) {
+          return const AdminEmptyState(
+            icon: Icons.inventory_2_outlined,
+            message: 'Ningún producto tiene "Rastrear inventario" activo.\n'
+                'Actívalo en Admin → Productos para verlo aquí.',
+          );
+        }
 
-          return ListView(
-            padding: const EdgeInsets.all(20),
-            children: [
-              if (lowStock.isNotEmpty)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 16),
-                  child: Container(
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      color: LaTerciaColors.gold.withValues(alpha: 0.14),
-                      borderRadius: BorderRadius.circular(12),
-                      border:
-                          Border.all(color: LaTerciaColors.gold.withValues(alpha: 0.4)),
-                    ),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.warning_amber_rounded,
-                            color: LaTerciaColors.goldDark),
-                        const SizedBox(width: 10),
-                        Text(
-                            '${lowStock.length} producto(s) con stock bajo o agotado',
-                            style: const TextStyle(
-                                fontWeight: FontWeight.w700,
-                                color: LaTerciaColors.darkBrown)),
-                      ],
-                    ),
+        return ListView(
+          padding: const EdgeInsets.all(20),
+          children: [
+            if (lowStock.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 16),
+                child: Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: LaTerciaColors.gold.withValues(alpha: 0.14),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                        color: LaTerciaColors.gold.withValues(alpha: 0.4)),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.warning_amber_rounded,
+                          color: LaTerciaColors.goldDark),
+                      const SizedBox(width: 10),
+                      Text(
+                          '${lowStock.length} producto(s) con stock bajo o agotado',
+                          style: const TextStyle(
+                              fontWeight: FontWeight.w700,
+                              color: LaTerciaColors.darkBrown)),
+                    ],
                   ),
                 ),
-              AdminPanel(
-                child: Column(
-                  children: [
-                    const AdminHeaderRow(cells: [
-                      Expanded(flex: 3, child: Text('PRODUCTO')),
-                      Expanded(flex: 2, child: Text('CATEGORÍA')),
-                      Expanded(flex: 2, child: Text('STOCK')),
-                      Expanded(flex: 2, child: Text('ESTADO')),
-                      SizedBox(width: 88, child: Text('ACCIONES')),
-                    ]),
-                    ...tracked.asMap().entries.map((entry) {
-                      final p = entry.value;
-                      final isLast = entry.key == tracked.length - 1;
-                      final tone = p.stockQuantity == 0
-                          ? StatusTone.danger
-                          : p.stockQuantity <= p.minStock
-                              ? StatusTone.warn
-                              : StatusTone.ok;
-                      final label = p.stockQuantity == 0
-                          ? 'Agotado'
-                          : p.stockQuantity <= p.minStock
-                              ? 'Bajo'
-                              : 'OK';
-                      return AdminRow(
-                        isLast: isLast,
-                        cells: [
-                          Expanded(
-                            flex: 3,
-                            child: Text(p.name,
-                                style: const TextStyle(
-                                    fontWeight: FontWeight.w600,
-                                    color: LaTerciaColors.darkBrown)),
-                          ),
-                          Expanded(
-                              flex: 2, child: Text(catMap[p.categoryId] ?? '—')),
-                          Expanded(
-                              flex: 2,
-                              child: Text('${p.stockQuantity} (mín. ${p.minStock})')),
-                          Expanded(flex: 2, child: StatusPill(label, tone: tone)),
-                          SizedBox(
-                            width: 88,
-                            child: TextButton(
-                              onPressed: () => _showAdjustDialog(context, p),
-                              child: const Text('Ajustar'),
-                            ),
-                          ),
-                        ],
-                      );
-                    }),
-                  ],
-                ),
               ),
-            ],
-          );
-        },
-      );
+            AdminPanel(
+              child: Column(
+                children: [
+                  const AdminHeaderRow(cells: [
+                    Expanded(flex: 3, child: Text('PRODUCTO')),
+                    Expanded(flex: 2, child: Text('CATEGORÍA')),
+                    Expanded(flex: 2, child: Text('STOCK')),
+                    Expanded(flex: 2, child: Text('ESTADO')),
+                    SizedBox(width: 88, child: Text('ACCIONES')),
+                  ]),
+                  ...tracked.asMap().entries.map((entry) {
+                    final p = entry.value;
+                    final isLast = entry.key == tracked.length - 1;
+                    final tone = p.stockQuantity == 0
+                        ? StatusTone.danger
+                        : p.stockQuantity <= p.minStock
+                            ? StatusTone.warn
+                            : StatusTone.ok;
+                    final label = p.stockQuantity == 0
+                        ? 'Agotado'
+                        : p.stockQuantity <= p.minStock
+                            ? 'Bajo'
+                            : 'OK';
+                    return AdminRow(
+                      isLast: isLast,
+                      cells: [
+                        Expanded(
+                          flex: 3,
+                          child: Text(p.name,
+                              style: const TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  color: LaTerciaColors.darkBrown)),
+                        ),
+                        Expanded(
+                            flex: 2, child: Text(catMap[p.categoryId] ?? '—')),
+                        Expanded(
+                            flex: 2,
+                            child: Text(
+                                '${p.stockQuantity} (mín. ${p.minStock})')),
+                        Expanded(flex: 2, child: StatusPill(label, tone: tone)),
+                        SizedBox(
+                          width: 88,
+                          child: TextButton(
+                            onPressed: () => _showAdjustDialog(context, p),
+                            child: const Text('Ajustar'),
+                          ),
+                        ),
+                      ],
+                    );
+                  }),
+                ],
+              ),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   Future<void> _showAdjustDialog(BuildContext context, Product product) async {

@@ -247,13 +247,18 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   Widget build(BuildContext context) {
     final settingsAsync = ref.watch(settingsProvider);
 
+    // skipLoadingOnReload: sin esto, CUALQUIER invalidación del provider
+    // (p.ej. la que dispara el propio _save() al guardar) hace que Riverpod
+    // pase por `AsyncLoading` y este `.when()` reemplace TODA la pantalla por
+    // un spinner un instante, aunque los datos ya estén guardados — se sentía
+    // como si "Guardar" borrara/revirtiera todo (auditoría 2026-07-20).
     return settingsAsync.when(
+      skipLoadingOnReload: true,
       data: (s) {
         _loadFromSettings(s);
         return _buildBody(context);
       },
-      loading: () =>
-          const Center(child: CircularProgressIndicator()),
+      loading: () => const Center(child: CircularProgressIndicator()),
       error: (e, _) => Center(child: Text('Error: $e')),
     );
   }
@@ -274,18 +279,15 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 onPressed: () => setState(() => _activeCategory = null),
               ),
               title: Text(
-                _settingsCategories
-                    .firstWhere((c) => c.key == active)
-                    .title,
+                _settingsCategories.firstWhere((c) => c.key == active).title,
                 style: const TextStyle(
                     fontFamily: 'DM Serif Display',
                     fontSize: 22,
                     color: LaTerciaColors.darkBrown),
               ),
             ),
-      body: active == null
-          ? _buildCategoryGrid()
-          : _buildCategoryDetail(active),
+      body:
+          active == null ? _buildCategoryGrid() : _buildCategoryDetail(active),
     );
   }
 
@@ -353,454 +355,436 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     switch (key) {
       case 'negocio':
         return [
-            TextField(
-              controller: _businessName,
-              decoration: const InputDecoration(
-                  labelText: 'Nombre del negocio'),
-            ),
-            const SizedBox(height: 8),
-            TextField(
-              controller: _slogan,
-              decoration: const InputDecoration(labelText: 'Slogan'),
-            ),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                if (_logoPath != null && File(_logoPath!).existsSync())
-                  Padding(
-                    padding: const EdgeInsets.only(right: 12),
-                    child: Image.file(File(_logoPath!),
-                        height: 60, width: 60, fit: BoxFit.cover),
-                  ),
-                OutlinedButton.icon(
-                  onPressed: _pickLogo,
-                  icon: const Icon(Icons.image),
-                  label: const Text('Cambiar logo'),
+          TextField(
+            controller: _businessName,
+            decoration: const InputDecoration(labelText: 'Nombre del negocio'),
+          ),
+          const SizedBox(height: 8),
+          TextField(
+            controller: _slogan,
+            decoration: const InputDecoration(labelText: 'Slogan'),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              if (_logoPath != null && File(_logoPath!).existsSync())
+                Padding(
+                  padding: const EdgeInsets.only(right: 12),
+                  child: Image.file(File(_logoPath!),
+                      height: 60, width: 60, fit: BoxFit.cover),
                 ),
-              ],
-            ),
+              OutlinedButton.icon(
+                onPressed: _pickLogo,
+                icon: const Icon(Icons.image),
+                label: const Text('Cambiar logo'),
+              ),
+            ],
+          ),
         ];
       case 'apariencia':
         return [
-            const Text('Color primario:'),
-            ColorPicker(
+          const Text('Color primario:'),
+          ColorPicker(
+            color: _primaryColor,
+            // Bug 2026-07-20: poner `_loaded = false` aquí forzaba a
+            // `_loadFromSettings` a repintar TODO desde la base en el
+            // siguiente build, y como nada se había guardado aún, el color
+            // recién elegido se revertía al instante al valor viejo. Solo
+            // se actualiza el estado local; se persiste al dar "Guardar".
+            onColorChanged: (c) => setState(() => _primaryColor = c),
+            width: 36,
+            height: 36,
+            borderRadius: 22,
+            pickersEnabled: const {
+              ColorPickerType.wheel: true,
+              ColorPickerType.primary: false,
+              ColorPickerType.accent: false,
+            },
+          ),
+          const SizedBox(height: 12),
+          const Text('Color secundario:'),
+          ColorPicker(
+            color: _secondaryColor,
+            // Mismo bug que el color primario, ver comentario de arriba.
+            onColorChanged: (c) => setState(() => _secondaryColor = c),
+            width: 36,
+            height: 36,
+            borderRadius: 22,
+            pickersEnabled: const {
+              ColorPickerType.wheel: true,
+              ColorPickerType.primary: false,
+              ColorPickerType.accent: false,
+            },
+          ),
+          const SizedBox(height: 8),
+          // Live preview
+          Container(
+            height: 56,
+            decoration: BoxDecoration(
               color: _primaryColor,
-              onColorChanged: (c) => setState(() {
-                _primaryColor = c;
-                _loaded = false;
-              }),
-              width: 36,
-              height: 36,
-              borderRadius: 22,
-              pickersEnabled: const {
-                ColorPickerType.wheel: true,
-                ColorPickerType.primary: false,
-                ColorPickerType.accent: false,
-              },
+              borderRadius: BorderRadius.circular(8),
             ),
-            const SizedBox(height: 12),
-            const Text('Color secundario:'),
-            ColorPicker(
-              color: _secondaryColor,
-              onColorChanged: (c) => setState(() {
-                _secondaryColor = c;
-                _loaded = false;
-              }),
-              width: 36,
-              height: 36,
-              borderRadius: 22,
-              pickersEnabled: const {
-                ColorPickerType.wheel: true,
-                ColorPickerType.primary: false,
-                ColorPickerType.accent: false,
-              },
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  _businessName.text.isEmpty
+                      ? 'Vista previa'
+                      : _businessName.text,
+                  style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(width: 16),
+                ElevatedButton(
+                  onPressed: () {},
+                  style: ElevatedButton.styleFrom(
+                      backgroundColor: _secondaryColor),
+                  child: const Text('Botón'),
+                ),
+              ],
             ),
-            const SizedBox(height: 8),
-            // Live preview
-            Container(
-              height: 56,
-              decoration: BoxDecoration(
-                color: _primaryColor,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    _businessName.text.isEmpty
-                        ? 'Vista previa'
-                        : _businessName.text,
-                    style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(width: 16),
-                  ElevatedButton(
-                    onPressed: () {},
-                    style: ElevatedButton.styleFrom(
-                        backgroundColor: _secondaryColor),
-                    child: const Text('Botón'),
-                  ),
-                ],
-              ),
-            ),
+          ),
         ];
       case 'pos':
         return [
-            DropdownButtonFormField<String>(
-              value: _defaultOrderType,
-              decoration: const InputDecoration(
-                  labelText: 'Tipo de orden predeterminado'),
-              items: const [
-                DropdownMenuItem(
-                    value: 'mesa', child: Text('Mesa')),
-                DropdownMenuItem(
-                    value: 'para_llevar',
-                    child: Text('Para llevar')),
-                DropdownMenuItem(
-                    value: 'delivery', child: Text('Delivery')),
-              ],
-              onChanged: (v) =>
-                  setState(() => _defaultOrderType = v!),
-            ),
-            SwitchListTile(
-              title: const Text('Mostrar campo de cliente'),
-              value: _showCustomerField,
-              onChanged: (v) =>
-                  setState(() => _showCustomerField = v),
-              contentPadding: EdgeInsets.zero,
-            ),
-            SwitchListTile(
-              title: const Text('Habilitar selección de mesas'),
-              value: _enableTables,
-              onChanged: (v) =>
-                  setState(() => _enableTables = v),
-              contentPadding: EdgeInsets.zero,
-            ),
+          DropdownButtonFormField<String>(
+            value: _defaultOrderType,
+            decoration: const InputDecoration(
+                labelText: 'Tipo de orden predeterminado'),
+            items: const [
+              DropdownMenuItem(value: 'mesa', child: Text('Mesa')),
+              DropdownMenuItem(
+                  value: 'para_llevar', child: Text('Para llevar')),
+              DropdownMenuItem(value: 'delivery', child: Text('Delivery')),
+            ],
+            onChanged: (v) => setState(() => _defaultOrderType = v!),
+          ),
+          SwitchListTile(
+            title: const Text('Mostrar campo de cliente'),
+            value: _showCustomerField,
+            onChanged: (v) => setState(() => _showCustomerField = v),
+            contentPadding: EdgeInsets.zero,
+          ),
+          SwitchListTile(
+            title: const Text('Habilitar selección de mesas'),
+            value: _enableTables,
+            onChanged: (v) => setState(() => _enableTables = v),
+            contentPadding: EdgeInsets.zero,
+          ),
         ];
       case 'cocina':
         return [
-            SwitchListTile(
-              title: const Text('Alertas de sonido'),
-              value: _kdsSound,
-              onChanged: (v) => setState(() => _kdsSound = v),
-              contentPadding: EdgeInsets.zero,
-            ),
-            Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _kdsWarnYellow,
-                    decoration: const InputDecoration(
-                        labelText: 'Alerta amarilla (minutos)'),
-                    keyboardType: TextInputType.number,
-                  ),
+          SwitchListTile(
+            title: const Text('Alertas de sonido'),
+            value: _kdsSound,
+            onChanged: (v) => setState(() => _kdsSound = v),
+            contentPadding: EdgeInsets.zero,
+          ),
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _kdsWarnYellow,
+                  decoration: const InputDecoration(
+                      labelText: 'Alerta amarilla (minutos)'),
+                  keyboardType: TextInputType.number,
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: TextField(
-                    controller: _kdsWarnRed,
-                    decoration: const InputDecoration(
-                        labelText: 'Alerta roja (minutos)'),
-                    keyboardType: TextInputType.number,
-                  ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: TextField(
+                  controller: _kdsWarnRed,
+                  decoration:
+                      const InputDecoration(labelText: 'Alerta roja (minutos)'),
+                  keyboardType: TextInputType.number,
                 ),
-              ],
-            ),
+              ),
+            ],
+          ),
         ];
       case 'caja':
         return [
-            SwitchListTile(
-              title: const Text('Requerir turno abierto para vender'),
-              subtitle: const Text(
-                  'Bloquea el POS hasta abrir turno con fondo inicial.'),
-              value: _cajaRequiereTurno,
-              onChanged: (v) => setState(() => _cajaRequiereTurno = v),
-              contentPadding: EdgeInsets.zero,
+          SwitchListTile(
+            title: const Text('Requerir turno abierto para vender'),
+            subtitle: const Text(
+                'Bloquea el POS hasta abrir turno con fondo inicial.'),
+            value: _cajaRequiereTurno,
+            onChanged: (v) => setState(() => _cajaRequiereTurno = v),
+            contentPadding: EdgeInsets.zero,
+          ),
+          const SizedBox(height: 8),
+          TextField(
+            controller: _autoLockMin,
+            decoration: const InputDecoration(
+              labelText: 'Auto-bloqueo por inactividad (minutos)',
+              helperText: '0 = desactivado. Vuelve a pedir el PIN.',
             ),
-            const SizedBox(height: 8),
-            TextField(
-              controller: _autoLockMin,
-              decoration: const InputDecoration(
-                labelText: 'Auto-bloqueo por inactividad (minutos)',
-                helperText: '0 = desactivado. Vuelve a pedir el PIN.',
-              ),
-              keyboardType: TextInputType.number,
-            ),
-            SwitchListTile(
-              title: const Text('Bloquear tras cada venta'),
-              subtitle: const Text(
-                  'Pide el PIN de nuevo al terminar cada cobro.'),
-              value: _lockTrasVenta,
-              onChanged: (v) => setState(() => _lockTrasVenta = v),
-              contentPadding: EdgeInsets.zero,
-            ),
+            keyboardType: TextInputType.number,
+          ),
+          SwitchListTile(
+            title: const Text('Bloquear tras cada venta'),
+            subtitle:
+                const Text('Pide el PIN de nuevo al terminar cada cobro.'),
+            value: _lockTrasVenta,
+            onChanged: (v) => setState(() => _lockTrasVenta = v),
+            contentPadding: EdgeInsets.zero,
+          ),
         ];
       case 'impresion':
         return [
-            SwitchListTile(
-              title: const Text('Activar impresión de tickets'),
-              subtitle: const Text(
-                  'Imprime ticket de venta y comanda de cocina al cobrar.'),
-              value: _impresionActiva,
-              onChanged: (v) => setState(() => _impresionActiva = v),
-              contentPadding: EdgeInsets.zero,
-            ),
-            const SizedBox(height: 8),
-            // Modo de impresión: térmica (ESC/POS) vs. gráfica (PDF a cualquier
-            // impresora de Windows, p.ej. una EPSON de inyección).
-            DropdownButtonFormField<String>(
-              value: _printerMode,
-              decoration:
-                  const InputDecoration(labelText: 'Modo de impresión'),
-              items: const [
-                DropdownMenuItem(
-                    value: 'termica',
-                    child: Text('Térmica (tickets ESC/POS)')),
-                DropdownMenuItem(
-                    value: 'grafica',
-                    child: Text('Normal / cualquier impresora')),
-              ],
-              onChanged: (v) => setState(() => _printerMode = v!),
-            ),
-            const SizedBox(height: 8),
-            // ── Modo TÉRMICO: conexión red/usb + dirección ──────────────────
-            if (_printerMode == 'termica') ...[
-              DropdownButtonFormField<String>(
-                value: _printerTransport,
-                decoration:
-                    const InputDecoration(labelText: 'Tipo de conexión'),
-                items: const [
-                  DropdownMenuItem(
-                      value: 'red', child: Text('Red (socket 9100)')),
-                  DropdownMenuItem(
-                      value: 'usb',
-                      child: Text('USB / impresora local')),
-                ],
-                onChanged: (v) => setState(() => _printerTransport = v!),
-              ),
-              const SizedBox(height: 8),
-              // Red → campo de IP libre. USB → depende de la plataforma:
-              //   · Windows: desplegable de las impresoras del spooler.
-              //   · Linux (kiosko): campo de texto para la cola CUPS o la ruta
-              //     del dispositivo — el spooler de Windows no existe aquí, y
-              //     antes no había forma de configurar la impresora USB en
-              //     Linux (auditoría 2026-07-18, instalación en sitio).
-              if (_printerTransport == 'red')
-                TextField(
-                  controller: _printerAddress,
-                  decoration: const InputDecoration(
-                    labelText: 'Dirección IP de la impresora',
-                    helperText: 'Ej. 192.168.1.50 o 192.168.1.50:9100',
-                    prefixIcon: Icon(Icons.lan_outlined),
-                  ),
-                )
-              else if (Platform.isLinux)
-                TextField(
-                  controller: _printerAddress,
-                  decoration: const InputDecoration(
-                    labelText: 'Impresora USB / local',
-                    helperText:
-                        'Nombre de la cola CUPS (ej. termica) o ruta del '
-                        'dispositivo (ej. /dev/usb/lp0)',
-                    prefixIcon: Icon(Icons.print_outlined),
-                  ),
-                )
-              else
-                _buildUsbPrinterPicker(showVirtualWarning: true),
-              if (_printerTransport == 'usb' &&
-                  isVirtualPrinter(_printerAddress.text))
-                Padding(
-                  padding: const EdgeInsets.only(top: 8),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.info_outline,
-                          size: 18, color: Colors.orange),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          '"${_printerAddress.text}" no es una impresora térmica: '
-                          'no imprime tickets ESC/POS. Usa la vista previa para '
-                          'validar el diseño.',
-                          style: const TextStyle(
-                              fontSize: 12.5, color: Colors.orange),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              const SizedBox(height: 8),
-            ]
-            // ── Modo GRÁFICO: solo un selector de impresora de Windows ───────
-            else ...[
-              _buildUsbPrinterPicker(showVirtualWarning: false),
-              const SizedBox(height: 8),
+          SwitchListTile(
+            title: const Text('Activar impresión de tickets'),
+            subtitle: const Text(
+                'Imprime ticket de venta y comanda de cocina al cobrar.'),
+            value: _impresionActiva,
+            onChanged: (v) => setState(() => _impresionActiva = v),
+            contentPadding: EdgeInsets.zero,
+          ),
+          const SizedBox(height: 8),
+          // Modo de impresión: térmica (ESC/POS) vs. gráfica (PDF a cualquier
+          // impresora de Windows, p.ej. una EPSON de inyección).
+          DropdownButtonFormField<String>(
+            value: _printerMode,
+            decoration: const InputDecoration(labelText: 'Modo de impresión'),
+            items: const [
+              DropdownMenuItem(
+                  value: 'termica', child: Text('Térmica (tickets ESC/POS)')),
+              DropdownMenuItem(
+                  value: 'grafica',
+                  child: Text('Normal / cualquier impresora')),
             ],
+            onChanged: (v) => setState(() => _printerMode = v!),
+          ),
+          const SizedBox(height: 8),
+          // ── Modo TÉRMICO: conexión red/usb + dirección ──────────────────
+          if (_printerMode == 'termica') ...[
             DropdownButtonFormField<String>(
-              value: _printerWidth,
-              decoration:
-                  const InputDecoration(labelText: 'Ancho de papel'),
+              value: _printerTransport,
+              decoration: const InputDecoration(labelText: 'Tipo de conexión'),
               items: const [
-                DropdownMenuItem(value: '58', child: Text('58 mm')),
-                DropdownMenuItem(value: '80', child: Text('80 mm')),
+                DropdownMenuItem(
+                    value: 'red', child: Text('Red (socket 9100)')),
+                DropdownMenuItem(
+                    value: 'usb', child: Text('USB / impresora local')),
               ],
-              onChanged: (v) => setState(() => _printerWidth = v!),
-            ),
-            const Divider(height: 24),
-            SwitchListTile(
-              title: const Text('Activar gaveta de dinero'),
-              subtitle: Text(_printerMode == 'grafica'
-                  ? 'La gaveta requiere impresora térmica.'
-                  : 'Envía el pulso de apertura por la impresora.'),
-              value: _printerMode == 'grafica' ? false : _gavetaActiva,
-              onChanged: _printerMode == 'grafica'
-                  ? null
-                  : (v) => setState(() => _gavetaActiva = v),
-              contentPadding: EdgeInsets.zero,
-            ),
-            SwitchListTile(
-              title: const Text('Abrir gaveta al cobrar en efectivo'),
-              value: _printerMode == 'grafica' ? false : _gavetaAutoEfectivo,
-              onChanged: _printerMode == 'grafica'
-                  ? null
-                  : (v) => setState(() => _gavetaAutoEfectivo = v),
-              contentPadding: EdgeInsets.zero,
+              onChanged: (v) => setState(() => _printerTransport = v!),
             ),
             const SizedBox(height: 8),
-            Row(
-              children: [
-                OutlinedButton.icon(
-                  icon: const Icon(Icons.visibility_outlined),
-                  label: const Text('Vista previa'),
-                  onPressed: _previewTicket,
+            // Red → campo de IP libre. USB → depende de la plataforma:
+            //   · Windows: desplegable de las impresoras del spooler.
+            //   · Linux (kiosko): campo de texto para la cola CUPS o la ruta
+            //     del dispositivo — el spooler de Windows no existe aquí, y
+            //     antes no había forma de configurar la impresora USB en
+            //     Linux (auditoría 2026-07-18, instalación en sitio).
+            if (_printerTransport == 'red')
+              TextField(
+                controller: _printerAddress,
+                decoration: const InputDecoration(
+                  labelText: 'Dirección IP de la impresora',
+                  helperText: 'Ej. 192.168.1.50 o 192.168.1.50:9100',
+                  prefixIcon: Icon(Icons.lan_outlined),
                 ),
-                const SizedBox(width: 8),
-                OutlinedButton.icon(
-                  icon: const Icon(Icons.print),
-                  label: const Text('Imprimir ticket de prueba'),
-                  onPressed: _printTestTicket,
+              )
+            else if (Platform.isLinux)
+              TextField(
+                controller: _printerAddress,
+                decoration: const InputDecoration(
+                  labelText: 'Impresora USB / local',
+                  helperText: 'Nombre de la cola CUPS (ej. termica) o ruta del '
+                      'dispositivo (ej. /dev/usb/lp0)',
+                  prefixIcon: Icon(Icons.print_outlined),
                 ),
-              ],
-            ),
+              )
+            else
+              _buildUsbPrinterPicker(showVirtualWarning: true),
+            if (_printerTransport == 'usb' &&
+                isVirtualPrinter(_printerAddress.text))
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Row(
+                  children: [
+                    const Icon(Icons.info_outline,
+                        size: 18, color: Colors.orange),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        '"${_printerAddress.text}" no es una impresora térmica: '
+                        'no imprime tickets ESC/POS. Usa la vista previa para '
+                        'validar el diseño.',
+                        style: const TextStyle(
+                            fontSize: 12.5, color: Colors.orange),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            const SizedBox(height: 8),
+          ]
+          // ── Modo GRÁFICO: solo un selector de impresora de Windows ───────
+          else ...[
+            _buildUsbPrinterPicker(showVirtualWarning: false),
+            const SizedBox(height: 8),
+          ],
+          DropdownButtonFormField<String>(
+            value: _printerWidth,
+            decoration: const InputDecoration(labelText: 'Ancho de papel'),
+            items: const [
+              DropdownMenuItem(value: '58', child: Text('58 mm')),
+              DropdownMenuItem(value: '80', child: Text('80 mm')),
+            ],
+            onChanged: (v) => setState(() => _printerWidth = v!),
+          ),
+          const Divider(height: 24),
+          SwitchListTile(
+            title: const Text('Activar gaveta de dinero'),
+            subtitle: Text(_printerMode == 'grafica'
+                ? 'La gaveta requiere impresora térmica.'
+                : 'Envía el pulso de apertura por la impresora.'),
+            value: _printerMode == 'grafica' ? false : _gavetaActiva,
+            onChanged: _printerMode == 'grafica'
+                ? null
+                : (v) => setState(() => _gavetaActiva = v),
+            contentPadding: EdgeInsets.zero,
+          ),
+          SwitchListTile(
+            title: const Text('Abrir gaveta al cobrar en efectivo'),
+            value: _printerMode == 'grafica' ? false : _gavetaAutoEfectivo,
+            onChanged: _printerMode == 'grafica'
+                ? null
+                : (v) => setState(() => _gavetaAutoEfectivo = v),
+            contentPadding: EdgeInsets.zero,
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              OutlinedButton.icon(
+                icon: const Icon(Icons.visibility_outlined),
+                label: const Text('Vista previa'),
+                onPressed: _previewTicket,
+              ),
+              const SizedBox(width: 8),
+              OutlinedButton.icon(
+                icon: const Icon(Icons.print),
+                label: const Text('Imprimir ticket de prueba'),
+                onPressed: _printTestTicket,
+              ),
+            ],
+          ),
         ];
       case 'impuestos':
         return [
-            TextField(
-              controller: _taxRate,
-              decoration: const InputDecoration(
-                labelText: 'IVA % (default global)',
-                helperText:
-                    'Cada producto puede llevar su propia tasa en el catálogo.',
-              ),
-              keyboardType: TextInputType.number,
+          TextField(
+            controller: _taxRate,
+            decoration: const InputDecoration(
+              labelText: 'IVA % (default global)',
+              helperText:
+                  'Cada producto puede llevar su propia tasa en el catálogo.',
             ),
-            SwitchListTile(
-              title: const Text('IVA incluido en el precio (default)'),
-              subtitle: const Text(
-                  'ON: el precio del catálogo ya trae el IVA. OFF: se añade al cobrar.'),
-              value: _taxIncluded,
-              onChanged: (v) => setState(() => _taxIncluded = v),
-              contentPadding: EdgeInsets.zero,
-            ),
-            SwitchListTile(
-              title: const Text('Mostrar IVA en recibo'),
-              value: _showTaxReceipt,
-              onChanged: (v) =>
-                  setState(() => _showTaxReceipt = v),
-              contentPadding: EdgeInsets.zero,
-            ),
+            keyboardType: TextInputType.number,
+          ),
+          SwitchListTile(
+            title: const Text('IVA incluido en el precio (default)'),
+            subtitle: const Text(
+                'ON: el precio del catálogo ya trae el IVA. OFF: se añade al cobrar.'),
+            value: _taxIncluded,
+            onChanged: (v) => setState(() => _taxIncluded = v),
+            contentPadding: EdgeInsets.zero,
+          ),
+          SwitchListTile(
+            title: const Text('Mostrar IVA en recibo'),
+            value: _showTaxReceipt,
+            onChanged: (v) => setState(() => _showTaxReceipt = v),
+            contentPadding: EdgeInsets.zero,
+          ),
         ];
       case 'ventas':
         return [
-            SwitchListTile(
-              title: const Text('Propinas'),
-              subtitle: const Text(
-                  'Captura propina al cobrar (10/15/20% o monto libre). No afecta el total de la venta.'),
-              value: _propinasActivas,
-              onChanged: (v) => setState(() => _propinasActivas = v),
-              contentPadding: EdgeInsets.zero,
-            ),
+          SwitchListTile(
+            title: const Text('Propinas'),
+            subtitle: const Text(
+                'Captura propina al cobrar (10/15/20% o monto libre). No afecta el total de la venta.'),
+            value: _propinasActivas,
+            onChanged: (v) => setState(() => _propinasActivas = v),
+            contentPadding: EdgeInsets.zero,
+          ),
         ];
       case 'moneda':
         return [
-            TextField(
-              controller: _currencySymbol,
-              decoration: const InputDecoration(
-                  labelText: 'Símbolo de moneda'),
-            ),
-            const SizedBox(height: 8),
-            DropdownButtonFormField<String>(
-              value: _currencyDecimals,
-              decoration:
-                  const InputDecoration(labelText: 'Decimales'),
-              items: const [
-                DropdownMenuItem(value: '0', child: Text('0')),
-                DropdownMenuItem(value: '2', child: Text('2')),
-              ],
-              onChanged: (v) =>
-                  setState(() => _currencyDecimals = v!),
-            ),
+          TextField(
+            controller: _currencySymbol,
+            decoration: const InputDecoration(labelText: 'Símbolo de moneda'),
+          ),
+          const SizedBox(height: 8),
+          DropdownButtonFormField<String>(
+            value: _currencyDecimals,
+            decoration: const InputDecoration(labelText: 'Decimales'),
+            items: const [
+              DropdownMenuItem(value: '0', child: Text('0')),
+              DropdownMenuItem(value: '2', child: Text('2')),
+            ],
+            onChanged: (v) => setState(() => _currencyDecimals = v!),
+          ),
         ];
       case 'ticket':
         return [
-            TextField(
-              controller: _receiptFooter,
-              decoration: const InputDecoration(
-                  labelText: 'Texto de pie de página'),
-              maxLines: 2,
-            ),
-            SwitchListTile(
-              title: const Text('Mostrar descuento'),
-              value: _showDiscountOnReceipt,
-              onChanged: (v) =>
-                  setState(() => _showDiscountOnReceipt = v),
-              contentPadding: EdgeInsets.zero,
-            ),
-            SwitchListTile(
-              title: const Text('Mostrar empleado'),
-              value: _showEmployeeOnReceipt,
-              onChanged: (v) =>
-                  setState(() => _showEmployeeOnReceipt = v),
-              contentPadding: EdgeInsets.zero,
-            ),
+          TextField(
+            controller: _receiptFooter,
+            decoration:
+                const InputDecoration(labelText: 'Texto de pie de página'),
+            maxLines: 2,
+          ),
+          SwitchListTile(
+            title: const Text('Mostrar descuento'),
+            value: _showDiscountOnReceipt,
+            onChanged: (v) => setState(() => _showDiscountOnReceipt = v),
+            contentPadding: EdgeInsets.zero,
+          ),
+          SwitchListTile(
+            title: const Text('Mostrar empleado'),
+            value: _showEmployeeOnReceipt,
+            onChanged: (v) => setState(() => _showEmployeeOnReceipt = v),
+            contentPadding: EdgeInsets.zero,
+          ),
         ];
       case 'respaldo':
         return [
-            SwitchListTile(
-              title: const Text('Backup automático'),
-              subtitle: const Text(
-                  'Copia diaria de la base y al cerrar turno, a la carpeta de respaldos.'),
-              value: _backupAuto,
-              onChanged: (v) => setState(() => _backupAuto = v),
-              contentPadding: EdgeInsets.zero,
-            ),
-            if (_backupAuto)
-              TextField(
-                controller: _backupRetentionDays,
-                decoration: const InputDecoration(
-                  labelText: 'Retención (días)',
-                  helperText: 'Se borran los respaldos más antiguos. 0 = no borrar.',
-                ),
-                keyboardType: TextInputType.number,
+          SwitchListTile(
+            title: const Text('Backup automático'),
+            subtitle: const Text(
+                'Copia diaria de la base y al cerrar turno, a la carpeta de respaldos.'),
+            value: _backupAuto,
+            onChanged: (v) => setState(() => _backupAuto = v),
+            contentPadding: EdgeInsets.zero,
+          ),
+          if (_backupAuto)
+            TextField(
+              controller: _backupRetentionDays,
+              decoration: const InputDecoration(
+                labelText: 'Retención (días)',
+                helperText:
+                    'Se borran los respaldos más antiguos. 0 = no borrar.',
               ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                OutlinedButton.icon(
-                  icon: const Icon(Icons.download),
-                  label: const Text('Descargar backup'),
-                  onPressed: () =>
-                      downloadBackup(context, ref.read(databaseProvider)),
-                ),
-                const SizedBox(width: 12),
-                OutlinedButton.icon(
-                  icon: const Icon(Icons.restore),
-                  label: const Text('Restaurar backup'),
-                  onPressed: () => restoreBackup(context),
-                ),
-              ],
+              keyboardType: TextInputType.number,
             ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              OutlinedButton.icon(
+                icon: const Icon(Icons.download),
+                label: const Text('Descargar backup'),
+                onPressed: () =>
+                    downloadBackup(context, ref.read(databaseProvider)),
+              ),
+              const SizedBox(width: 12),
+              OutlinedButton.icon(
+                icon: const Icon(Icons.restore),
+                label: const Text('Restaurar backup'),
+                onPressed: () => restoreBackup(context),
+              ),
+            ],
+          ),
         ];
       default:
         return const [];
@@ -846,13 +830,15 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                                   ? '$name  ·  no térmica'
                                   : name,
                               overflow: TextOverflow.ellipsis,
-                              style: showVirtualWarning && isVirtualPrinter(name)
-                                  ? const TextStyle(color: Colors.grey)
-                                  : null,
+                              style:
+                                  showVirtualWarning && isVirtualPrinter(name)
+                                      ? const TextStyle(color: Colors.grey)
+                                      : null,
                             ),
                           ))
                       .toList(),
-                  onChanged: (v) => setState(() => _printerAddress.text = v ?? ''),
+                  onChanged: (v) =>
+                      setState(() => _printerAddress.text = v ?? ''),
                 ),
         ),
         IconButton(
@@ -989,9 +975,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       'receipt_show_discount': _showDiscountOnReceipt.toString(),
       'receipt_show_employee': _showEmployeeOnReceipt.toString(),
       'caja_requiere_turno': _cajaRequiereTurno.toString(),
-      'auto_lock_min': _autoLockMin.text.trim().isEmpty
-          ? '0'
-          : _autoLockMin.text.trim(),
+      'auto_lock_min':
+          _autoLockMin.text.trim().isEmpty ? '0' : _autoLockMin.text.trim(),
       'lock_tras_venta': _lockTrasVenta.toString(),
       'impresion_activa': _impresionActiva.toString(),
       'printer_mode': _printerMode,
@@ -1007,7 +992,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     };
 
     await ref.read(settingsProvider.notifier).setSettings(settings);
-    _loaded = false;
+    // NO se pone `_loaded = false` aquí: el estado local YA es justo lo que
+    // se acaba de persistir, así que no hace falta recargarlo desde la base.
+    // Antes esto forzaba una vuelta a `_loadFromSettings`, que junto con el
+    // flash de `AsyncLoading` de `invalidateSelf()` se sentía como si
+    // "Guardar" revirtiera todo (auditoría 2026-07-20; ver skipLoadingOnReload
+    // arriba y el fix del ColorPicker).
 
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -1019,4 +1009,3 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     }
   }
 }
-

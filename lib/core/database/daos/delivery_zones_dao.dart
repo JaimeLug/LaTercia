@@ -8,15 +8,14 @@ class DeliveryZonesDao extends DatabaseAccessor<AppDatabase>
     with _$DeliveryZonesDaoMixin {
   DeliveryZonesDao(super.db);
 
-  Future<List<DeliveryZone>> getAllZones() =>
-      (select(deliveryZones)..orderBy([(z) => OrderingTerm(expression: z.name)]))
-          .get();
+  Future<List<DeliveryZone>> getAllZones() => (select(deliveryZones)
+        ..orderBy([(z) => OrderingTerm(expression: z.name)]))
+      .get();
 
-  Future<List<DeliveryZone>> getActiveZones() =>
-      (select(deliveryZones)
-            ..where((z) => z.active.equals(true))
-            ..orderBy([(z) => OrderingTerm(expression: z.name)]))
-          .get();
+  Future<List<DeliveryZone>> getActiveZones() => (select(deliveryZones)
+        ..where((z) => z.active.equals(true))
+        ..orderBy([(z) => OrderingTerm(expression: z.name)]))
+      .get();
 
   Stream<List<DeliveryZone>> watchActiveZones() => (select(deliveryZones)
         ..where((z) => z.active.equals(true))

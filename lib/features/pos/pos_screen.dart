@@ -28,8 +28,12 @@ import 'widgets/product_card.dart';
 
 const _orderTypes = [
   ('mesa', 'Mesa', Icons.table_restaurant, LaTerciaColors.mesa),
-  ('para_llevar', 'Para llevar', Icons.shopping_bag_outlined,
-      LaTerciaColors.llevar),
+  (
+    'para_llevar',
+    'Para llevar',
+    Icons.shopping_bag_outlined,
+    LaTerciaColors.llevar
+  ),
   ('delivery', 'Delivery', Icons.delivery_dining, LaTerciaColors.delivery),
 ];
 
@@ -48,6 +52,10 @@ class _PosScreenState extends ConsumerState<PosScreen> {
   // FASE 8 — zona de envío obligatoria cuando _orderType == 'delivery'.
   int? _selectedZoneId;
   String? _customerName;
+  // Ticket de delivery (2026-07-20): solo se capturan/usan cuando
+  // _orderType == 'delivery'.
+  String? _customerPhone;
+  String? _customerAddress;
   String? _orderNote;
   Discount? _selectedDiscount;
 
@@ -58,6 +66,8 @@ class _PosScreenState extends ConsumerState<PosScreen> {
 
   // Controllers
   final _customerController = TextEditingController();
+  final _phoneController = TextEditingController();
+  final _addressController = TextEditingController();
   final _noteController = TextEditingController();
   final _searchController = TextEditingController();
 
@@ -65,6 +75,8 @@ class _PosScreenState extends ConsumerState<PosScreen> {
   void dispose() {
     _clockTimer?.cancel();
     _customerController.dispose();
+    _phoneController.dispose();
+    _addressController.dispose();
     _noteController.dispose();
     _searchController.dispose();
     super.dispose();
@@ -72,8 +84,7 @@ class _PosScreenState extends ConsumerState<PosScreen> {
 
   // ─── Calculations ─────────────────────────────────────────────────────────
 
-  double get _subtotal =>
-      _cart.fold(0.0, (sum, item) => sum + item.lineTotal);
+  double get _subtotal => _cart.fold(0.0, (sum, item) => sum + item.lineTotal);
 
   /// Cada línea del carrito con su IVA efectivo resuelto contra el default
   /// global (`tax_rate` / `tax_included`), para el cálculo por producto (4.5).
@@ -201,12 +212,34 @@ class _PosScreenState extends ConsumerState<PosScreen> {
       _selectedZoneId = null;
       _noteController.clear();
       _customerController.clear();
+      _phoneController.clear();
+      _addressController.clear();
       _orderNote = null;
       _customerName = null;
+      _customerPhone = null;
+      _customerAddress = null;
     });
   }
 
   // ─── Order submission ──────────────────────────────────────────────────────
+
+  /// Delivery requiere zona, teléfono y dirección — sin esto no se puede
+  /// armar una comanda de reparto útil para el repartidor. Devuelve el
+  /// mensaje del primer dato que falte, o `null` si está completo.
+  String? _missingDeliveryData() {
+    if (_orderType != 'delivery') return null;
+    if (_selectedZoneId == null) return 'Elige la zona de envío.';
+    if (_customerName == null || _customerName!.trim().isEmpty) {
+      return 'Captura el nombre del cliente.';
+    }
+    if (_customerPhone == null || _customerPhone!.trim().isEmpty) {
+      return 'Captura el teléfono del cliente.';
+    }
+    if (_customerAddress == null || _customerAddress!.trim().isEmpty) {
+      return 'Captura la dirección de entrega.';
+    }
+    return null;
+  }
 
   Future<void> _sendToKitchen() async {
     if (_cart.isEmpty) return;
@@ -217,10 +250,10 @@ class _PosScreenState extends ConsumerState<PosScreen> {
       );
       return;
     }
-    if (_orderType == 'delivery' && _selectedZoneId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Elige la zona de envío.')),
-      );
+    final missing = _missingDeliveryData();
+    if (missing != null) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(missing)));
       return;
     }
 
@@ -231,6 +264,8 @@ class _PosScreenState extends ConsumerState<PosScreen> {
             employeeId: employee.id,
             tableId: _orderType == 'mesa' ? _selectedTableId : null,
             customerName: _customerName,
+            customerPhone: _orderType == 'delivery' ? _customerPhone : null,
+            customerAddress: _orderType == 'delivery' ? _customerAddress : null,
             note: _orderNote,
             subtotal: _subtotal,
             discountAmount: _discountAmount,
@@ -277,10 +312,10 @@ class _PosScreenState extends ConsumerState<PosScreen> {
       );
       return;
     }
-    if (_orderType == 'delivery' && _selectedZoneId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Elige la zona de envío.')),
-      );
+    final missing = _missingDeliveryData();
+    if (missing != null) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(missing)));
       return;
     }
     showDialog(
@@ -308,6 +343,8 @@ class _PosScreenState extends ConsumerState<PosScreen> {
           employeeId: employee.id,
           tableId: _orderType == 'mesa' ? _selectedTableId : null,
           customerName: _customerName,
+          customerPhone: _orderType == 'delivery' ? _customerPhone : null,
+          customerAddress: _orderType == 'delivery' ? _customerAddress : null,
           note: _orderNote,
           subtotal: _subtotal,
           discountAmount: _discountAmount,
@@ -335,11 +372,11 @@ class _PosScreenState extends ConsumerState<PosScreen> {
         backgroundColor: LaTerciaColors.darkBrown,
         content: Row(
           children: [
-            const Icon(Icons.check_circle, color: LaTerciaColors.success, size: 20),
+            const Icon(Icons.check_circle,
+                color: LaTerciaColors.success, size: 20),
             const SizedBox(width: 10),
             Expanded(
-              child: Text(message,
-                  style: const TextStyle(color: Colors.white)),
+              child: Text(message, style: const TextStyle(color: Colors.white)),
             ),
           ],
         ),
@@ -396,59 +433,108 @@ class _PosScreenState extends ConsumerState<PosScreen> {
 
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _OrderTypeSegment(
-            value: _orderType,
-            onChanged: (v) => setState(() => _orderType = v),
-          ),
-          if (_orderType == 'mesa' && enableTables) ...[
-            const SizedBox(width: 12),
-            _PillDropdown<int?>(
-              value: _selectedTableId,
-              hint: 'Mesa',
-              items: [
-                const DropdownMenuItem<int?>(
-                    value: null, child: Text('Sin mesa')),
-                ...available.map((t) => DropdownMenuItem(
-                      value: t.id,
-                      child: Text(t.name),
-                    )),
-              ],
-              onChanged: (v) => setState(() => _selectedTableId = v),
-            ),
-          ],
-          if (_orderType == 'delivery') ...[
-            const SizedBox(width: 12),
-            Builder(builder: (context) {
-              final zones = ref.watch(deliveryZonesProvider).valueOrNull ?? [];
-              return _PillDropdown<int?>(
-                value: _selectedZoneId,
-                hint: 'Zona de envío *',
-                items: zones
-                    .map((z) => DropdownMenuItem<int?>(
-                          value: z.id,
-                          child: Text(z.name),
-                        ))
-                    .toList(),
-                onChanged: (v) => setState(() => _selectedZoneId = v),
-              );
-            }),
-          ],
-          if (showCustomer) ...[
-            const SizedBox(width: 12),
-            SizedBox(
-              width: 220,
-              height: 44,
-              child: TextField(
-                controller: _customerController,
-                style: const TextStyle(fontSize: 13.5),
-                decoration: const InputDecoration(
-                  hintText: 'Cliente (opcional)',
-                  isDense: true,
-                ),
-                onChanged: (v) => _customerName = v.isEmpty ? null : v,
+          Row(
+            children: [
+              _OrderTypeSegment(
+                value: _orderType,
+                onChanged: (v) => setState(() => _orderType = v),
               ),
+              if (_orderType == 'mesa' && enableTables) ...[
+                const SizedBox(width: 12),
+                _PillDropdown<int?>(
+                  value: _selectedTableId,
+                  hint: 'Mesa',
+                  items: [
+                    const DropdownMenuItem<int?>(
+                        value: null, child: Text('Sin mesa')),
+                    ...available.map((t) => DropdownMenuItem(
+                          value: t.id,
+                          child: Text(t.name),
+                        )),
+                  ],
+                  onChanged: (v) => setState(() => _selectedTableId = v),
+                ),
+              ],
+              if (_orderType == 'delivery') ...[
+                const SizedBox(width: 12),
+                Builder(builder: (context) {
+                  final zones =
+                      ref.watch(deliveryZonesProvider).valueOrNull ?? [];
+                  return _PillDropdown<int?>(
+                    value: _selectedZoneId,
+                    hint: 'Zona de envío *',
+                    items: zones
+                        .map((z) => DropdownMenuItem<int?>(
+                              value: z.id,
+                              child: Text(z.name),
+                            ))
+                        .toList(),
+                    onChanged: (v) => setState(() => _selectedZoneId = v),
+                  );
+                }),
+              ],
+              if (showCustomer) ...[
+                const SizedBox(width: 12),
+                SizedBox(
+                  width: 220,
+                  height: 44,
+                  child: TextField(
+                    controller: _customerController,
+                    style: const TextStyle(fontSize: 13.5),
+                    decoration: InputDecoration(
+                      hintText: _orderType == 'delivery'
+                          ? 'Cliente *'
+                          : 'Cliente (opcional)',
+                      isDense: true,
+                    ),
+                    onChanged: (v) => _customerName = v.isEmpty ? null : v,
+                  ),
+                ),
+              ],
+            ],
+          ),
+          // Datos de entrega (2026-07-20): solo para delivery — alimentan la
+          // comanda de reparto (nombre + teléfono + dirección + zona), para
+          // que el repartidor sepa a dónde y con quién.
+          if (_orderType == 'delivery') ...[
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                SizedBox(
+                  width: 180,
+                  height: 44,
+                  child: TextField(
+                    controller: _phoneController,
+                    style: const TextStyle(fontSize: 13.5),
+                    keyboardType: TextInputType.phone,
+                    decoration: const InputDecoration(
+                      hintText: 'Teléfono *',
+                      isDense: true,
+                      prefixIcon: Icon(Icons.phone_outlined, size: 18),
+                    ),
+                    onChanged: (v) => _customerPhone = v.isEmpty ? null : v,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: SizedBox(
+                    height: 44,
+                    child: TextField(
+                      controller: _addressController,
+                      style: const TextStyle(fontSize: 13.5),
+                      decoration: const InputDecoration(
+                        hintText: 'Dirección de entrega *',
+                        isDense: true,
+                        prefixIcon: Icon(Icons.place_outlined, size: 18),
+                      ),
+                      onChanged: (v) => _customerAddress = v.isEmpty ? null : v,
+                    ),
+                  ),
+                ),
+              ],
             ),
           ],
         ],
@@ -484,8 +570,7 @@ class _PosScreenState extends ConsumerState<PosScreen> {
                         label: c.name,
                         dotColor: _parseColor(c.color),
                         selected: _selectedCategoryId == c.id,
-                        onTap: () =>
-                            setState(() => _selectedCategoryId = c.id),
+                        onTap: () => setState(() => _selectedCategoryId = c.id),
                       ),
                     )),
               ],
@@ -524,7 +609,8 @@ class _PosScreenState extends ConsumerState<PosScreen> {
                   return false;
                 }
                 if (_searchQuery.isNotEmpty &&
-                    !p.name.toLowerCase()
+                    !p.name
+                        .toLowerCase()
                         .contains(_searchQuery.toLowerCase())) {
                   return false;
                 }
@@ -540,8 +626,7 @@ class _PosScreenState extends ConsumerState<PosScreen> {
 
               return GridView.builder(
                 padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                gridDelegate:
-                    const SliverGridDelegateWithMaxCrossAxisExtent(
+                gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
                   maxCrossAxisExtent: 210,
                   childAspectRatio: 0.86,
                   mainAxisSpacing: 14,
@@ -551,8 +636,7 @@ class _PosScreenState extends ConsumerState<PosScreen> {
                 itemBuilder: (ctx, i) {
                   final product = filtered[i];
                   final cat = catMap[product.categoryId];
-                  final hasMods =
-                      categoryHasModifiers(modifiers, cat?.name);
+                  final hasMods = categoryHasModifiers(modifiers, cat?.name);
 
                   return ProductCard(
                     product: product,
@@ -565,8 +649,7 @@ class _PosScreenState extends ConsumerState<PosScreen> {
                 },
               );
             },
-            loading: () =>
-                const Center(child: CircularProgressIndicator()),
+            loading: () => const Center(child: CircularProgressIndicator()),
             error: (e, _) => Center(child: Text('Error: $e')),
           ),
         ),
@@ -583,11 +666,9 @@ class _PosScreenState extends ConsumerState<PosScreen> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            if (product.description != null &&
-                product.description!.isNotEmpty)
+            if (product.description != null && product.description!.isNotEmpty)
               Text(product.description!),
-            if (product.trackInventory)
-              Text('Stock: ${product.stockQuantity}'),
+            if (product.trackInventory) Text('Stock: ${product.stockQuantity}'),
           ],
         ),
         actions: [
@@ -625,8 +706,8 @@ class _PosScreenState extends ConsumerState<PosScreen> {
     // El IVA ahora se calcula por producto (4.5); la fila del resumen se muestra
     // cuando hay IVA computado, sin depender de una única tasa global.
     final taxIncludedDefault = settings['tax_included'] != 'false';
-    final typeInfo =
-        _orderTypes.firstWhere((t) => t.$1 == _orderType, orElse: () => _orderTypes[0]);
+    final typeInfo = _orderTypes.firstWhere((t) => t.$1 == _orderType,
+        orElse: () => _orderTypes[0]);
     final tables = ref.watch(tablesProvider).valueOrNull ?? [];
     TablesLayoutData? selectedTable;
     if (_selectedTableId != null) {
@@ -658,9 +739,7 @@ class _PosScreenState extends ConsumerState<PosScreen> {
                               fontFamily: 'DM Serif Display', fontSize: 22)),
                       Text(
                         selectedTable?.name ??
-                            (_orderType == 'mesa'
-                                ? 'Sin mesa'
-                                : typeInfo.$2),
+                            (_orderType == 'mesa' ? 'Sin mesa' : typeInfo.$2),
                         style: const TextStyle(
                             fontSize: 12.5, color: LaTerciaColors.tan),
                       ),
@@ -771,8 +850,7 @@ class _PosScreenState extends ConsumerState<PosScreen> {
                       _DiscountPill(
                         label: 'Sin desc.',
                         selected: _selectedDiscount == null,
-                        onTap: () =>
-                            setState(() => _selectedDiscount = null),
+                        onTap: () => setState(() => _selectedDiscount = null),
                       ),
                       ...activeDiscounts.map((d) => Padding(
                             padding: const EdgeInsets.only(left: 6),
@@ -796,8 +874,7 @@ class _PosScreenState extends ConsumerState<PosScreen> {
                     color: LaTerciaColors.success,
                   ),
                 if (_taxAmount > 0)
-                  _summaryRow(
-                      taxIncludedDefault ? 'IVA (incluido)' : 'IVA',
+                  _summaryRow(taxIncludedDefault ? 'IVA (incluido)' : 'IVA',
                       formatCurrency(_taxAmount, symbol)),
                 if (_deliveryFee > 0)
                   _summaryRow(
@@ -874,8 +951,7 @@ class _PosScreenState extends ConsumerState<PosScreen> {
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Text(label,
-              style: const TextStyle(
-                  fontSize: 13, color: LaTerciaColors.tan)),
+              style: const TextStyle(fontSize: 13, color: LaTerciaColors.tan)),
           Text(value,
               style: TextStyle(
                   fontSize: 13,
@@ -924,15 +1000,14 @@ class _OrderTypeSegment extends StatelessWidget {
                 borderRadius: BorderRadius.circular(10),
                 onTap: () => onChanged(t.$1),
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 14, vertical: 9),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
                   child: Row(
                     children: [
                       Icon(t.$3,
                           size: 16,
-                          color: selected
-                              ? Colors.white
-                              : LaTerciaColors.cocoa),
+                          color:
+                              selected ? Colors.white : LaTerciaColors.cocoa),
                       const SizedBox(width: 6),
                       Text(
                         t.$2,
@@ -940,8 +1015,7 @@ class _OrderTypeSegment extends StatelessWidget {
                           fontSize: 13,
                           fontWeight:
                               selected ? FontWeight.w600 : FontWeight.w500,
-                          color:
-                              selected ? Colors.white : LaTerciaColors.cocoa,
+                          color: selected ? Colors.white : LaTerciaColors.cocoa,
                         ),
                       ),
                     ],
@@ -984,8 +1058,7 @@ class _PillDropdown<T> extends StatelessWidget {
           hint: Text(hint, style: const TextStyle(fontSize: 13.5)),
           isDense: true,
           icon: const Icon(Icons.keyboard_arrow_down, size: 18),
-          style: const TextStyle(
-              fontSize: 13.5, color: LaTerciaColors.cocoa),
+          style: const TextStyle(fontSize: 13.5, color: LaTerciaColors.cocoa),
           items: items,
           onChanged: onChanged,
         ),

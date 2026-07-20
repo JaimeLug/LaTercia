@@ -14,10 +14,8 @@ class PaymentsDao extends DatabaseAccessor<AppDatabase>
   Future<List<Payment>> getPaymentsForOrder(int orderId) =>
       (select(payments)..where((p) => p.orderId.equals(orderId))).get();
 
-  Future<List<Payment>> getPaymentsByDateRange(
-          DateTime from, DateTime to) =>
-      (select(payments)
-            ..where((p) => p.createdAt.isBetweenValues(from, to)))
+  Future<List<Payment>> getPaymentsByDateRange(DateTime from, DateTime to) =>
+      (select(payments)..where((p) => p.createdAt.isBetweenValues(from, to)))
           .get();
 
   Future<List<Payment>> getPaymentsForShift(int shiftId) =>

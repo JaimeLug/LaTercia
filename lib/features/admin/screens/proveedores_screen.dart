@@ -22,91 +22,90 @@ class ProveedoresBodyState extends ConsumerState<ProveedoresBody> {
   @override
   Widget build(BuildContext context) {
     return FutureBuilder<List<Supplier>>(
-        future: ref.read(databaseProvider).suppliersDao.getAllSuppliers(),
-        builder: (ctx, snapshot) {
-          if (!snapshot.hasData) return adminLoading();
-          final suppliers = snapshot.data!;
-          if (suppliers.isEmpty) {
-            return const AdminEmptyState(
-              icon: Icons.local_shipping_outlined,
-              message: 'Sin proveedores todavía.\n'
-                  'Toca "+" para dar de alta el primero.',
-            );
-          }
-          return SingleChildScrollView(
-            padding: const EdgeInsets.all(20),
-            child: AdminPanel(
-              child: Column(
-                children: [
-                  const AdminHeaderRow(cells: [
-                    Expanded(flex: 3, child: Text('NOMBRE')),
-                    Expanded(flex: 2, child: Text('CONTACTO')),
-                    Expanded(flex: 2, child: Text('TELÉFONO')),
-                    Expanded(flex: 2, child: Text('ESTADO')),
-                    SizedBox(width: 88, child: Text('ACCIONES')),
-                  ]),
-                  ...suppliers.asMap().entries.map((entry) {
-                    final s = entry.value;
-                    final isLast = entry.key == suppliers.length - 1;
-                    return AdminRow(
-                      isLast: isLast,
-                      cells: [
-                        Expanded(
-                          flex: 3,
-                          child: Text(s.name,
-                              style: TextStyle(
-                                  fontWeight: FontWeight.w600,
-                                  color: s.active
-                                      ? LaTerciaColors.darkBrown
-                                      : LaTerciaColors.tan)),
-                        ),
-                        Expanded(flex: 2, child: Text(s.contactName ?? '—')),
-                        Expanded(flex: 2, child: Text(s.phone ?? '—')),
-                        Expanded(
-                          flex: 2,
-                          child: StatusPill(s.active ? 'Activo' : 'Inactivo',
-                              tone: s.active
-                                  ? StatusTone.ok
-                                  : StatusTone.neutral),
-                        ),
-                        SizedBox(
-                          width: 88,
-                          child: Row(
-                            children: [
-                              IconButton(
-                                icon: const Icon(Icons.edit_outlined,
-                                    size: 18, color: LaTerciaColors.tan),
-                                visualDensity: VisualDensity.compact,
-                                onPressed: () => _showForm(context, s),
-                              ),
-                              IconButton(
-                                icon: Icon(
-                                    s.active
-                                        ? Icons.visibility_off_outlined
-                                        : Icons.visibility_outlined,
-                                    size: 18,
-                                    color: LaTerciaColors.danger),
-                                visualDensity: VisualDensity.compact,
-                                onPressed: () async {
-                                  await ref
-                                      .read(databaseProvider)
-                                      .suppliersDao
-                                      .setActive(s.id, !s.active);
-                                  setState(() {});
-                                },
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    );
-                  }),
-                ],
-              ),
-            ),
+      future: ref.read(databaseProvider).suppliersDao.getAllSuppliers(),
+      builder: (ctx, snapshot) {
+        if (!snapshot.hasData) return adminLoading();
+        final suppliers = snapshot.data!;
+        if (suppliers.isEmpty) {
+          return const AdminEmptyState(
+            icon: Icons.local_shipping_outlined,
+            message: 'Sin proveedores todavía.\n'
+                'Toca "+" para dar de alta el primero.',
           );
-        },
-      );
+        }
+        return SingleChildScrollView(
+          padding: const EdgeInsets.all(20),
+          child: AdminPanel(
+            child: Column(
+              children: [
+                const AdminHeaderRow(cells: [
+                  Expanded(flex: 3, child: Text('NOMBRE')),
+                  Expanded(flex: 2, child: Text('CONTACTO')),
+                  Expanded(flex: 2, child: Text('TELÉFONO')),
+                  Expanded(flex: 2, child: Text('ESTADO')),
+                  SizedBox(width: 88, child: Text('ACCIONES')),
+                ]),
+                ...suppliers.asMap().entries.map((entry) {
+                  final s = entry.value;
+                  final isLast = entry.key == suppliers.length - 1;
+                  return AdminRow(
+                    isLast: isLast,
+                    cells: [
+                      Expanded(
+                        flex: 3,
+                        child: Text(s.name,
+                            style: TextStyle(
+                                fontWeight: FontWeight.w600,
+                                color: s.active
+                                    ? LaTerciaColors.darkBrown
+                                    : LaTerciaColors.tan)),
+                      ),
+                      Expanded(flex: 2, child: Text(s.contactName ?? '—')),
+                      Expanded(flex: 2, child: Text(s.phone ?? '—')),
+                      Expanded(
+                        flex: 2,
+                        child: StatusPill(s.active ? 'Activo' : 'Inactivo',
+                            tone:
+                                s.active ? StatusTone.ok : StatusTone.neutral),
+                      ),
+                      SizedBox(
+                        width: 88,
+                        child: Row(
+                          children: [
+                            IconButton(
+                              icon: const Icon(Icons.edit_outlined,
+                                  size: 18, color: LaTerciaColors.tan),
+                              visualDensity: VisualDensity.compact,
+                              onPressed: () => _showForm(context, s),
+                            ),
+                            IconButton(
+                              icon: Icon(
+                                  s.active
+                                      ? Icons.visibility_off_outlined
+                                      : Icons.visibility_outlined,
+                                  size: 18,
+                                  color: LaTerciaColors.danger),
+                              visualDensity: VisualDensity.compact,
+                              onPressed: () async {
+                                await ref
+                                    .read(databaseProvider)
+                                    .suppliersDao
+                                    .setActive(s.id, !s.active);
+                                setState(() {});
+                              },
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  );
+                }),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 
   Future<void> _showForm(BuildContext context, Supplier? supplier) async {
@@ -156,8 +155,8 @@ class _SupplierFormDialogState extends ConsumerState<_SupplierFormDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title:
-          Text(widget.supplier == null ? 'Nuevo proveedor' : 'Editar proveedor'),
+      title: Text(
+          widget.supplier == null ? 'Nuevo proveedor' : 'Editar proveedor'),
       content: Form(
         key: _formKey,
         child: Column(
@@ -206,7 +205,8 @@ class _SupplierFormDialogState extends ConsumerState<_SupplierFormDialog> {
       name: Value(_nameCtrl.text.trim()),
       contactName: Value(
           _contactCtrl.text.trim().isEmpty ? null : _contactCtrl.text.trim()),
-      phone: Value(_phoneCtrl.text.trim().isEmpty ? null : _phoneCtrl.text.trim()),
+      phone:
+          Value(_phoneCtrl.text.trim().isEmpty ? null : _phoneCtrl.text.trim()),
       note: Value(_noteCtrl.text.trim().isEmpty ? null : _noteCtrl.text.trim()),
     );
 

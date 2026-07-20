@@ -127,8 +127,7 @@ ThemeData buildTheme(String primaryHex, String secondaryHex) {
         padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 16),
         textStyle: const TextStyle(
             fontFamily: _sans, fontWeight: FontWeight.w600, fontSize: 14),
-        shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(14)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
       ),
     ),
     elevatedButtonTheme: ElevatedButtonThemeData(
@@ -138,10 +137,9 @@ ThemeData buildTheme(String primaryHex, String secondaryHex) {
         elevation: 0,
         padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 16),
         side: const BorderSide(color: LaTerciaColors.border),
-        textStyle: const TextStyle(
-            fontFamily: _sans, fontWeight: FontWeight.w600),
-        shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(14)),
+        textStyle:
+            const TextStyle(fontFamily: _sans, fontWeight: FontWeight.w600),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
       ),
     ),
     outlinedButtonTheme: OutlinedButtonThemeData(
@@ -149,17 +147,16 @@ ThemeData buildTheme(String primaryHex, String secondaryHex) {
         foregroundColor: primary,
         padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 16),
         side: BorderSide(color: primary.withValues(alpha: 0.5)),
-        textStyle: const TextStyle(
-            fontFamily: _sans, fontWeight: FontWeight.w600),
-        shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(14)),
+        textStyle:
+            const TextStyle(fontFamily: _sans, fontWeight: FontWeight.w600),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
       ),
     ),
     textButtonTheme: TextButtonThemeData(
       style: TextButton.styleFrom(
         foregroundColor: primary,
-        textStyle: const TextStyle(
-            fontFamily: _sans, fontWeight: FontWeight.w600),
+        textStyle:
+            const TextStyle(fontFamily: _sans, fontWeight: FontWeight.w600),
       ),
     ),
     chipTheme: ChipThemeData(
@@ -177,14 +174,12 @@ ThemeData buildTheme(String primaryHex, String secondaryHex) {
       ),
       secondaryLabelStyle:
           const TextStyle(fontFamily: _sans, color: Colors.white),
-      shape:
-          RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
     ),
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
       fillColor: Colors.white,
-      contentPadding:
-          const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
         borderSide: const BorderSide(color: LaTerciaColors.border),
@@ -208,8 +203,7 @@ ThemeData buildTheme(String primaryHex, String secondaryHex) {
     dialogTheme: DialogThemeData(
       backgroundColor: LaTerciaColors.creamAlt,
       surfaceTintColor: Colors.transparent,
-      shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(24)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
       titleTextStyle: const TextStyle(
         fontFamily: _serif,
         fontSize: 24,
@@ -218,8 +212,7 @@ ThemeData buildTheme(String primaryHex, String secondaryHex) {
     ),
     snackBarTheme: SnackBarThemeData(
       behavior: SnackBarBehavior.floating,
-      shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
     ),
   );
 }
@@ -247,8 +240,7 @@ ThemeData buildKdsTheme() {
       color: LaTerciaColors.kdsCard,
       elevation: 0,
       surfaceTintColor: Colors.transparent,
-      shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
     ),
   );
 }
@@ -257,31 +249,29 @@ TextTheme _textTheme(TextTheme base, {bool onDark = false}) {
   final display = onDark ? Colors.white : LaTerciaColors.darkBrown;
   final body = onDark ? LaTerciaColors.kdsText : LaTerciaColors.cocoa;
   return base.copyWith(
-    displayLarge: base.displayLarge
-        ?.copyWith(fontFamily: _serif, color: display),
-    displayMedium: base.displayMedium
-        ?.copyWith(fontFamily: _serif, color: display),
-    displaySmall: base.displaySmall
-        ?.copyWith(fontFamily: _serif, color: display),
-    headlineLarge: base.headlineLarge
-        ?.copyWith(fontFamily: _serif, color: display),
-    headlineMedium: base.headlineMedium
-        ?.copyWith(fontFamily: _serif, color: display),
-    headlineSmall: base.headlineSmall
-        ?.copyWith(fontFamily: _serif, color: display),
-    titleLarge:
-        base.titleLarge?.copyWith(fontFamily: _serif, color: display),
-    titleMedium: base.titleMedium?.copyWith(
-        fontFamily: _sans, fontWeight: FontWeight.w600, color: body),
-    titleSmall: base.titleSmall?.copyWith(
-        fontFamily: _sans, fontWeight: FontWeight.w600, color: body),
+    displayLarge:
+        base.displayLarge?.copyWith(fontFamily: _serif, color: display),
+    displayMedium:
+        base.displayMedium?.copyWith(fontFamily: _serif, color: display),
+    displaySmall:
+        base.displaySmall?.copyWith(fontFamily: _serif, color: display),
+    headlineLarge:
+        base.headlineLarge?.copyWith(fontFamily: _serif, color: display),
+    headlineMedium:
+        base.headlineMedium?.copyWith(fontFamily: _serif, color: display),
+    headlineSmall:
+        base.headlineSmall?.copyWith(fontFamily: _serif, color: display),
+    titleLarge: base.titleLarge?.copyWith(fontFamily: _serif, color: display),
+    titleMedium: base.titleMedium
+        ?.copyWith(fontFamily: _sans, fontWeight: FontWeight.w600, color: body),
+    titleSmall: base.titleSmall
+        ?.copyWith(fontFamily: _sans, fontWeight: FontWeight.w600, color: body),
     bodyLarge: base.bodyLarge?.copyWith(fontFamily: _sans, color: body),
     bodyMedium: base.bodyMedium?.copyWith(fontFamily: _sans, color: body),
     bodySmall: base.bodySmall?.copyWith(fontFamily: _sans, color: body),
-    labelLarge: base.labelLarge?.copyWith(
-        fontFamily: _sans, fontWeight: FontWeight.w600, color: body),
-    labelMedium:
-        base.labelMedium?.copyWith(fontFamily: _sans, color: body),
+    labelLarge: base.labelLarge
+        ?.copyWith(fontFamily: _sans, fontWeight: FontWeight.w600, color: body),
+    labelMedium: base.labelMedium?.copyWith(fontFamily: _sans, color: body),
     labelSmall: base.labelSmall?.copyWith(fontFamily: _sans, color: body),
   );
 }

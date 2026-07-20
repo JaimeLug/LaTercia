@@ -163,9 +163,7 @@ class _PinGateState extends ConsumerState<PinGate>
                         shape: BoxShape.circle,
                         color: filled ? primary : Colors.transparent,
                         border: Border.all(
-                          color: filled
-                              ? primary
-                              : LaTerciaColors.borderStrong,
+                          color: filled ? primary : LaTerciaColors.borderStrong,
                           width: 2,
                         ),
                       ),
@@ -211,9 +209,7 @@ class _PinGateState extends ConsumerState<PinGate>
                   width: 84,
                   height: 66,
                   child: Material(
-                    color: isBack
-                        ? const Color(0xFFF7D9D5)
-                        : Colors.white,
+                    color: isBack ? const Color(0xFFF7D9D5) : Colors.white,
                     borderRadius: BorderRadius.circular(16),
                     child: InkWell(
                       borderRadius: BorderRadius.circular(16),

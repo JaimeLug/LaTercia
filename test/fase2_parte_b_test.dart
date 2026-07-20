@@ -71,7 +71,8 @@ void main() {
   });
 
   group('arqueo de caja', () {
-    test('esperado combina fondo inicial, ventas en efectivo, depósitos '
+    test(
+        'esperado combina fondo inicial, ventas en efectivo, depósitos '
         'y retiros; la diferencia se calcula contra lo contado', () async {
       final shift =
           await shiftService.openShift(employeeId: 1, startingCash: 100);
@@ -126,20 +127,17 @@ void main() {
 
   group('zNumber consecutivo', () {
     test('sube de 1 en 1 entre turnos cerrados', () async {
-      final s1 =
-          await shiftService.openShift(employeeId: 1, startingCash: 0);
+      final s1 = await shiftService.openShift(employeeId: 1, startingCash: 0);
       final z1 = await shiftService.closeShift(
           shiftId: s1.id, employeeId: 1, countedCash: 0);
       expect(z1.shift.zNumber, 1);
 
-      final s2 =
-          await shiftService.openShift(employeeId: 1, startingCash: 0);
+      final s2 = await shiftService.openShift(employeeId: 1, startingCash: 0);
       final z2 = await shiftService.closeShift(
           shiftId: s2.id, employeeId: 1, countedCash: 0);
       expect(z2.shift.zNumber, 2);
 
-      final s3 =
-          await shiftService.openShift(employeeId: 1, startingCash: 0);
+      final s3 = await shiftService.openShift(employeeId: 1, startingCash: 0);
       final z3 = await shiftService.closeShift(
           shiftId: s3.id, employeeId: 1, countedCash: 0);
       expect(z3.shift.zNumber, 3);
@@ -149,13 +147,11 @@ void main() {
     });
 
     test('cerrar un turno libera el sistema para abrir otro', () async {
-      final s1 =
-          await shiftService.openShift(employeeId: 1, startingCash: 0);
+      final s1 = await shiftService.openShift(employeeId: 1, startingCash: 0);
       await shiftService.closeShift(
           shiftId: s1.id, employeeId: 1, countedCash: 0);
       expect(await db.shiftsDao.getCurrentOpenShift(), isNull);
-      final s2 =
-          await shiftService.openShift(employeeId: 1, startingCash: 20);
+      final s2 = await shiftService.openShift(employeeId: 1, startingCash: 20);
       expect(s2.startingCash, 20);
     });
   });

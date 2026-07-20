@@ -12,11 +12,10 @@ class ShiftsDao extends DatabaseAccessor<AppDatabase> with _$ShiftsDaoMixin {
   Future<Shift?> getCurrentOpenShift() =>
       (select(shifts)..where((s) => s.endedAt.isNull())).getSingleOrNull();
 
-  Future<int> openShift(ShiftsCompanion shift) =>
-      into(shifts).insert(shift);
+  Future<int> openShift(ShiftsCompanion shift) => into(shifts).insert(shift);
 
-  Future<void> closeShift(
-      int shiftId, double endingCash, double totalSales, [int? zNumber]) =>
+  Future<void> closeShift(int shiftId, double endingCash, double totalSales,
+          [int? zNumber]) =>
       (update(shifts)..where((s) => s.id.equals(shiftId))).write(
         ShiftsCompanion(
           endedAt: Value(DateTime.now()),
@@ -26,19 +25,17 @@ class ShiftsDao extends DatabaseAccessor<AppDatabase> with _$ShiftsDaoMixin {
         ),
       );
 
-  Future<List<Shift>> getShiftsByEmployee(int employeeId) =>
-      (select(shifts)
-            ..where((s) => s.employeeId.equals(employeeId))
-            ..orderBy([(s) => OrderingTerm.desc(s.startedAt)]))
-          .get();
+  Future<List<Shift>> getShiftsByEmployee(int employeeId) => (select(shifts)
+        ..where((s) => s.employeeId.equals(employeeId))
+        ..orderBy([(s) => OrderingTerm.desc(s.startedAt)]))
+      .get();
 
   /// All shifts that have already been closed (have an `endedAt`), most
   /// recent first — backs the Z-cut history list in Admin.
-  Future<List<Shift>> getClosedShifts() =>
-      (select(shifts)
-            ..where((s) => s.endedAt.isNotNull())
-            ..orderBy([(s) => OrderingTerm.desc(s.startedAt)]))
-          .get();
+  Future<List<Shift>> getClosedShifts() => (select(shifts)
+        ..where((s) => s.endedAt.isNotNull())
+        ..orderBy([(s) => OrderingTerm.desc(s.startedAt)]))
+      .get();
 
   Future<Shift?> getShiftById(int id) =>
       (select(shifts)..where((s) => s.id.equals(id))).getSingleOrNull();

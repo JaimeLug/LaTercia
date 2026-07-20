@@ -329,11 +329,11 @@ class _DrawerButton extends ConsumerWidget {
 
     if (hadPermission) {
       await ref.read(auditServiceProvider).log(
-            employeeId: actor.id,
-            action: PermissionAction.abrirGavetaSinVenta.key,
-            entity: 'drawer',
-            detail: {'manual': true},
-          );
+        employeeId: actor.id,
+        action: PermissionAction.abrirGavetaSinVenta.key,
+        entity: 'drawer',
+        detail: {'manual': true},
+      );
     }
 
     if (context.mounted) {
@@ -370,9 +370,8 @@ class _ShiftButton extends ConsumerWidget {
               height: 9,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: isOpen
-                    ? LaTerciaColors.success
-                    : LaTerciaColors.tanLight,
+                color:
+                    isOpen ? LaTerciaColors.success : LaTerciaColors.tanLight,
                 border: Border.all(color: LaTerciaColors.darkBrown, width: 1.5),
               ),
             ),

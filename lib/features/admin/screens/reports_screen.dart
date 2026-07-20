@@ -138,8 +138,8 @@ class _PanelTitle extends StatelessWidget {
         if (subtitle != null) ...[
           const SizedBox(height: 2),
           Text(subtitle!,
-              style: const TextStyle(
-                  fontSize: 12.5, color: LaTerciaColors.tan)),
+              style:
+                  const TextStyle(fontSize: 12.5, color: LaTerciaColors.tan)),
         ],
       ],
     );
@@ -226,8 +226,7 @@ class _BreakdownRow extends StatelessWidget {
               Container(
                 width: 9,
                 height: 9,
-                decoration:
-                    BoxDecoration(color: color, shape: BoxShape.circle),
+                decoration: BoxDecoration(color: color, shape: BoxShape.circle),
               ),
               const SizedBox(width: 9),
               Expanded(
@@ -274,8 +273,7 @@ Widget _empty(String msg) => Center(
               size: 44, color: LaTerciaColors.tanLight),
           const SizedBox(height: 10),
           Text(msg,
-              style: const TextStyle(
-                  color: LaTerciaColors.tan, fontSize: 15)),
+              style: const TextStyle(color: LaTerciaColors.tan, fontSize: 15)),
         ],
       ),
     );
@@ -368,8 +366,7 @@ class _DailyTabState extends ConsumerState<_DailyTab> {
           style: OutlinedButton.styleFrom(
             foregroundColor: LaTerciaColors.cocoa,
             side: const BorderSide(color: LaTerciaColors.border),
-            padding:
-                const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           ),
           onPressed: () async {
             final d = await showDatePicker(
@@ -526,8 +523,18 @@ class _MonthlyTab extends ConsumerWidget {
     final db = ref.read(databaseProvider);
     final now = DateTime.now();
     const monthNames = [
-      'Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun',
-      'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'
+      'Ene',
+      'Feb',
+      'Mar',
+      'Abr',
+      'May',
+      'Jun',
+      'Jul',
+      'Ago',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dic'
     ];
     for (int m = 1; m <= now.month; m++) {
       final start = DateTime(now.year, m);
@@ -561,8 +568,8 @@ Widget _brandBarChart(
                   toY: e.value.value,
                   color: color,
                   width: 22,
-                  borderRadius: const BorderRadius.vertical(
-                      top: Radius.circular(6)),
+                  borderRadius:
+                      const BorderRadius.vertical(top: Radius.circular(6)),
                 ),
               ]))
           .toList(),
@@ -595,16 +602,15 @@ Widget _brandBarChart(
                     fontSize: 10, color: LaTerciaColors.tanLight)),
           ),
         ),
-        topTitles:
-            const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+        topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
         rightTitles:
             const AxisTitles(sideTitles: SideTitles(showTitles: false)),
       ),
       gridData: FlGridData(
         show: true,
         drawVerticalLine: false,
-        getDrawingHorizontalLine: (_) => const FlLine(
-            color: LaTerciaColors.border, strokeWidth: 1),
+        getDrawingHorizontalLine: (_) =>
+            const FlLine(color: LaTerciaColors.border, strokeWidth: 1),
       ),
       borderData: FlBorderData(show: false),
       barTouchData: BarTouchData(
@@ -754,7 +760,8 @@ class _TopProductsTab extends ConsumerWidget {
         if (!snapshot.hasData) return _loading();
         final entries = snapshot.data!.entries.toList();
         if (entries.isEmpty) return _empty('Sin ventas hoy');
-        final maxV = entries.map((e) => e.value).reduce((a, b) => a > b ? a : b);
+        final maxV =
+            entries.map((e) => e.value).reduce((a, b) => a > b ? a : b);
         return ListView(
           padding: const EdgeInsets.all(20),
           children: [
@@ -795,10 +802,14 @@ class _AntifraudTab extends ConsumerWidget {
 
     return FutureBuilder<List<List<AuditLogData>>>(
       future: Future.wait([
-        ref.read(databaseProvider).auditLogDao.getByAction(
-            PermissionAction.anular.key, limit: 1000),
-        ref.read(databaseProvider).auditLogDao.getByAction(
-            PermissionAction.abrirGavetaSinVenta.key, limit: 1000),
+        ref
+            .read(databaseProvider)
+            .auditLogDao
+            .getByAction(PermissionAction.anular.key, limit: 1000),
+        ref
+            .read(databaseProvider)
+            .auditLogDao
+            .getByAction(PermissionAction.abrirGavetaSinVenta.key, limit: 1000),
       ]),
       builder: (ctx, snapshot) {
         if (!snapshot.hasData) return _loading();

@@ -92,6 +92,10 @@ class CheckoutService {
     int? tableId,
     String? customerName,
     int? customerId,
+    // Ticket de delivery (2026-07-20): solo relevantes cuando type ==
+    // 'delivery'; nulos para mesa/para llevar.
+    String? customerPhone,
+    String? customerAddress,
     String? note,
     double subtotal = 0,
     double discountAmount = 0,
@@ -106,8 +110,8 @@ class CheckoutService {
     String? reference,
     List<PaymentDraft>? payments,
   }) {
-    final drafts = _resolvePayments(
-        payments, paymentMethod, amountTendered, changeGiven, tipAmount, reference);
+    final drafts = _resolvePayments(payments, paymentMethod, amountTendered,
+        changeGiven, tipAmount, reference);
     return _db.transaction(() async {
       _assertCovers(drafts, total);
       // Insert with a temporary unique placeholder, then derive the real,
@@ -125,6 +129,8 @@ class CheckoutService {
           tableId: Value(tableId),
           customerName: Value(customerName),
           customerId: Value(customerId),
+          customerPhone: Value(customerPhone),
+          customerAddress: Value(customerAddress),
           note: Value(note),
           subtotal: Value(subtotal),
           discountAmount: Value(discountAmount),
@@ -136,7 +142,8 @@ class CheckoutService {
           paymentStatus: const Value('pendiente'),
         ),
       );
-      await _db.ordersDao.updateOrderNumber(orderId, formatOrderNumber(orderId));
+      await _db.ordersDao
+          .updateOrderNumber(orderId, formatOrderNumber(orderId));
 
       if (tableId != null) {
         await _db.tablesDao.updateTableStatus(tableId, 'occupied');
@@ -251,8 +258,8 @@ class CheckoutService {
     String? reference,
     List<PaymentDraft>? payments,
   }) {
-    final drafts = _resolvePayments(
-        payments, paymentMethod, amountTendered, changeGiven, tipAmount, reference);
+    final drafts = _resolvePayments(payments, paymentMethod, amountTendered,
+        changeGiven, tipAmount, reference);
     return _db.transaction(() async {
       final existing = await _db.ordersDao.getOrderById(orderId);
       if (existing == null) {

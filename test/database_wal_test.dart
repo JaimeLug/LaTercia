@@ -64,7 +64,8 @@ void main() {
     await db.close();
   });
 
-  test('dos conexiones concurrentes al mismo archivo no fallan por '
+  test(
+      'dos conexiones concurrentes al mismo archivo no fallan por '
       '"database is locked" gracias al busy_timeout', () async {
     final db1 = openFileDb();
     final db2 = openFileDb();

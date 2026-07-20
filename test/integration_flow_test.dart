@@ -38,10 +38,12 @@ void main() {
         stockQuantity: Value(stock),
       ),
     );
-    return (await db.productsDao.getAllProducts()).firstWhere((p) => p.id == id);
+    return (await db.productsDao.getAllProducts())
+        .firstWhere((p) => p.id == id);
   }
 
-  test('ciclo completo: abrir turno → cocina → listo → cobro con propina → '
+  test(
+      'ciclo completo: abrir turno → cocina → listo → cobro con propina → '
       'corte Z consolida ventas, propinas y consecutivo', () async {
     // 1) Abrir turno con fondo.
     final shift =

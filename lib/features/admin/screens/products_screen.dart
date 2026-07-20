@@ -89,9 +89,8 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
                 }
                 if (_search.isNotEmpty) {
                   products = products
-                      .where((p) => p.name
-                          .toLowerCase()
-                          .contains(_search.toLowerCase()))
+                      .where((p) =>
+                          p.name.toLowerCase().contains(_search.toLowerCase()))
                       .toList();
                 }
                 if (products.isEmpty) {
@@ -112,11 +111,9 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
                           Expanded(flex: 2, child: Text('PRECIO')),
                           Expanded(flex: 2, child: Text('COSTO')),
                           Expanded(
-                              flex: 1,
-                              child: Center(child: Text('STOCK'))),
+                              flex: 1, child: Center(child: Text('STOCK'))),
                           Expanded(
-                              flex: 2,
-                              child: Center(child: Text('RASTREAR'))),
+                              flex: 2, child: Center(child: Text('RASTREAR'))),
                           Expanded(
                               flex: 2,
                               child: Center(child: Text('DISPONIBLE'))),
@@ -147,8 +144,7 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
                               ),
                               Expanded(
                                   flex: 2,
-                                  child: Text(
-                                      formatCurrency(p.cost, symbol),
+                                  child: Text(formatCurrency(p.cost, symbol),
                                       style: const TextStyle(
                                           color: LaTerciaColors.tan))),
                               Expanded(
@@ -207,8 +203,7 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
                                   children: [
                                     IconButton(
                                       icon: const Icon(Icons.edit_outlined,
-                                          size: 18,
-                                          color: LaTerciaColors.tan),
+                                          size: 18, color: LaTerciaColors.tan),
                                       visualDensity: VisualDensity.compact,
                                       onPressed: () =>
                                           _showProductForm(context, p),
@@ -239,8 +234,7 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
     );
   }
 
-  Future<void> _showProductForm(
-      BuildContext context, Product? product) async {
+  Future<void> _showProductForm(BuildContext context, Product? product) async {
     await showDialog(
       context: context,
       builder: (_) => _ProductFormDialog(product: product),
@@ -248,8 +242,7 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
     setState(() {});
   }
 
-  Future<void> _confirmDelete(
-      BuildContext context, Product product) async {
+  Future<void> _confirmDelete(BuildContext context, Product product) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
@@ -289,12 +282,10 @@ class _ProductFormDialog extends ConsumerStatefulWidget {
   const _ProductFormDialog({this.product});
 
   @override
-  ConsumerState<_ProductFormDialog> createState() =>
-      _ProductFormDialogState();
+  ConsumerState<_ProductFormDialog> createState() => _ProductFormDialogState();
 }
 
-class _ProductFormDialogState
-    extends ConsumerState<_ProductFormDialog> {
+class _ProductFormDialogState extends ConsumerState<_ProductFormDialog> {
   final _formKey = GlobalKey<FormState>();
   late TextEditingController _nameCtrl;
   late TextEditingController _descCtrl;
@@ -323,13 +314,11 @@ class _ProductFormDialogState
     final p = widget.product;
     _nameCtrl = TextEditingController(text: p?.name ?? '');
     _descCtrl = TextEditingController(text: p?.description ?? '');
-    _priceCtrl =
-        TextEditingController(text: p != null ? '${p.price}' : '');
-    _costCtrl =
-        TextEditingController(text: p != null ? '${p.cost}' : '0');
+    _priceCtrl = TextEditingController(text: p != null ? '${p.price}' : '');
+    _costCtrl = TextEditingController(text: p != null ? '${p.cost}' : '0');
     _skuCtrl = TextEditingController(text: p?.sku ?? '');
-    _stockCtrl = TextEditingController(
-        text: p != null ? '${p.stockQuantity}' : '0');
+    _stockCtrl =
+        TextEditingController(text: p != null ? '${p.stockQuantity}' : '0');
     _minStockCtrl =
         TextEditingController(text: p != null ? '${p.minStock}' : '5');
     _taxRateCtrl =
@@ -374,15 +363,14 @@ class _ProductFormDialogState
 
   @override
   Widget build(BuildContext context) {
-    final categories =
-        ref.watch(categoriesProvider).valueOrNull ?? [];
+    final categories = ref.watch(categoriesProvider).valueOrNull ?? [];
     final insumosActivo =
         (ref.watch(settingsProvider).valueOrNull ?? {})['insumos_activo'] ==
             'true';
 
     return AlertDialog(
-      title: Text(
-          widget.product == null ? 'Nuevo producto' : 'Editar producto'),
+      title:
+          Text(widget.product == null ? 'Nuevo producto' : 'Editar producto'),
       content: SizedBox(
         width: 480,
         child: Form(
@@ -393,16 +381,13 @@ class _ProductFormDialogState
               children: [
                 TextFormField(
                   controller: _nameCtrl,
-                  decoration:
-                      const InputDecoration(labelText: 'Nombre *'),
-                  validator: (v) =>
-                      v!.isEmpty ? 'Requerido' : null,
+                  decoration: const InputDecoration(labelText: 'Nombre *'),
+                  validator: (v) => v!.isEmpty ? 'Requerido' : null,
                 ),
                 const SizedBox(height: 8),
                 TextFormField(
                   controller: _descCtrl,
-                  decoration:
-                      const InputDecoration(labelText: 'Descripción'),
+                  decoration: const InputDecoration(labelText: 'Descripción'),
                   maxLines: 2,
                 ),
                 const SizedBox(height: 8),
@@ -411,10 +396,9 @@ class _ProductFormDialogState
                     Expanded(
                       child: TextFormField(
                         controller: _priceCtrl,
-                        decoration: const InputDecoration(
-                            labelText: 'Precio *'),
-                        keyboardType:
-                            TextInputType.number,
+                        decoration:
+                            const InputDecoration(labelText: 'Precio *'),
+                        keyboardType: TextInputType.number,
                         validator: (v) {
                           if (v!.isEmpty) return 'Requerido';
                           if (double.tryParse(v) == null) {
@@ -428,8 +412,7 @@ class _ProductFormDialogState
                     Expanded(
                       child: TextFormField(
                         controller: _costCtrl,
-                        decoration:
-                            const InputDecoration(labelText: 'Costo'),
+                        decoration: const InputDecoration(labelText: 'Costo'),
                         keyboardType: TextInputType.number,
                       ),
                     ),
@@ -438,18 +421,15 @@ class _ProductFormDialogState
                 const SizedBox(height: 8),
                 DropdownButtonFormField<int>(
                   value: _categoryId,
-                  decoration:
-                      const InputDecoration(labelText: 'Categoría *'),
+                  decoration: const InputDecoration(labelText: 'Categoría *'),
                   items: categories
                       .map((c) => DropdownMenuItem(
                             value: c.id,
                             child: Text(c.name),
                           ))
                       .toList(),
-                  onChanged: (v) =>
-                      setState(() => _categoryId = v),
-                  validator: (v) =>
-                      v == null ? 'Selecciona categoría' : null,
+                  onChanged: (v) => setState(() => _categoryId = v),
+                  validator: (v) => v == null ? 'Selecciona categoría' : null,
                 ),
                 const SizedBox(height: 8),
                 TextFormField(
@@ -460,8 +440,7 @@ class _ProductFormDialogState
                 // Image picker
                 Row(
                   children: [
-                    if (_imagePath != null &&
-                        File(_imagePath!).existsSync())
+                    if (_imagePath != null && File(_imagePath!).existsSync())
                       Image.file(
                         File(_imagePath!),
                         height: 60,
@@ -487,8 +466,7 @@ class _ProductFormDialogState
                   SwitchListTile(
                     title: const Text('Rastrear inventario'),
                     value: _trackInventory,
-                    onChanged: (v) =>
-                        setState(() => _trackInventory = v),
+                    onChanged: (v) => setState(() => _trackInventory = v),
                     contentPadding: EdgeInsets.zero,
                   ),
                   if (_trackInventory) ...[
@@ -560,8 +538,7 @@ class _ProductFormDialogState
                         value: _taxIncluded == null
                             ? 'global'
                             : (_taxIncluded! ? 'incluido' : 'anadido'),
-                        decoration:
-                            const InputDecoration(labelText: 'Modo'),
+                        decoration: const InputDecoration(labelText: 'Modo'),
                         items: const [
                           DropdownMenuItem(
                               value: 'global', child: Text('Usar global')),
@@ -571,9 +548,8 @@ class _ProductFormDialogState
                               value: 'anadido', child: Text('IVA añadido')),
                         ],
                         onChanged: (v) => setState(() {
-                          _taxIncluded = v == 'global'
-                              ? null
-                              : (v == 'incluido');
+                          _taxIncluded =
+                              v == 'global' ? null : (v == 'incluido');
                         }),
                       ),
                     ),
@@ -642,9 +618,10 @@ class _ProductFormDialogState
                       flex: 2,
                       child: TextFormField(
                         controller: _recipeLines[i].qtyCtrl,
-                        decoration: const InputDecoration(labelText: 'Cantidad'),
-                        keyboardType:
-                            const TextInputType.numberWithOptions(decimal: true),
+                        decoration:
+                            const InputDecoration(labelText: 'Cantidad'),
+                        keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true),
                       ),
                     ),
                     IconButton(
@@ -683,10 +660,9 @@ class _ProductFormDialogState
     final appDir = await getApplicationSupportDirectory();
     final imgDir = Directory(p.join(appDir.path, 'images'));
     await imgDir.create(recursive: true);
-    final ext =
-        p.extension(result.files.single.name);
-    final dest = p.join(imgDir.path,
-        '${DateTime.now().millisecondsSinceEpoch}$ext');
+    final ext = p.extension(result.files.single.name);
+    final dest =
+        p.join(imgDir.path, '${DateTime.now().millisecondsSinceEpoch}$ext');
     await File(result.files.single.path!).copy(dest);
     setState(() => _imagePath = dest);
   }
@@ -700,9 +676,7 @@ class _ProductFormDialogState
           ? Value(widget.product!.id)
           : const Value.absent(),
       name: Value(_nameCtrl.text.trim()),
-      description: Value(_descCtrl.text.isEmpty
-          ? null
-          : _descCtrl.text),
+      description: Value(_descCtrl.text.isEmpty ? null : _descCtrl.text),
       price: Value(double.parse(_priceCtrl.text)),
       cost: Value(double.tryParse(_costCtrl.text) ?? 0),
       categoryId: Value(_categoryId!),
@@ -732,7 +706,8 @@ class _ProductFormDialogState
     // Lista vacía si se desactivó la receta — limpia cualquier línea previa.
     final recipeDrafts = _usesRecipe
         ? _recipeLines
-            .where((l) => l.ingredientId != null &&
+            .where((l) =>
+                l.ingredientId != null &&
                 (double.tryParse(l.qtyCtrl.text) ?? 0) > 0)
             .map((l) => RecipeLineDraft(
                 ingredientId: l.ingredientId!,
@@ -785,8 +760,8 @@ class _CategoryFilter extends StatelessWidget {
           dropdownColor: LaTerciaColors.creamAlt,
           items: [
             const DropdownMenuItem<int?>(value: null, child: Text('Todas')),
-            ...categories.map(
-                (c) => DropdownMenuItem(value: c.id, child: Text(c.name))),
+            ...categories
+                .map((c) => DropdownMenuItem(value: c.id, child: Text(c.name))),
           ],
           onChanged: onChanged,
         ),

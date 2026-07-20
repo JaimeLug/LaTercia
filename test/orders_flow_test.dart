@@ -125,7 +125,8 @@ void main() {
     expect(await tableStatus(2), 'available');
   });
 
-  test('flujo mesa: lista sin pagar queda en "listo"; al cobrar se entrega (C1)',
+  test(
+      'flujo mesa: lista sin pagar queda en "listo"; al cobrar se entrega (C1)',
       () async {
     final p = await anyProduct();
     final id = await send(p, tableId: 3);
@@ -171,7 +172,8 @@ void main() {
 
   // ─── 1.4 — anti N+1 ────────────────────────────────────────────────────
 
-  test('getActiveOrdersWithItems (JOIN) devuelve lo mismo que el patrón N+1 '
+  test(
+      'getActiveOrdersWithItems (JOIN) devuelve lo mismo que el patrón N+1 '
       'anterior (misma orden, mismos items)', () async {
     final p = await anyProduct();
     await send(p, qty: 2, tableId: 1);
@@ -217,7 +219,8 @@ void main() {
     expect(await notifier.recallLastReady(), isFalse);
   });
 
-  test('recall de una orden pagada la saca de entregado y reocupa la mesa (3.4)',
+  test(
+      'recall de una orden pagada la saca de entregado y reocupa la mesa (3.4)',
       () async {
     final p = await anyProduct();
     final id = await send(p, tableId: 2);

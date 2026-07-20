@@ -87,8 +87,7 @@ class _OrderQueuePanelState extends ConsumerState<OrderQueuePanel> {
           InkWell(
             onTap: () => setState(() => _expanded = !_expanded),
             child: Padding(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
               child: Row(
                 children: [
                   Text(
@@ -118,33 +117,32 @@ class _OrderQueuePanelState extends ConsumerState<OrderQueuePanel> {
                                   final o = activeOrders[i].order;
                                   final color = _typeColor(o.type);
                                   return Padding(
-                                    padding:
-                                        const EdgeInsets.only(right: 8),
+                                    padding: const EdgeInsets.only(right: 8),
                                     child: Container(
                                       padding: const EdgeInsets.symmetric(
                                           horizontal: 10, vertical: 5),
                                       decoration: BoxDecoration(
                                         color: Colors.white
                                             .withValues(alpha: 0.06),
-                                        borderRadius:
-                                            BorderRadius.circular(20),
+                                        borderRadius: BorderRadius.circular(20),
                                         border: Border.all(
-                                            color: color.withValues(
-                                                alpha: 0.6)),
+                                            color:
+                                                color.withValues(alpha: 0.6)),
                                       ),
                                       child: Row(
                                         mainAxisSize: MainAxisSize.min,
                                         children: [
-                                          Icon(_typeIcons[o.type] ??
-                                              Icons.receipt_long,
-                                              size: 12, color: color),
+                                          Icon(
+                                              _typeIcons[o.type] ??
+                                                  Icons.receipt_long,
+                                              size: 12,
+                                              color: color),
                                           const SizedBox(width: 6),
                                           Text(o.orderNumber,
                                               style: const TextStyle(
                                                   color: Colors.white,
                                                   fontSize: 11.5,
-                                                  fontWeight:
-                                                      FontWeight.w600)),
+                                                  fontWeight: FontWeight.w600)),
                                           const SizedBox(width: 6),
                                           ElapsedTimer(
                                             startTime: o.createdAt,
@@ -205,23 +203,19 @@ class _OrderQueuePanelState extends ConsumerState<OrderQueuePanel> {
                         if (!snapshot.hasData) {
                           return const Padding(
                             padding: EdgeInsets.all(16),
-                            child: Center(
-                                child: CircularProgressIndicator()),
+                            child: Center(child: CircularProgressIndicator()),
                           );
                         }
                         final orders = snapshot.data!;
                         final filtered = _filter == 'Todos'
                             ? orders
-                            : orders
-                                .where((o) => o.status == _filter)
-                                .toList();
+                            : orders.where((o) => o.status == _filter).toList();
 
                         if (filtered.isEmpty) {
                           return const Padding(
                             padding: EdgeInsets.all(16),
                             child: Text('Sin órdenes',
-                                style:
-                                    TextStyle(color: LaTerciaColors.tan)),
+                                style: TextStyle(color: LaTerciaColors.tan)),
                           );
                         }
 
@@ -367,8 +361,8 @@ class _OrderRow extends ConsumerWidget {
             TextButton.icon(
               icon: const Icon(Icons.cancel_outlined, size: 17),
               label: const Text('Anular'),
-              style: TextButton.styleFrom(
-                  foregroundColor: LaTerciaColors.danger),
+              style:
+                  TextButton.styleFrom(foregroundColor: LaTerciaColors.danger),
               onPressed: () {
                 Navigator.pop(context);
                 _cancelOrder(context, ref);
@@ -380,9 +374,7 @@ class _OrderRow extends ConsumerWidget {
               label: const Text('Marcar entregado'),
               onPressed: () async {
                 Navigator.pop(context);
-                await ref
-                    .read(ordersProvider.notifier)
-                    .markReady(order.id);
+                await ref.read(ordersProvider.notifier).markReady(order.id);
               },
             ),
           if (canCharge)
@@ -412,8 +404,7 @@ class _OrderRow extends ConsumerWidget {
         content: TextField(
           controller: reasonCtrl,
           autofocus: true,
-          decoration:
-              const InputDecoration(labelText: 'Razón de la anulación'),
+          decoration: const InputDecoration(labelText: 'Razón de la anulación'),
         ),
         actions: [
           TextButton(
@@ -465,8 +456,7 @@ class _OrderRow extends ConsumerWidget {
         content: TextField(
           controller: reasonCtrl,
           autofocus: true,
-          decoration:
-              const InputDecoration(labelText: 'Razón de la anulación'),
+          decoration: const InputDecoration(labelText: 'Razón de la anulación'),
         ),
         actions: [
           TextButton(

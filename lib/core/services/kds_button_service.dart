@@ -110,7 +110,8 @@ class KdsButtonService {
       _server = server;
       appLogger.info('Servidor de botonera (ESP32) escuchando en :$port');
       server.listen(_handleRequest, onError: (e, st) {
-        appLogger.warn('Error en el servidor de la botonera.', e, st as StackTrace?);
+        appLogger.warn(
+            'Error en el servidor de la botonera.', e, st as StackTrace?);
       });
     } catch (e, st) {
       appLogger.warn(

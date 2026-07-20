@@ -8,11 +8,10 @@ part 'orders_dao.g.dart';
 class OrdersDao extends DatabaseAccessor<AppDatabase> with _$OrdersDaoMixin {
   OrdersDao(super.db);
 
-  Future<List<Order>> getActiveOrders() =>
-      (select(orders)
-            ..where((o) => o.status.isNotIn(['entregado', 'cancelado']))
-            ..orderBy([(o) => OrderingTerm.asc(o.createdAt)]))
-          .get();
+  Future<List<Order>> getActiveOrders() => (select(orders)
+        ..where((o) => o.status.isNotIn(['entregado', 'cancelado']))
+        ..orderBy([(o) => OrderingTerm.asc(o.createdAt)]))
+      .get();
 
   /// Same set of orders as [getActiveOrders], but with their items loaded in
   /// a single JOIN query instead of one `getItemsForOrder` query per order
@@ -52,14 +51,12 @@ class OrdersDao extends DatabaseAccessor<AppDatabase> with _$OrdersDaoMixin {
         .toList();
   }
 
-  Stream<List<Order>> watchActiveOrders() =>
-      (select(orders)
-            ..where((o) => o.status.isNotIn(['entregado', 'cancelado']))
-            ..orderBy([(o) => OrderingTerm.asc(o.createdAt)]))
-          .watch();
+  Stream<List<Order>> watchActiveOrders() => (select(orders)
+        ..where((o) => o.status.isNotIn(['entregado', 'cancelado']))
+        ..orderBy([(o) => OrderingTerm.asc(o.createdAt)]))
+      .watch();
 
-  Future<int> insertOrder(OrdersCompanion order) =>
-      into(orders).insert(order);
+  Future<int> insertOrder(OrdersCompanion order) => into(orders).insert(order);
 
   Future<void> updateOrderStatus(int orderId, String status) =>
       (update(orders)..where((o) => o.id.equals(orderId))).write(
@@ -69,8 +66,7 @@ class OrdersDao extends DatabaseAccessor<AppDatabase> with _$OrdersDaoMixin {
         ),
       );
 
-  Future<void> updateOrderPaymentStatus(
-          int orderId, String paymentStatus) =>
+  Future<void> updateOrderPaymentStatus(int orderId, String paymentStatus) =>
       (update(orders)..where((o) => o.id.equals(orderId))).write(
         OrdersCompanion(
           paymentStatus: Value(paymentStatus),

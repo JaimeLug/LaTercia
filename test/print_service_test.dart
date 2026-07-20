@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -36,6 +37,24 @@ bool _endsWith(List<int> haystack, List<int> needle) {
     if (tail[i] != needle[i]) return false;
   }
   return true;
+}
+
+/// ¿[needle] aparece en algún punto de [haystack]? (búsqueda de subsecuencia,
+/// no solo al final — para confirmar que el comando de imagen ESC/POS
+/// realmente se emitió, no solo que el ticket "no truena".)
+bool _containsSequence(List<int> haystack, List<int> needle) {
+  if (needle.isEmpty || haystack.length < needle.length) return false;
+  for (var start = 0; start <= haystack.length - needle.length; start++) {
+    var match = true;
+    for (var i = 0; i < needle.length; i++) {
+      if (haystack[start + i] != needle[i]) {
+        match = false;
+        break;
+      }
+    }
+    if (match) return true;
+  }
+  return false;
 }
 
 void main() {
@@ -108,6 +127,43 @@ void main() {
     );
   }
 
+  /// Igual que [makeSale] pero como pedido de DELIVERY con datos de cliente,
+  /// para alimentar buildDeliveryTicket/buildDeliveryTicketPdf (2026-07-20).
+  /// [paid] controla si la orden queda pagada (afecta "COBRAR AL ENTREGAR").
+  Future<({Order order, List<OrderItem> items})> makeDeliverySale({
+    bool paid = false,
+  }) async {
+    final products = await db.productsDao.getAllProducts();
+    final product = products.first;
+
+    final result = await checkout.checkout(
+      cartItems: [
+        CartItem(product: product, modifiers: const [], quantity: 1),
+      ],
+      type: 'delivery',
+      employeeId: 1,
+      customerName: 'Juan Pérez',
+      customerPhone: '9991234567',
+      customerAddress: 'Calle Falsa 123, Chicxulub Puerto',
+      deliveryZone: 'Centro',
+      deliveryFee: 20,
+      subtotal: product.price,
+      total: product.price + 20,
+      paymentMethod: paid ? 'efectivo' : 'efectivo',
+      amountTendered: product.price + 20,
+    );
+    var order = result.order;
+    if (!paid) {
+      // checkout() siempre paga (no hay "checkout sin pagar" en esta API);
+      // para probar el caso "aún no pagado" volvemos la orden a pendiente,
+      // que es el estado real de un pedido recién enviado a cocina (delivery
+      // por cobrar contra entrega).
+      await db.ordersDao.updateOrderPaymentStatus(order.id, 'pendiente');
+      order = (await db.ordersDao.getOrderById(order.id))!;
+    }
+    return (order: order, items: result.items);
+  }
+
   /// Construye un turno cerrado (Corte Z) real vía ShiftService y devuelve su
   /// ShiftSummary, para alimentar buildCutTicket/buildCutTicketPdf.
   Future<ShiftSummary> makeShiftSummary() async {
@@ -146,6 +202,59 @@ void main() {
           reason: 'el documento debe terminar con el corte de papel');
     });
 
+    // 2026-07-20 — rediseño: logo arriba del ticket. Best-effort: si el
+    // asset por defecto (assets/images/8.png) no cargara, esto NO fallaría
+    // en silencio — esta prueba confirma que sí se emitió el comando ESC/POS
+    // de imagen (ESC * = 0x1B 0x2A), no solo que el ticket "no truena".
+    test('incluye el logo (comando de imagen ESC/POS)', () async {
+      final sale = await makeSale();
+      final bytes = await printService.buildSalesTicket(
+        order: sale.order,
+        items: sale.items,
+        payment: sale.payment,
+        settings: const {'printer_width': '80', 'currency_symbol': r'$'},
+        employee: sale.employee,
+      );
+
+      const imageCommand = [0x1B, 0x2A]; // ESC * — bit-image, column format
+      expect(_containsSequence(bytes, imageCommand), isTrue,
+          reason: 'el logo por defecto (assets/images/8.png) debe cargar '
+              'en el entorno de test y emitir al menos un comando de imagen');
+      // Un logo de verdad agrega miles de bytes (300px de ancho reescalado);
+      // un ticket sin logo mide unos cientos de bytes.
+      expect(bytes.length, greaterThan(2000));
+    });
+
+    // 2026-07-20 — rediseño pedido por el dueño ("se ve muy mal"): divisor
+    // de marca (ASCII, portable entre impresoras) + TOTAL en video invertido
+    // (capacidad NATIVA de la térmica, no una imagen).
+    test(
+        'el TOTAL usa video invertido (GS B 1) y el ticket trae el '
+        'divisor de marca', () async {
+      final sale = await makeSale();
+      final bytes = await printService.buildSalesTicket(
+        order: sale.order,
+        items: sale.items,
+        payment: sale.payment,
+        settings: const {'printer_width': '80', 'currency_symbol': r'$'},
+        employee: sale.employee,
+      );
+
+      // GS B 1 = activar reverse; debe aparecer (y luego GS B 0 para
+      // apagarlo antes de seguir con el resto del ticket).
+      expect(_containsSequence(bytes, [0x1D, 0x42, 0x01]), isTrue,
+          reason: 'el TOTAL debe activar el modo reverse de la impresora');
+      expect(_containsSequence(bytes, [0x1D, 0x42, 0x00]), isTrue,
+          reason: 'el reverse debe apagarse después del TOTAL');
+
+      // El divisor de marca es el patrón ASCII "*  *  *  " — verificamos que
+      // los bytes de ese patrón literal aparecen (portable en cualquier
+      // impresora: rango 0-127, no depende de la tabla de códigos).
+      final dividerPattern = '*  *  *'.codeUnits;
+      expect(_containsSequence(bytes, dividerPattern), isTrue,
+          reason: 'debe aparecer el patrón del divisor de marca');
+    });
+
     test('a 58mm genera bytes no vacíos y termina en el corte de papel',
         () async {
       final sale = await makeSale();
@@ -161,8 +270,7 @@ void main() {
       expect(_endsWith(bytes, cutSequence), isTrue);
     });
 
-    test('la reimpresión no rompe la generación (marca REIMPRESIÓN)',
-        () async {
+    test('la reimpresión no rompe la generación (marca REIMPRESIÓN)', () async {
       final sale = await makeSale();
       final bytes = await printService.buildSalesTicket(
         order: sale.order,
@@ -189,7 +297,8 @@ void main() {
       expect(_endsWith(bytes, [0x1D, 0x56, 0x30]), isTrue);
     });
 
-    test('kitchenTicketLines incluye nombre de producto y modificadores '
+    test(
+        'kitchenTicketLines incluye nombre de producto y modificadores '
         'parseados, sin precios', () async {
       final sale = await makeSale();
       final product = sale.items.first.productName;
@@ -211,11 +320,67 @@ void main() {
     });
   });
 
+  // 2026-07-20 — comanda de reparto para delivery (antes no existía: la
+  // cocina veía qué preparar pero nadie sabía a dónde ni con quién).
+  group('comanda de reparto (delivery)', () {
+    const cutSequence = [0x1D, 0x56, 0x30];
+
+    test(
+        'bytes no vacíos, terminan en corte, e incluyen los datos del '
+        'cliente', () async {
+      final sale = await makeDeliverySale();
+      final bytes = await printService.buildDeliveryTicket(
+        order: sale.order,
+        items: sale.items,
+        settings: const {'printer_width': '80', 'currency_symbol': r'$'},
+      );
+      expect(bytes, isNotEmpty);
+      expect(_endsWith(bytes, cutSequence), isTrue);
+
+      // Los bytes son latin1 tras sanitizeTicketText; decodificamos así para
+      // poder buscar el texto (igual patrón que el resto de este archivo no
+      // decodifica, así que verificamos vía kitchenTicketLines-style: como
+      // buildDeliveryTicket no expone líneas planas, decodificamos latin1.
+      final text = latin1.decode(bytes, allowInvalid: true);
+      expect(text, contains('COMANDA DE REPARTO'));
+      expect(text, anyOf(contains('Juan Perez'), contains('Juan Pérez')),
+          reason: 'el nombre puede perder acentos por sanitizeTicketText');
+      expect(text, contains('9991234567'));
+      expect(text, contains('Centro'));
+      expect(text, contains('COBRAR AL ENTREGAR'),
+          reason: 'la orden de prueba no está pagada (contra entrega)');
+    });
+
+    test('una orden ya pagada dice "YA PAGADO" en vez de cobrar', () async {
+      final sale = await makeDeliverySale(paid: true);
+      final bytes = await printService.buildDeliveryTicket(
+        order: sale.order,
+        items: sale.items,
+        settings: const {'printer_width': '80'},
+      );
+      final text = latin1.decode(bytes, allowInvalid: true);
+      expect(text, contains('YA PAGADO'));
+      expect(text, isNot(contains('COBRAR AL ENTREGAR')));
+    });
+
+    test('buildDeliveryTicketPdf produce un PDF válido', () async {
+      final sale = await makeDeliverySale();
+      final bytes = await printService.buildDeliveryTicketPdf(
+        order: sale.order,
+        items: sale.items,
+        settings: const {'printer_width': '80', 'currency_symbol': r'$'},
+      );
+      expect(bytes, isNotEmpty);
+      expect(bytes[0], 0x25); // '%' — header %PDF
+    });
+  });
+
   // Auditoría 2026-07-17 — antes el corte X/Z no tenía ruta de impresión.
   group('corte X/Z (bytes)', () {
     const cutSequence = [0x1D, 0x56, 0x30];
 
-    test('corte Z genera bytes no vacíos, con folio, y termina en el corte '
+    test(
+        'corte Z genera bytes no vacíos, con folio, y termina en el corte '
         'de papel', () async {
       final summary = await makeShiftSummary();
       final bytes = await printService.buildCutTicket(
@@ -228,7 +393,8 @@ void main() {
       expect(_endsWith(bytes, cutSequence), isTrue);
     });
 
-    test('corte X (turno abierto, sin countedCash) también genera bytes '
+    test(
+        'corte X (turno abierto, sin countedCash) también genera bytes '
         'válidos', () async {
       final shiftId = await db.shiftsDao.openShift(
         ShiftsCompanion.insert(
@@ -371,8 +537,7 @@ void main() {
     // de verdad sin Linux/hardware real (el runner de test es Windows y
     // `send()` lanza antes de llegar a esa lógica), pero sí confirmamos que
     // el parámetro existe con un default razonable y que se puede overridear.
-    test('LinuxPrinterTransport expone timeout configurable (default 8s)',
-        () {
+    test('LinuxPrinterTransport expone timeout configurable (default 8s)', () {
       final t1 = LinuxPrinterTransport('/dev/usb/lp0');
       expect(t1.timeout, const Duration(seconds: 8));
 
@@ -449,8 +614,7 @@ void main() {
             // impresora/puente lento y mantener bytes "en vuelo".
             sub.pause();
             received.addAll(chunk);
-            Future<void>.delayed(
-                const Duration(milliseconds: 3), sub.resume);
+            Future<void>.delayed(const Duration(milliseconds: 3), sub.resume);
           },
           onDone: () {
             if (!fullyReceived.isCompleted) fullyReceived.complete();

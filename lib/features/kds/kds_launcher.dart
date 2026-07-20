@@ -93,14 +93,13 @@ class _KdsPickerDialog extends StatelessWidget {
                   subtitle:
                       '${_isPrimary(displays[i]) ? 'Monitor principal' : 'Monitor secundario'} · '
                       '${(displays[i].visibleSize?.width ?? displays[i].size.width).toInt()}×${(displays[i].visibleSize?.height ?? displays[i].size.height).toInt()}',
-                  onTap: () => Navigator.pop(
-                      context, _KdsChoice.monitor(displays[i])),
+                  onTap: () =>
+                      Navigator.pop(context, _KdsChoice.monitor(displays[i])),
                 ),
               _OptionTile(
                 title: 'Esta ventana',
                 subtitle: 'Mostrar aquí mismo',
-                onTap: () =>
-                    Navigator.pop(context, const _KdsChoice.embed()),
+                onTap: () => Navigator.pop(context, const _KdsChoice.embed()),
               ),
               const SizedBox(height: 8),
               Align(
@@ -173,8 +172,8 @@ class _OptionTile extends StatelessWidget {
                   ),
                 ),
                 Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 10, vertical: 5),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                   decoration: BoxDecoration(
                     color: LaTerciaColors.successBg,
                     borderRadius: BorderRadius.circular(20),

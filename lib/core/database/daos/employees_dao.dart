@@ -10,19 +10,14 @@ class EmployeesDao extends DatabaseAccessor<AppDatabase>
   EmployeesDao(super.db);
 
   Future<List<Employee>> getAllEmployees() =>
-      (select(employees)
-            ..orderBy([(e) => OrderingTerm.asc(e.name)]))
-          .get();
+      (select(employees)..orderBy([(e) => OrderingTerm.asc(e.name)])).get();
 
   Stream<List<Employee>> watchAllEmployees() =>
-      (select(employees)
-            ..orderBy([(e) => OrderingTerm.asc(e.name)]))
-          .watch();
+      (select(employees)..orderBy([(e) => OrderingTerm.asc(e.name)])).watch();
 
-  Future<Employee?> findByPin(String pin) =>
-      (select(employees)
-            ..where((e) => e.pin.equals(hashPin(pin)) & e.active.equals(true)))
-          .getSingleOrNull();
+  Future<Employee?> findByPin(String pin) => (select(employees)
+        ..where((e) => e.pin.equals(hashPin(pin)) & e.active.equals(true)))
+      .getSingleOrNull();
 
   /// ¿Algún OTRO empleado **activo** (distinto de [excludeId]) ya usa este PIN?
   ///

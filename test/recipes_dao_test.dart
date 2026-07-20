@@ -11,13 +11,14 @@ void main() {
   });
   tearDown(() => db.close());
 
-  Future<int> newIngredient(String name) => db.ingredientsDao.insertIngredient(
-      IngredientsCompanion.insert(name: name, unit: 'g'));
+  Future<int> newIngredient(String name) => db.ingredientsDao
+      .insertIngredient(IngredientsCompanion.insert(name: name, unit: 'g'));
 
   Future<int> newProduct() async {
     final cats = await db.categoriesDao.getAllCategories();
     return db.productsDao.insertProduct(
-      ProductsCompanion.insert(name: 'Latte', price: 45, categoryId: cats.first.id),
+      ProductsCompanion.insert(
+          name: 'Latte', price: 45, categoryId: cats.first.id),
     );
   }
 
@@ -34,8 +35,8 @@ void main() {
     expect(recipe, hasLength(2));
 
     // Guardar de nuevo con una sola línea debe borrar la otra, no acumular.
-    await db.recipesDao
-        .setRecipe(productId, [RecipeLineDraft(ingredientId: cafe, quantity: 20)]);
+    await db.recipesDao.setRecipe(
+        productId, [RecipeLineDraft(ingredientId: cafe, quantity: 20)]);
     recipe = await db.recipesDao.getRecipeForProduct(productId);
     expect(recipe, hasLength(1));
     expect(recipe.first.ingredientName, 'Café');
@@ -45,8 +46,8 @@ void main() {
   test('setRecipe con lista vacía borra toda la receta', () async {
     final cafe = await newIngredient('Café');
     final productId = await newProduct();
-    await db.recipesDao
-        .setRecipe(productId, [RecipeLineDraft(ingredientId: cafe, quantity: 18)]);
+    await db.recipesDao.setRecipe(
+        productId, [RecipeLineDraft(ingredientId: cafe, quantity: 18)]);
 
     await db.recipesDao.setRecipe(productId, []);
     expect(await db.recipesDao.getRecipeForProduct(productId), isEmpty);

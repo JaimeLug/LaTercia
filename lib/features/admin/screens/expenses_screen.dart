@@ -57,8 +57,8 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const Text('Registrar gasto',
-                      style: TextStyle(
-                          fontWeight: FontWeight.bold, fontSize: 16)),
+                      style:
+                          TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
                   const SizedBox(height: 12),
                   Row(
                     children: [
@@ -91,8 +91,7 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
                         child: TextField(
                           controller: _amountCtrl,
                           decoration: InputDecoration(
-                              labelText: 'Monto ($symbol)',
-                              isDense: true),
+                              labelText: 'Monto ($symbol)', isDense: true),
                           keyboardType: TextInputType.number,
                         ),
                       ),
@@ -133,16 +132,13 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
               future: ref
                   .read(databaseProvider)
                   .expensesDao
-                  .getExpensesByDateRange(
-                      _filter.start, _filter.end),
+                  .getExpensesByDateRange(_filter.start, _filter.end),
               builder: (ctx, snapshot) {
                 if (!snapshot.hasData) {
-                  return const Center(
-                      child: CircularProgressIndicator());
+                  return const Center(child: CircularProgressIndicator());
                 }
                 final expenses = snapshot.data!;
-                final total = expenses.fold(
-                    0.0, (sum, e) => sum + e.amount);
+                final total = expenses.fold(0.0, (sum, e) => sum + e.amount);
 
                 return Column(
                   children: [
@@ -158,8 +154,7 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
                           return DataRow(cells: [
                             DataCell(Text(e.category)),
                             DataCell(Text(e.description)),
-                            DataCell(Text(
-                                formatCurrency(e.amount, symbol))),
+                            DataCell(Text(formatCurrency(e.amount, symbol))),
                             DataCell(Text(formatDate(e.date))),
                           ]);
                         }).toList(),
@@ -168,23 +163,19 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
                     Padding(
                       padding: const EdgeInsets.all(12),
                       child: Card(
-                        color: Theme.of(context)
-                            .colorScheme
-                            .primaryContainer,
+                        color: Theme.of(context).colorScheme.primaryContainer,
                         child: Padding(
                           padding: const EdgeInsets.all(12),
                           child: Row(
-                            mainAxisAlignment:
-                                MainAxisAlignment.spaceBetween,
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
                               const Text('Total del período:',
-                                  style: TextStyle(
-                                      fontWeight: FontWeight.bold)),
+                                  style:
+                                      TextStyle(fontWeight: FontWeight.bold)),
                               Text(
                                 formatCurrency(total, symbol),
                                 style: const TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 18),
+                                    fontWeight: FontWeight.bold, fontSize: 18),
                               ),
                             ],
                           ),

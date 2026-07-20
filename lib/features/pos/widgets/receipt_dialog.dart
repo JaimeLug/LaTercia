@@ -130,16 +130,14 @@ class ReceiptDialog extends StatelessWidget {
                       const SizedBox(height: 14),
 
                       // ─── Totales ──────────────────────────────────────
-                      _totalsRow('Subtotal',
-                          formatCurrency(o.subtotal, symbol)),
+                      _totalsRow(
+                          'Subtotal', formatCurrency(o.subtotal, symbol)),
                       if (showDiscount && o.discountAmount > 0)
-                        _totalsRow(
-                            'Descuento',
+                        _totalsRow('Descuento',
                             '-${formatCurrency(o.discountAmount, symbol)}',
                             color: LaTerciaColors.success),
                       if (o.taxAmount > 0)
-                        _totalsRow(
-                            ivaIncluido ? 'IVA incluido' : 'IVA',
+                        _totalsRow(ivaIncluido ? 'IVA incluido' : 'IVA',
                             formatCurrency(o.taxAmount, symbol)),
                       if (o.deliveryFee > 0)
                         _totalsRow(
@@ -216,8 +214,8 @@ class ReceiptDialog extends StatelessWidget {
                     style: FilledButton.styleFrom(
                         backgroundColor: LaTerciaColors.burntOrange),
                     onPressed: () => Navigator.pop(context),
-                    child: const Text('Cerrar',
-                        style: TextStyle(fontSize: 15.5)),
+                    child:
+                        const Text('Cerrar', style: TextStyle(fontSize: 15.5)),
                   ),
                 ),
               ),
@@ -235,8 +233,8 @@ class ReceiptDialog extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Text(label,
-              style: const TextStyle(
-                  fontSize: 13.5, color: LaTerciaColors.tan)),
+              style:
+                  const TextStyle(fontSize: 13.5, color: LaTerciaColors.tan)),
           Text(value,
               style: TextStyle(
                   fontSize: 13.5,
@@ -322,7 +320,9 @@ class _ItemRow extends StatelessWidget {
         Text(
           formatCurrency(item.unitPrice * item.quantity, symbol),
           style: const TextStyle(
-              fontSize: 14, fontWeight: FontWeight.w600, color: LaTerciaColors.cocoa),
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: LaTerciaColors.cocoa),
         ),
       ],
     );

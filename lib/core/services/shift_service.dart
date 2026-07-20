@@ -135,7 +135,8 @@ class ShiftService {
 
   /// Corte X (open shift) or the basis for Corte Z (about to be closed).
   /// [countedCash] is only known when actually closing.
-  Future<ShiftSummary> computeSummary(int shiftId, {double? countedCash}) async {
+  Future<ShiftSummary> computeSummary(int shiftId,
+      {double? countedCash}) async {
     final shift = await _db.shiftsDao.getShiftById(shiftId);
     if (shift == null) {
       throw StateError('Turno $shiftId no existe.');
@@ -165,8 +166,7 @@ class ShiftService {
     final expected =
         shift.startingCash + cashSales + deposits - withdrawals - refundsTotal;
 
-    final discountsTotal =
-        orders.fold(0.0, (a, o) => a + o.discountAmount);
+    final discountsTotal = orders.fold(0.0, (a, o) => a + o.discountAmount);
     final cancelled = orders.where((o) => o.status == 'cancelado').toList();
 
     return ShiftSummary(
@@ -203,8 +203,7 @@ class ShiftService {
 
       final nextZ = await _db.shiftsDao.getMaxZNumber() + 1;
 
-      await _db.shiftsDao
-          .closeShift(shiftId, countedCash, totalSales, nextZ);
+      await _db.shiftsDao.closeShift(shiftId, countedCash, totalSales, nextZ);
 
       await AuditService(_db).log(
         employeeId: employeeId,

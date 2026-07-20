@@ -66,8 +66,7 @@ void main() {
     // Segunda llamada el mismo día: no debe crear otro (ya se hizo hoy).
     await backup.autoBackupIfDue();
     final dir = await backup.backupsDir();
-    final count =
-        await dir.list().where((e) => e.path.endsWith('.db')).length;
+    final count = await dir.list().where((e) => e.path.endsWith('.db')).length;
     expect(count, 1);
   });
 
@@ -99,8 +98,8 @@ void main() {
     // Un respaldo "viejo" de hace 30 días.
     final old = File(p.join(dir.path, 'latercia-viejo.db'));
     await old.writeAsString('x');
-    await old.setLastModified(
-        DateTime.now().subtract(const Duration(days: 30)));
+    await old
+        .setLastModified(DateTime.now().subtract(const Duration(days: 30)));
 
     await backup.backupNow(reason: 'test'); // dispara la poda
 

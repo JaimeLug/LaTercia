@@ -33,8 +33,7 @@ class DashboardScreen extends ConsumerWidget {
                     _SummaryCard(
                       icon: '💰',
                       title: 'Ventas hoy',
-                      value: formatCurrency(
-                          data['revenue'] ?? 0.0, symbol),
+                      value: formatCurrency(data['revenue'] ?? 0.0, symbol),
                     ),
                     const SizedBox(width: 12),
                     _SummaryCard(
@@ -46,8 +45,7 @@ class DashboardScreen extends ConsumerWidget {
                     _SummaryCard(
                       icon: '📊',
                       title: 'Ticket promedio',
-                      value: formatCurrency(
-                          data['avgTicket'] ?? 0.0, symbol),
+                      value: formatCurrency(data['avgTicket'] ?? 0.0, symbol),
                     ),
                     const SizedBox(width: 12),
                     _SummaryCard(
@@ -73,16 +71,13 @@ class DashboardScreen extends ConsumerWidget {
                 _statusCard(
                     'En prep.',
                     activeOrders
-                        .where(
-                            (o) => o.order.status == 'en_preparacion')
+                        .where((o) => o.order.status == 'en_preparacion')
                         .length,
                     Colors.orange),
                 const SizedBox(width: 8),
                 _statusCard(
                     'Listo',
-                    activeOrders
-                        .where((o) => o.order.status == 'listo')
-                        .length,
+                    activeOrders.where((o) => o.order.status == 'listo').length,
                     Colors.green),
                 const SizedBox(width: 8),
                 _statusCard(
@@ -121,18 +116,15 @@ class DashboardScreen extends ConsumerWidget {
     final start = DateTime(now.year, now.month, now.day);
     final end = start.add(const Duration(days: 1));
 
-    final revenue =
-        await db.reportsDao.getTotalRevenueForRange(start, end);
-    final count =
-        await db.reportsDao.getOrderCountForRange(start, end);
+    final revenue = await db.reportsDao.getTotalRevenueForRange(start, end);
+    final count = await db.reportsDao.getOrderCountForRange(start, end);
     final topProducts = await db.reportsDao.getTopProductsToday();
 
     return {
       'revenue': revenue,
       'orders': count,
       'avgTicket': count > 0 ? revenue / count : 0.0,
-      'topProduct':
-          topProducts.isNotEmpty ? topProducts.keys.first : '-',
+      'topProduct': topProducts.isNotEmpty ? topProducts.keys.first : '-',
     };
   }
 
@@ -148,8 +140,7 @@ class DashboardScreen extends ConsumerWidget {
                   backgroundColor: color.withValues(alpha: 0.2),
                   child: Text(
                     '$count',
-                    style: TextStyle(
-                        color: color, fontWeight: FontWeight.bold),
+                    style: TextStyle(color: color, fontWeight: FontWeight.bold),
                   )),
               const SizedBox(height: 4),
               Text(label, style: const TextStyle(fontSize: 12)),
@@ -181,12 +172,11 @@ class _SummaryCard extends StatelessWidget {
               Text(icon, style: const TextStyle(fontSize: 24)),
               const SizedBox(height: 8),
               Text(title,
-                  style: const TextStyle(
-                      color: Colors.grey, fontSize: 12)),
+                  style: const TextStyle(color: Colors.grey, fontSize: 12)),
               Text(
                 value,
-                style: const TextStyle(
-                    fontSize: 20, fontWeight: FontWeight.bold),
+                style:
+                    const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
                 overflow: TextOverflow.ellipsis,
               ),
             ],
@@ -221,8 +211,7 @@ class _WeeklyRevenueChart extends ConsumerWidget {
                     .getDailyRevenueLast7Days(),
                 builder: (ctx, snapshot) {
                   if (!snapshot.hasData) {
-                    return const Center(
-                        child: CircularProgressIndicator());
+                    return const Center(child: CircularProgressIndicator());
                   }
                   final data = snapshot.data!;
                   final entries = data.entries.toList();
@@ -236,12 +225,10 @@ class _WeeklyRevenueChart extends ConsumerWidget {
                                 barRods: [
                                   BarChartRodData(
                                     toY: e.value.value,
-                                    color: Theme.of(context)
-                                        .colorScheme
-                                        .primary,
+                                    color:
+                                        Theme.of(context).colorScheme.primary,
                                     width: 20,
-                                    borderRadius:
-                                        const BorderRadius.only(
+                                    borderRadius: const BorderRadius.only(
                                       topLeft: Radius.circular(4),
                                       topRight: Radius.circular(4),
                                     ),
@@ -301,20 +288,16 @@ class _TopProductsChart extends ConsumerWidget {
             SizedBox(
               height: 200,
               child: FutureBuilder<Map<String, int>>(
-                future: ref
-                    .read(databaseProvider)
-                    .reportsDao
-                    .getTopProductsToday(),
+                future:
+                    ref.read(databaseProvider).reportsDao.getTopProductsToday(),
                 builder: (ctx, snapshot) {
                   if (!snapshot.hasData) {
-                    return const Center(
-                        child: CircularProgressIndicator());
+                    return const Center(child: CircularProgressIndicator());
                   }
                   final data = snapshot.data!;
                   final entries = data.entries.take(5).toList();
                   if (entries.isEmpty) {
-                    return const Center(
-                        child: Text('Sin ventas hoy'));
+                    return const Center(child: Text('Sin ventas hoy'));
                   }
                   return BarChart(
                     BarChartData(
@@ -326,9 +309,8 @@ class _TopProductsChart extends ConsumerWidget {
                                 barRods: [
                                   BarChartRodData(
                                     toY: e.value.value.toDouble(),
-                                    color: Theme.of(context)
-                                        .colorScheme
-                                        .secondary,
+                                    color:
+                                        Theme.of(context).colorScheme.secondary,
                                     width: 20,
                                   ),
                                 ],

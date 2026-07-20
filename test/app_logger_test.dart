@@ -34,12 +34,10 @@ void main() {
   String stamp(DateTime d) =>
       '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
 
-  test('borra logs más viejos que 30 días y conserva los recientes',
-      () async {
+  test('borra logs más viejos que 30 días y conserva los recientes', () async {
     final now = DateTime.now();
     final old = await writeLog(stamp(now.subtract(const Duration(days: 45))));
-    final recent =
-        await writeLog(stamp(now.subtract(const Duration(days: 5))));
+    final recent = await writeLog(stamp(now.subtract(const Duration(days: 5))));
 
     await appLogger.purgeOldLogs();
 
@@ -57,7 +55,8 @@ void main() {
     expect(await other.exists(), isTrue);
   });
 
-  test('si el total supera el tope de 50MB, borra los más antiguos primero '
+  test(
+      'si el total supera el tope de 50MB, borra los más antiguos primero '
       'hasta quedar debajo', () async {
     final now = DateTime.now();
     const chunk = 20 * 1024 * 1024; // 20MB por archivo, 3 archivos = 60MB
@@ -78,7 +77,8 @@ void main() {
     expect(await day3.exists(), isTrue);
   });
 
-  test('el archivo de hoy nunca se borra por el tope de tamaño, aunque '
+  test(
+      'el archivo de hoy nunca se borra por el tope de tamaño, aunque '
       'sea el único y ya lo rebase', () async {
     final today = stamp(DateTime.now());
     final file = await writeLog(today, bytes: 60 * 1024 * 1024); // 60MB
@@ -91,8 +91,8 @@ void main() {
 
   test('logsSizeBytes suma solo los .log del directorio', () async {
     await writeLog(stamp(DateTime.now()), bytes: 1000);
-    await File(p.join(tempDir.path, 'no-es-log.txt')).writeAsBytes(
-        List.filled(5000, 0));
+    await File(p.join(tempDir.path, 'no-es-log.txt'))
+        .writeAsBytes(List.filled(5000, 0));
 
     final total = await appLogger.logsSizeBytes();
 
