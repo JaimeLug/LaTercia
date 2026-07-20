@@ -59,4 +59,49 @@ void main() {
       expect(found!.name, 'Mesero');
     });
   });
+
+  // A2 (2026-07-18) — impedir dos empleados activos con el mismo PIN.
+  group('pinInUseByActive (A2 — PINs únicos)', () {
+    late AppDatabase db;
+
+    setUp(() {
+      db = AppDatabase.forTesting(NativeDatabase.memory());
+    });
+
+    tearDown(() async {
+      await db.close();
+    });
+
+    test('detecta un PIN ya usado por un empleado activo', () async {
+      await db.employeesDao.insertEmployee(
+        EmployeesCompanion.insert(
+            name: 'Caja 1', pin: hashPin('1111'), role: 'cashier'),
+      );
+      expect(await db.employeesDao.pinInUseByActive('1111'), isTrue);
+      expect(await db.employeesDao.pinInUseByActive('2222'), isFalse);
+    });
+
+    test('excludeId ignora al propio empleado (para poder editarlo)',
+        () async {
+      final id = await db.employeesDao.insertEmployee(
+        EmployeesCompanion.insert(
+            name: 'Caja 1', pin: hashPin('1111'), role: 'cashier'),
+      );
+      // Con exclusión de sí mismo, su propio PIN no cuenta como "en uso".
+      expect(await db.employeesDao.pinInUseByActive('1111', excludeId: id),
+          isFalse);
+      // Sin exclusión, sí cuenta (otro empleado no podría tomarlo).
+      expect(await db.employeesDao.pinInUseByActive('1111'), isTrue);
+    });
+
+    test('un empleado INACTIVO no reserva el PIN', () async {
+      final id = await db.employeesDao.insertEmployee(
+        EmployeesCompanion.insert(
+            name: 'Ex empleado', pin: hashPin('1111'), role: 'cashier'),
+      );
+      await db.employeesDao.toggleActive(id, false);
+      // Dado de baja: su PIN queda libre para reutilizarse.
+      expect(await db.employeesDao.pinInUseByActive('1111'), isFalse);
+    });
+  });
 }
