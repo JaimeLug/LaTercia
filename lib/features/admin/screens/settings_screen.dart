@@ -576,13 +576,17 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       value: 'red', child: Text('Red (socket 9100)')),
                   DropdownMenuItem(
                       value: 'usb',
-                      child: Text('USB / impresora de Windows')),
+                      child: Text('USB / impresora local')),
                 ],
                 onChanged: (v) => setState(() => _printerTransport = v!),
               ),
               const SizedBox(height: 8),
-              // Red → campo de IP libre. USB → desplegable de las impresoras
-              // instaladas en Windows (más intuitivo que teclear el nombre).
+              // Red → campo de IP libre. USB → depende de la plataforma:
+              //   · Windows: desplegable de las impresoras del spooler.
+              //   · Linux (kiosko): campo de texto para la cola CUPS o la ruta
+              //     del dispositivo — el spooler de Windows no existe aquí, y
+              //     antes no había forma de configurar la impresora USB en
+              //     Linux (auditoría 2026-07-18, instalación en sitio).
               if (_printerTransport == 'red')
                 TextField(
                   controller: _printerAddress,
@@ -590,6 +594,17 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     labelText: 'Dirección IP de la impresora',
                     helperText: 'Ej. 192.168.1.50 o 192.168.1.50:9100',
                     prefixIcon: Icon(Icons.lan_outlined),
+                  ),
+                )
+              else if (Platform.isLinux)
+                TextField(
+                  controller: _printerAddress,
+                  decoration: const InputDecoration(
+                    labelText: 'Impresora USB / local',
+                    helperText:
+                        'Nombre de la cola CUPS (ej. termica) o ruta del '
+                        'dispositivo (ej. /dev/usb/lp0)',
+                    prefixIcon: Icon(Icons.print_outlined),
                   ),
                 )
               else

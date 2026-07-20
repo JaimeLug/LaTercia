@@ -1,3 +1,7 @@
+import 'dart:async';
+import 'dart:io';
+import 'dart:typed_data';
+
 import 'package:drift/drift.dart' show Value;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -415,6 +419,61 @@ void main() {
       final ok = await queue.enqueue(null, [1, 2, 3], 'ticket');
       expect(ok, isFalse);
       expect(queue.lastJobFailed, isTrue);
+    });
+  });
+
+  // Auditoría 2026-07-18 (instalación en sitio): el ticket de venta —grande y
+  // primero de la pareja venta+comanda— no salía; la comanda (chica) sí. Causa:
+  // `socket.destroy()` cerraba el socket de golpe y descartaba bytes en vuelo
+  // antes de que el peer lento (o el puente socat→/dev/usb/lp0) los drenara.
+  // Fix: cierre grácil con `close()`. Esta prueba levanta una "impresora falsa"
+  // que lee CON BACKPRESSURE (se pausa entre lecturas, como una térmica/puente
+  // lento) y verifica que llegue el documento COMPLETO, sin perder ni un byte.
+  //
+  // NOTA de honestidad: en Windows+loopback `destroy()` también entrega todo
+  // (el runner de test es Windows), así que esta prueba NO reproduce por sí
+  // sola la truncación específica de Linux+socat+USB lento del sitio; es un
+  // guard del CONTRATO ("send() entrega todos los bytes a un lector lento").
+  // La reproducción visual real se hace en la VM con el capturador socat.
+  group('NetworkPrinterTransport — entrega completa (fix cierre grácil)', () {
+    test('entrega todos los bytes aunque el receptor lea lento', () async {
+      final received = <int>[];
+      final fullyReceived = Completer<void>();
+
+      final server = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
+      server.listen((socket) {
+        late StreamSubscription<Uint8List> sub;
+        sub = socket.listen(
+          (chunk) {
+            // Backpressure: pausa la lectura un instante para simular una
+            // impresora/puente lento y mantener bytes "en vuelo".
+            sub.pause();
+            received.addAll(chunk);
+            Future<void>.delayed(
+                const Duration(milliseconds: 3), sub.resume);
+          },
+          onDone: () {
+            if (!fullyReceived.isCompleted) fullyReceived.complete();
+          },
+          cancelOnError: true,
+        );
+      });
+
+      // Payload grande, del orden de un ticket con logo raster (~256 KB).
+      final payload = List<int>.generate(256 * 1024, (i) => i % 256);
+
+      final transport = NetworkPrinterTransport(
+        server.address.address,
+        port: server.port,
+      );
+      await transport.send(payload);
+
+      await fullyReceived.future.timeout(const Duration(seconds: 10));
+      await server.close();
+
+      expect(received.length, payload.length,
+          reason: 'no se debe perder ningún byte al cerrar el socket');
+      expect(received, equals(payload));
     });
   });
 }
