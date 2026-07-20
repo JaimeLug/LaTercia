@@ -153,6 +153,12 @@ class _OrderCardKdsState extends ConsumerState<OrderCardKds>
         padding: const EdgeInsets.all(18),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
+          // 2026-07-20 (3ª pasada) — min: la tarjeta se encoge a su
+          // contenido (pedidos cortos = tarjeta chica) en vez de siempre
+          // estirarse al tope disponible. Necesario para que el `Flexible`
+          // de los items (abajo) funcione como "crece con el contenido,
+          // pero con tope" en vez de "siempre al máximo".
+          mainAxisSize: MainAxisSize.min,
           children: [
             // Header row
             Row(
@@ -204,7 +210,12 @@ class _OrderCardKdsState extends ConsumerState<OrderCardKds>
                 height: 22),
             // Items — con degradado + flecha si hay más abajo del corte
             // visible (solo aparece cuando de verdad hace falta desplazar).
-            Expanded(
+            // Flexible (no Expanded, 2026-07-20 3ª pasada): toma solo el
+            // alto que su contenido necesita, hasta el tope que imponga el
+            // ConstrainedBox exterior (KdsOrderGrid) — con Expanded, la
+            // tarjeta SIEMPRE se estiraba al máximo aunque el pedido fuera
+            // corto.
+            Flexible(
               child: Stack(
                 children: [
                   NotificationListener<ScrollMetricsNotification>(

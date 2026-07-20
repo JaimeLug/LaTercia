@@ -60,7 +60,9 @@ void main() {
     return OrderWithItems(order: order!, items: items);
   }
 
-  Future<void> pumpGrid(
+  /// Devuelve las GlobalKeys por orden (para poder medir el tamaño
+  /// renderizado de cada tarjeta con `tester.getSize`).
+  Future<Map<int, GlobalKey>> pumpGrid(
     WidgetTester tester, {
     required List<OrderWithItems> orders,
     int? highlightId,
@@ -72,11 +74,17 @@ void main() {
         overrides: [databaseProvider.overrideWithValue(db)],
         child: MaterialApp(
           home: Scaffold(
-            body: KdsOrderGrid(
-              orders: orders,
-              highlightId: highlightId,
-              controller: controller,
-              cardKeyFor: (id) => keys.putIfAbsent(id, () => GlobalKey()),
+            // Alto fijo y conocido, para que el tope de altura de las
+            // tarjetas (calculado por KdsOrderGrid vía LayoutBuilder) sea
+            // determinista en la prueba.
+            body: SizedBox(
+              height: 700,
+              child: KdsOrderGrid(
+                orders: orders,
+                highlightId: highlightId,
+                controller: controller,
+                cardKeyFor: (id) => keys.putIfAbsent(id, () => GlobalKey()),
+              ),
             ),
           ),
         ),
@@ -88,7 +96,29 @@ void main() {
     // siempre. Un par de frames alcanza para inspeccionar el árbol.
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 50));
+    return keys;
   }
+
+  testWidgets(
+      'una tarjeta corta se renderiza MÁS BAJA que una larga (crece con '
+      'el contenido, 3ª pasada — antes todas eran siempre 480px fijos)',
+      (tester) async {
+    final short = await makeOrder('0001', itemCount: 1);
+    final long = await makeOrder('0002', itemCount: 15);
+
+    final keys = await pumpGrid(tester, orders: [short, long]);
+
+    final shortHeight = tester.getSize(find.byKey(keys[short.order.id]!)).height;
+    final longHeight = tester.getSize(find.byKey(keys[long.order.id]!)).height;
+
+    expect(shortHeight, lessThan(longHeight),
+        reason: 'un pedido de 1 producto debe rendir una tarjeta más baja '
+            'que uno de 15 — ya no todas son siempre el mismo alto fijo');
+    // El tope viene de KdsOrderGrid: alto del contenedor (700) - padding
+    // vertical (pad*2 = 40) = 660. Ninguna tarjeta debe pasarse de eso.
+    expect(shortHeight, lessThanOrEqualTo(660));
+    expect(longHeight, lessThanOrEqualTo(660));
+  });
 
   testWidgets(
       'con muchas órdenes activas, TODAS quedan en el árbol (sin paginar)',
@@ -120,6 +150,23 @@ void main() {
     // (2026-07-20), así que find.byType(Scrollbar) por sí solo ya no basta.
     expect(find.byKey(const Key('kds-grid-scrollbar')), findsOneWidget);
     expect(find.textContaining(RegExp(r'Página \d+ */ *\d+')), findsNothing);
+  });
+
+  testWidgets(
+      'el scroll ENTRE pedidos es horizontal (2ª pasada, feedback en VM: '
+      'antes era vertical y se veía confuso con el de la tarjeta)',
+      (tester) async {
+    final orders = <OrderWithItems>[];
+    for (var i = 1; i <= 6; i++) {
+      orders.add(await makeOrder('000$i'));
+    }
+
+    await pumpGrid(tester, orders: orders);
+
+    final scrollView = tester.widget<SingleChildScrollView>(
+      find.byKey(const Key('kds-grid-scroll-view')),
+    );
+    expect(scrollView.scrollDirection, Axis.horizontal);
   });
 
   testWidgets('resalta la tarjeta seleccionada con el badge SELECCIONADA',

@@ -699,46 +699,76 @@ class KdsOrderGrid extends StatelessWidget {
   final ScrollController Function(int orderId)? itemsControllerFor;
   final VoidCallback? onSoundPlay;
 
-  // Un poco más grandes que la versión paginada (320×452 → 340×480): menos
-  // necesidad de hacer scroll dentro de la tarjeta en órdenes con varios
-  // productos (pedido explícito del dueño, 2026-07-20).
-  static const cardW = 340.0, cardH = 480.0, gap = 16.0, pad = 20.0;
+  // Ancho fijo (columnas parejas en el scroll horizontal); el alto YA NO es
+  // fijo (ver build) — 340 sigue siendo un ancho cómodo para leer a 2 m.
+  static const cardW = 340.0, gap = 16.0, pad = 20.0;
 
   @override
   Widget build(BuildContext context) {
-    return Scrollbar(
-      // Key propia: cada OrderCardKds trae además su propio Scrollbar interno
-      // para su lista de items (2026-07-20), así que `find.byType(Scrollbar)`
-      // ya no basta para identificar el de la cuadrícula en los tests.
-      key: const Key('kds-grid-scrollbar'),
-      controller: controller,
-      thumbVisibility: true,
-      child: SingleChildScrollView(
+    // 2026-07-20 (2ª pasada, feedback del dueño probando en la VM): el scroll
+    // ENTRE pedidos debe ser HORIZONTAL (como pasar tarjetas de lado a lado);
+    // el vertical es solo el de los productos DENTRO de cada tarjeta (ya
+    // existía). Antes ambos eran verticales — dos barras de scroll verticales
+    // encimadas (la de la cuadrícula y la de la tarjeta) se veían confusas.
+    // Con ejes perpendiculares (esta horizontal abajo, la de la tarjeta
+    // vertical al costado) ya no chocan visualmente.
+    //
+    // 3ª pasada (mismo día): ya no tiene sentido forzar TODAS las tarjetas a
+    // la misma altura fija — con scroll horizontal, un pedido de 2 productos
+    // puede ser una tarjeta chica y uno de 12 una tarjeta grande. Cada
+    // tarjeta crece con su contenido (`OrderCardKds` usa `Flexible` +
+    // `mainAxisSize.min` para esto) hasta un TOPE = el alto disponible de la
+    // pantalla (calculado aquí con LayoutBuilder); pasado ese tope, entra el
+    // scroll vertical interno que ya existía (flecha + degradado).
+    return LayoutBuilder(builder: (context, constraints) {
+      final maxCardHeight =
+          (constraints.maxHeight - pad * 2).clamp(200.0, double.infinity);
+      return Scrollbar(
+        // Key propia: cada OrderCardKds trae además su propio Scrollbar
+        // interno para su lista de items (2026-07-20), así que
+        // `find.byType(Scrollbar)` ya no basta para identificar el de la
+        // cuadrícula en los tests.
+        key: const Key('kds-grid-scrollbar'),
         controller: controller,
-        padding: const EdgeInsets.all(pad),
-        child: Wrap(
-          spacing: gap,
-          runSpacing: gap,
-          children: [
-            for (final o in orders)
-              SizedBox(
-                key: cardKeyFor(o.order.id),
-                width: cardW,
-                height: cardH,
-                child: SelectableOrderCard(
-                  selected: o.order.id == highlightId,
-                  child: OrderCardKds(
-                    key: ValueKey(o.order.id),
-                    orderWithItems: o,
-                    onSoundPlay: onSoundPlay,
-                    itemsScrollController: itemsControllerFor?.call(o.order.id),
+        thumbVisibility: true,
+        child: SingleChildScrollView(
+          // Key propia también aquí: cada tarjeta trae su propio
+          // SingleChildScrollView interno, así que buscar por tipo dentro
+          // del Scrollbar de arriba encuentra varios — esta apunta exacto
+          // al de la cuadrícula.
+          key: const Key('kds-grid-scroll-view'),
+          controller: controller,
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.all(pad),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              for (final o in orders) ...[
+                ConstrainedBox(
+                  key: cardKeyFor(o.order.id),
+                  constraints: BoxConstraints(
+                    minWidth: cardW,
+                    maxWidth: cardW,
+                    maxHeight: maxCardHeight,
+                  ),
+                  child: SelectableOrderCard(
+                    selected: o.order.id == highlightId,
+                    child: OrderCardKds(
+                      key: ValueKey(o.order.id),
+                      orderWithItems: o,
+                      onSoundPlay: onSoundPlay,
+                      itemsScrollController:
+                          itemsControllerFor?.call(o.order.id),
+                    ),
                   ),
                 ),
-              ),
-          ],
+                const SizedBox(width: gap),
+              ],
+            ],
+          ),
         ),
-      ),
-    );
+      );
+    });
   }
 }
 
