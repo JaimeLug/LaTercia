@@ -50,8 +50,20 @@ abstract class PrinterTransport {
 
 /// Impresora de red (Ethernet/WiFi) escuchando en el puerto RAW 9100.
 ///
-/// Abre el socket, escribe los bytes, hace flush y cierra. Un [timeout]
-/// razonable evita colgar la cola si la impresora está apagada o inalcanzable.
+/// Abre el socket, escribe los bytes, hace flush y **cierra grácilmente**. Un
+/// [timeout] razonable evita colgar la cola si la impresora está apagada o
+/// inalcanzable.
+///
+/// Auditoría 2026-07-18 (instalación en sitio): el ticket de venta —el más
+/// grande, y el primero de la pareja venta+comanda— no salía, mientras la
+/// comanda sí. Causa: `socket.destroy()` es un cierre **abrupto** que puede
+/// descartar bytes todavía en vuelo antes de que el otro extremo (una
+/// impresora lenta, o el puente `socat`→`/dev/usb/lp0` del kiosko) los drene.
+/// El documento grande enviado primero es la víctima; los chicos (comanda,
+/// ticket de prueba) alcanzan a salir. Fix: `close()` (grácil) espera a que
+/// todos los bytes en buffer se envíen antes de soltar el socket; el
+/// `destroy()` queda solo como red de seguridad en `finally` si `close()`
+/// excede el timeout.
 class NetworkPrinterTransport implements PrinterTransport {
   NetworkPrinterTransport(
     this.host, {
@@ -69,6 +81,9 @@ class NetworkPrinterTransport implements PrinterTransport {
     try {
       socket.add(bytes);
       await socket.flush();
+      // Cierre grácil: garantiza la entrega completa (a diferencia de
+      // destroy()). Con timeout para no colgar la cola si el peer no drena.
+      await socket.close().timeout(timeout);
     } finally {
       socket.destroy();
     }
