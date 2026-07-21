@@ -1,7 +1,6 @@
 import '../database/database.dart';
 
-/// Pure order-total arithmetic, extracted from the POS widget so it can be
-/// unit-tested in isolation (see test/pricing_test.dart).
+/// Aritmética pura de totales de una orden. Reglas: `docs/precios-e-iva.md`.
 
 class OrderTotals {
   final double subtotal;
@@ -17,9 +16,7 @@ class OrderTotals {
   });
 }
 
-/// Discount amount for a given subtotal, clamped to `[0, subtotal]`. A fixed
-/// discount larger than the order can therefore never push the total (or the
-/// change due) negative.
+/// `docs/precios-e-iva.md` §Descuentos.
 double discountAmountFor(Discount? discount, double subtotal) {
   if (discount == null) return 0;
   final raw = discount.type == 'percentage'
@@ -28,8 +25,7 @@ double discountAmountFor(Discount? discount, double subtotal) {
   return raw.clamp(0.0, subtotal);
 }
 
-/// Computes subtotal/discount/tax/total. Tax is applied on the discounted
-/// amount. The total is clamped to be non-negative.
+/// Totales con una sola tasa global. `docs/precios-e-iva.md`.
 OrderTotals computeOrderTotals({
   required double subtotal,
   Discount? discount,
@@ -46,12 +42,9 @@ OrderTotals computeOrderTotals({
   );
 }
 
-// ─── FASE 4.5 — Impuesto por producto ────────────────────────────────────────
+// ─── Impuesto por producto (docs/precios-e-iva.md) ───────────────────────────
 
-/// Una línea del carrito reducida a lo que el cálculo de impuestos necesita:
-/// su importe mostrado ([lineTotal]), su tasa efectiva ([taxRate], ya resuelta
-/// contra el default global) y si ese precio ya trae el IVA dentro
-/// ([taxIncluded]) o se le añade encima.
+/// Una línea del carrito para el cálculo de IVA. `docs/precios-e-iva.md`.
 class TaxLine {
   final double lineTotal;
   final double taxRate; // porcentaje, p.ej. 16 = 16%
@@ -64,36 +57,19 @@ class TaxLine {
   });
 }
 
-/// Tasa de IVA efectiva de un producto: la suya si la definió, si no el default
-/// global. Nunca negativa.
+/// Tasa de IVA efectiva de un producto (la suya o el default global; nunca
+/// negativa). `docs/precios-e-iva.md`.
 double effectiveTaxRate(double? productRate, double globalRate) {
   final r = productRate ?? globalRate;
   return r < 0 ? 0 : r;
 }
 
-/// Modo de IVA efectivo de un producto: el suyo si lo definió, si no el global.
+/// Modo de IVA efectivo de un producto (el suyo o el global).
 bool effectiveTaxIncluded(bool? productIncluded, bool globalIncluded) =>
     productIncluded ?? globalIncluded;
 
-/// Totales de una orden con IVA calculado **por línea**, soportando tasas
-/// distintas por producto y precios con IVA incluido o añadido en la misma
-/// orden.
-///
-/// Semántica:
-/// - [OrderTotals.subtotal] = suma de los precios mostrados de las líneas,
-///   ANTES de descuento (para la fila "Subtotal" del POS). Para líneas con IVA
-///   incluido ese precio ya trae el impuesto dentro.
-/// - El descuento se calcula sobre ese subtotal mostrado y se prorratea entre
-///   las líneas.
-/// - [OrderTotals.tax] = IVA total desglosado (el "hacia atrás" de las líneas
-///   con IVA incluido + el añadido de las que no) — es la cifra para el ticket
-///   y los reportes fiscales.
-/// - [OrderTotals.total] = lo que el cliente realmente paga. Para IVA incluido
-///   NO se suma el IVA (ya está dentro del precio); para IVA añadido sí.
-///
-/// Nota: con líneas mixtas (unas con IVA incluido y otras añadido) la identidad
-/// ingenua `subtotal - descuento + iva == total` no se cumple —es inherente al
-/// IVA incluido—; [total] es siempre la cifra autoritativa.
+/// Totales con IVA por línea; con líneas mixtas, [OrderTotals.total] es la
+/// cifra autoritativa. `docs/precios-e-iva.md`.
 OrderTotals computeTaxedTotals({
   required List<TaxLine> lines,
   Discount? discount,
@@ -120,10 +96,8 @@ OrderTotals computeTaxedTotals({
   );
 }
 
-/// Si el IVA de una orden ya está embebido en el total (IVA incluido) en vez de
-/// sumarse encima (IVA añadido). Se infiere de los totales guardados —sin
-/// columna extra—: si sumar el IVA al subtotal-descuento excede el total, es
-/// que el total no creció por el IVA ⇒ estaba incluido.
+/// Infiere, de los totales guardados, si el IVA estaba incluido en el total.
+/// `docs/precios-e-iva.md`.
 bool taxIsIncludedInTotal({
   required double subtotal,
   required double discount,
@@ -135,9 +109,7 @@ bool taxIsIncludedInTotal({
   return (asAdded - total).abs() > 0.01;
 }
 
-/// Whether a discount may be offered for the current order: it must be active,
-/// inside its validity window, and the subtotal must meet its minimum. These
-/// rules are configured in admin but were previously ignored at checkout.
+/// Si un descuento puede ofrecerse para la orden actual. `docs/precios-e-iva.md`.
 bool isDiscountEligible(Discount d, double subtotal, DateTime now) {
   if (!d.active) return false;
   if (d.validFrom != null && now.isBefore(d.validFrom!)) return false;
