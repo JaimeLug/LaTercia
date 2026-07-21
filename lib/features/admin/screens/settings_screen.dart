@@ -7,6 +7,7 @@ import '../../../core/providers/settings_provider.dart';
 import '../../../core/services/print_service.dart';
 import '../../../core/theme/app_theme.dart';
 import '../widgets/admin_panel.dart';
+import 'monitores_screen.dart';
 
 /// Metadatos de cada categoría de Configuración, para la vista de tarjetas de
 /// entrada — reemplaza la única página larga de scroll infinito por un menú
@@ -331,6 +332,16 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               subtitle: cat.subtitle,
               onTap: () => setState(() => _activeCategory = cat.key),
             ),
+          // Monitores es una pantalla aparte (contenido dinámico: lista los
+          // monitores conectados), no una categoría de settings. docs/monitores.md.
+          CategoryCard(
+            icon: Icons.desktop_windows_outlined,
+            title: 'Monitores',
+            subtitle: 'Nombres de las pantallas',
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const MonitoresScreen()),
+            ),
+          ),
         ],
       ),
     );

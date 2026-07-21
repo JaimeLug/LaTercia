@@ -1,37 +1,38 @@
-import 'dart:ui';
-
 import 'package:flutter_test/flutter_test.dart';
+import 'package:latercia/core/services/display_service.dart';
 import 'package:latercia/features/kds/kds_launcher.dart';
-import 'package:screen_retriever/screen_retriever.dart';
 
 /// El KDS se abre a pantalla completa y sin barra de título; si cae en el
 /// monitor del POS lo tapa sin forma de cerrarlo (bloqueo reportado en sitio).
 /// Por eso el selector nunca debe ofrecer el monitor principal.
 void main() {
-  const primary = Display(
-    id: '0',
-    size: Size(1920, 1080),
-    visiblePosition: Offset(0, 0),
-    visibleSize: Size(1920, 1080),
+  const primary = MonitorInfo(
+    id: 'DP-1',
+    systemName: 'DP-1',
+    width: 1920,
+    height: 1080,
+    x: 0,
+    y: 0,
+    isPrimary: true,
   );
-  const secondary = Display(
-    id: '1',
-    size: Size(1280, 720),
-    visiblePosition: Offset(1920, 0),
-    visibleSize: Size(1280, 720),
+  const secondary = MonitorInfo(
+    id: 'HDMI-1',
+    systemName: 'HDMI-1',
+    width: 1920,
+    height: 1080,
+    x: 1920,
+    y: 0,
+    isPrimary: false,
   );
 
   test('el monitor principal (POS) NO es destino del KDS', () {
-    expect(kdsDisplayIsPrimary(primary), isTrue);
-    expect(kdsDisplayIsPrimary(secondary), isFalse);
-
-    final targets = kdsTargetDisplays([primary, secondary]);
-    expect(targets, [secondary]);
-    expect(targets.contains(primary), isFalse,
+    final targets = kdsTargetMonitors([primary, secondary]);
+    expect(targets.map((m) => m.id), ['HDMI-1']);
+    expect(targets.any((m) => m.isPrimary), isFalse,
         reason: 'ofrecer la pantalla del POS la taparía sin poder cerrarla');
   });
 
   test('con un solo monitor (el principal) no hay destinos', () {
-    expect(kdsTargetDisplays([primary]), isEmpty);
+    expect(kdsTargetMonitors([primary]), isEmpty);
   });
 }

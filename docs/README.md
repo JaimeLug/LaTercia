@@ -40,5 +40,7 @@ explicación larga.
 - [Facturación (prellenado CFDI 4.0)](facturacion.md) — export de datos fiscales
   listos para timbrar (no timbra); flujos individual y global, catálogos SAT,
   separación base/IVA, exportador.
+- [Monitores](monitores.md) — ver y nombrar las pantallas (xrandr/screen_retriever);
+  los nombres se usan en el selector de la Cocina.
 
 > Este índice crece conforme se van limpiando más archivos.

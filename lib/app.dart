@@ -6,6 +6,7 @@ import 'core/models/order_with_items.dart';
 import 'core/providers/orders_provider.dart';
 import 'core/providers/settings_provider.dart';
 import 'core/services/backup_service.dart';
+import 'core/services/display_service.dart';
 import 'core/services/kds_button_service.dart';
 import 'core/services/kds_server.dart';
 import 'core/theme/app_theme.dart';
@@ -26,6 +27,9 @@ class LaTerciaApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final settingsAsync = ref.watch(settingsProvider);
+    // Solo el proceso POS corre LaTerciaApp; re-aplica las resoluciones
+    // guardadas una vez, cuando cargan los settings. docs/monitores.md.
+    settingsAsync.whenData((s) => _reaplicarResolucionesUnaVez(ref, s));
 
     final theme = settingsAsync.when(
       data: (s) => buildTheme(
@@ -43,6 +47,20 @@ class LaTerciaApp extends ConsumerWidget {
       home: const KioskController(child: _MainLayout()),
     );
   }
+}
+
+/// Re-aplica las resoluciones guardadas una sola vez por proceso (POS), cuando
+/// los settings ya están disponibles. `docs/monitores.md`.
+bool _resolucionesAplicadas = false;
+void _reaplicarResolucionesUnaVez(WidgetRef ref, Map<String, String> settings) {
+  if (_resolucionesAplicadas) return;
+  _resolucionesAplicadas = true;
+  final saved =
+      DisplayService.resolucionesGuardadas(settings['monitor_resoluciones']);
+  if (saved.isEmpty) return;
+  WidgetsBinding.instance.addPostFrameCallback(
+    (_) => ref.read(displayServiceProvider).applySavedResolutions(saved),
+  );
 }
 
 class _MainLayout extends StatelessWidget {
@@ -129,7 +147,7 @@ class _RootState extends ConsumerState<_Root> {
       });
 
   Future<void> _onKdsTab() async {
-    final embed = await showKdsScreenPicker(context);
+    final embed = await showKdsScreenPicker(context, ref);
     if (embed && mounted) setState(() => _tab = 1);
   }
 
