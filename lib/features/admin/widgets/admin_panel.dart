@@ -183,6 +183,46 @@ class AdminEmptyState extends StatelessWidget {
 Widget adminLoading() =>
     const Center(child: CircularProgressIndicator(color: LaTerciaColors.gold));
 
+/// Caja de búsqueda consistente para las pantallas de Admin (filtra en vivo).
+/// Lupa a la izquierda y botón ✕ para limpiar cuando hay texto. El filtrado
+/// lo hace la pantalla en memoria; este widget solo captura el texto.
+class AdminSearchField extends StatelessWidget {
+  final TextEditingController controller;
+  final ValueChanged<String> onChanged;
+  final String hintText;
+  const AdminSearchField({
+    super.key,
+    required this.controller,
+    required this.onChanged,
+    this.hintText = 'Buscar...',
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return TextField(
+      controller: controller,
+      onChanged: onChanged,
+      decoration: InputDecoration(
+        hintText: hintText,
+        isDense: true,
+        prefixIcon:
+            const Icon(Icons.search, size: 20, color: LaTerciaColors.tan),
+        suffixIcon: controller.text.isEmpty
+            ? null
+            : IconButton(
+                icon: const Icon(Icons.close,
+                    size: 18, color: LaTerciaColors.tan),
+                tooltip: 'Limpiar',
+                onPressed: () {
+                  controller.clear();
+                  onChanged('');
+                },
+              ),
+      ),
+    );
+  }
+}
+
 /// Tarjeta de categoría para landings tipo Ajustes (Configuración, Inventario):
 /// ícono + título + subtítulo, tocable. Reusada por cualquier pantalla que
 /// quiera un menú de tarjetas en vez de una lista larga.

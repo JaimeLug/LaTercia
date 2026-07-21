@@ -32,6 +32,30 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> {
   );
   String _statusFilter = 'Todos';
   int? _employeeFilter;
+  final _searchCtrl = TextEditingController();
+  String _search = '';
+  // La consulta por rango se cachea para no reconsultar (ni parpadear) con
+  // cada tecla del buscador; estado, empleado y texto se filtran en memoria.
+  late Future<List<Order>> _ordersFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _ordersFuture = _loadOrders();
+  }
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<List<Order>> _loadOrders() => ref
+      .read(databaseProvider)
+      .ordersDao
+      .getOrdersByDateRange(_dateRange.start, _dateRange.end);
+
+  void _reloadOrders() => setState(() => _ordersFuture = _loadOrders());
 
   @override
   Widget build(BuildContext context) {
@@ -94,15 +118,20 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> {
                       : employees.firstWhere((e) => e.id == id).name,
                   onChanged: (v) => setState(() => _employeeFilter = v),
                 ),
+                SizedBox(
+                  width: 240,
+                  child: AdminSearchField(
+                    controller: _searchCtrl,
+                    hintText: 'Buscar # orden o cliente...',
+                    onChanged: (v) => setState(() => _search = v),
+                  ),
+                ),
               ],
             ),
           ),
           Expanded(
             child: FutureBuilder<List<Order>>(
-              future: ref
-                  .read(databaseProvider)
-                  .ordersDao
-                  .getOrdersByDateRange(_dateRange.start, _dateRange.end),
+              future: _ordersFuture,
               builder: (ctx, snapshot) {
                 if (!snapshot.hasData) return adminLoading();
                 var orders = snapshot.data!;
@@ -113,6 +142,14 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> {
                 if (_employeeFilter != null) {
                   orders = orders
                       .where((o) => o.employeeId == _employeeFilter)
+                      .toList();
+                }
+                final q = _search.trim().toLowerCase();
+                if (q.isNotEmpty) {
+                  orders = orders
+                      .where((o) =>
+                          o.orderNumber.toLowerCase().contains(q) ||
+                          (o.customerName ?? '').toLowerCase().contains(q))
                       .toList();
                 }
                 if (orders.isEmpty) {
@@ -193,7 +230,10 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> {
       firstDate: DateTime(2020),
       lastDate: DateTime.now().add(const Duration(days: 1)),
     );
-    if (picked != null) setState(() => _dateRange = picked);
+    if (picked != null) {
+      _dateRange = picked;
+      _reloadOrders();
+    }
   }
 
   Future<void> _showDetail(BuildContext context, Order order) async {
@@ -479,6 +519,7 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> {
           );
       if (context.mounted) {
         Navigator.pop(context);
+        _reloadOrders();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
               content: Text(
@@ -534,6 +575,7 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> {
           employeeId: actor?.id);
       if (context.mounted) {
         Navigator.pop(context);
+        _reloadOrders();
       }
     }
   }

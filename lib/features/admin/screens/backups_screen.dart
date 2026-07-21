@@ -146,6 +146,31 @@ class _BackupsScreenState extends ConsumerState<BackupsScreen> {
     }
   }
 
+  /// Exporta las tablas elegidas a un `.db` parcial (esquema + filas). Este sí
+  /// se puede traer a otro equipo con "Restaurar solo una parte".
+  Future<void> _exportDb() async {
+    if (_selectedTables.isEmpty) return;
+    setState(() => _busy = true);
+    final bytes = await ref
+        .read(backupServiceProvider)
+        .exportDbBytes(tables: _selectedTables.toList());
+    if (mounted) setState(() => _busy = false);
+
+    final date = DateFormat('yyyy-MM-dd').format(DateTime.now());
+    final result = await FilePicker.platform.saveFile(
+      dialogTitle: 'Guardar .db por partes',
+      fileName: 'latercia-partes-$date.db',
+      type: FileType.custom,
+      allowedExtensions: ['db'],
+    );
+    if (result == null) return;
+    await File(result).writeAsBytes(bytes);
+    if (mounted) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Exportado: $result')));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final settings = ref.watch(settingsProvider).valueOrNull;
@@ -417,8 +442,9 @@ class _BackupsScreenState extends ConsumerState<BackupsScreen> {
           const Text('Exportar', style: _panelTitleStyle),
           const SizedBox(height: 4),
           const Text(
-            'Elige qué tablas incluir. Para reportes o revisar datos '
-            'específicos — no es un formato que la app pueda reimportar.',
+            'Elige qué tablas incluir. .sql y .xlsx son para reportes o revisar '
+            'datos (no se reimportan). El .db por partes SÍ se puede traer a '
+            'otro equipo con "Restaurar solo una parte".',
             style: TextStyle(fontSize: 12.5, color: LaTerciaColors.tan),
           ),
           const SizedBox(height: 10),
@@ -486,6 +512,12 @@ class _BackupsScreenState extends ConsumerState<BackupsScreen> {
                 label: const Text('Exportar .xlsx'),
                 onPressed:
                     (_busy || _selectedTables.isEmpty) ? null : _exportXlsx,
+              ),
+              OutlinedButton.icon(
+                icon: const Icon(Icons.dataset_outlined),
+                label: const Text('Exportar .db (por partes)'),
+                onPressed:
+                    (_busy || _selectedTables.isEmpty) ? null : _exportDb,
               ),
             ],
           ),

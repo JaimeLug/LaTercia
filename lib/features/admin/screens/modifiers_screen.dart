@@ -16,10 +16,35 @@ class ModifiersScreen extends ConsumerStatefulWidget {
 }
 
 class _ModifiersScreenState extends ConsumerState<ModifiersScreen> {
+  final _searchCtrl = TextEditingController();
+  String _search = '';
+  // Se cargan una vez y se filtran en memoria: así el buscador no reconsulta
+  // ni parpadea con cada tecla.
+  List<Modifier>? _mods;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _load() async {
+    final mods =
+        await ref.read(databaseProvider).modifiersDao.getAllModifiers();
+    if (mounted) setState(() => _mods = mods);
+  }
+
   @override
   Widget build(BuildContext context) {
     final settings = ref.watch(settingsProvider).valueOrNull ?? {};
     final symbol = settings['currency_symbol'] ?? r'$';
+    final mods = _mods;
 
     return Scaffold(
       backgroundColor: LaTerciaColors.appBg,
@@ -29,93 +54,123 @@ class _ModifiersScreenState extends ConsumerState<ModifiersScreen> {
         onPressed: () => _showForm(context, null),
         child: const Icon(Icons.add, color: Colors.white),
       ),
-      body: FutureBuilder<List<Modifier>>(
-        future: ref.read(databaseProvider).modifiersDao.getAllModifiers(),
-        builder: (ctx, snapshot) {
-          if (!snapshot.hasData) return adminLoading();
-          final mods = snapshot.data!;
-          if (mods.isEmpty) {
-            return const AdminEmptyState(
-              icon: Icons.tune,
-              message: 'Sin modificadores todavía.\n'
-                  'Toca “+” para crear el primero (ej. “Sin azúcar”, “Extra shot”).',
-            );
-          }
-          return SingleChildScrollView(
-            padding: const EdgeInsets.all(20),
-            child: AdminPanel(
-              child: Column(
-                children: [
-                  const AdminHeaderRow(cells: [
-                    Expanded(flex: 3, child: Text('NOMBRE')),
-                    Expanded(flex: 2, child: Text('DELTA PRECIO')),
-                    Expanded(flex: 2, child: Text('ALCANCE')),
-                    SizedBox(width: 88, child: Text('ACCIONES')),
-                  ]),
-                  ...mods.asMap().entries.map((entry) {
-                    final m = entry.value;
-                    final isLast = entry.key == mods.length - 1;
-                    return AdminRow(
-                      isLast: isLast,
-                      cells: [
-                        Expanded(
-                          flex: 3,
-                          child: Text(m.name,
-                              style: const TextStyle(
-                                  fontWeight: FontWeight.w600,
-                                  color: LaTerciaColors.darkBrown)),
-                        ),
-                        Expanded(
-                          flex: 2,
-                          child: m.priceDelta == 0
-                              ? const Text('Sin costo',
-                                  style: TextStyle(color: LaTerciaColors.tan))
-                              : Text(
-                                  m.priceDelta > 0
-                                      ? '+${formatCurrency(m.priceDelta, symbol)}'
-                                      : formatCurrency(m.priceDelta, symbol),
-                                  style: const TextStyle(
-                                      fontWeight: FontWeight.w600,
-                                      color: LaTerciaColors.success)),
-                        ),
-                        Expanded(
-                          flex: 2,
-                          child: Text(m.categoryScope ?? 'Todas'),
-                        ),
-                        SizedBox(
-                          width: 88,
-                          child: Row(
-                            children: [
-                              IconButton(
-                                icon: const Icon(Icons.edit_outlined,
-                                    size: 18, color: LaTerciaColors.tan),
-                                visualDensity: VisualDensity.compact,
-                                onPressed: () => _showForm(context, m),
+      body: mods == null
+          ? adminLoading()
+          : mods.isEmpty
+              ? const AdminEmptyState(
+                  icon: Icons.tune,
+                  message: 'Sin modificadores todavía.\n'
+                      'Toca “+” para crear el primero (ej. “Sin azúcar”, '
+                      '“Extra shot”).',
+                )
+              : _buildList(mods, symbol),
+    );
+  }
+
+  Widget _buildList(List<Modifier> mods, String symbol) {
+    final q = _search.trim().toLowerCase();
+    final filtered = q.isEmpty
+        ? mods
+        : mods
+            .where((m) =>
+                m.name.toLowerCase().contains(q) ||
+                (m.categoryScope ?? '').toLowerCase().contains(q))
+            .toList();
+
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+          child: AdminSearchField(
+            controller: _searchCtrl,
+            hintText: 'Buscar modificador...',
+            onChanged: (v) => setState(() => _search = v),
+          ),
+        ),
+        Expanded(
+          child: filtered.isEmpty
+              ? AdminEmptyState(
+                  icon: Icons.search_off,
+                  message: 'Sin resultados para “$_search”.',
+                )
+              : SingleChildScrollView(
+                  padding: const EdgeInsets.fromLTRB(20, 4, 20, 20),
+                  child: AdminPanel(
+                    child: Column(
+                      children: [
+                        const AdminHeaderRow(cells: [
+                          Expanded(flex: 3, child: Text('NOMBRE')),
+                          Expanded(flex: 2, child: Text('DELTA PRECIO')),
+                          Expanded(flex: 2, child: Text('ALCANCE')),
+                          SizedBox(width: 88, child: Text('ACCIONES')),
+                        ]),
+                        ...filtered.asMap().entries.map((entry) {
+                          final m = entry.value;
+                          final isLast = entry.key == filtered.length - 1;
+                          return AdminRow(
+                            isLast: isLast,
+                            cells: [
+                              Expanded(
+                                flex: 3,
+                                child: Text(m.name,
+                                    style: const TextStyle(
+                                        fontWeight: FontWeight.w600,
+                                        color: LaTerciaColors.darkBrown)),
                               ),
-                              IconButton(
-                                icon: const Icon(Icons.delete_outline,
-                                    size: 18, color: LaTerciaColors.danger),
-                                visualDensity: VisualDensity.compact,
-                                onPressed: () async {
-                                  await ref
-                                      .read(databaseProvider)
-                                      .modifiersDao
-                                      .deleteModifier(m.id);
-                                  setState(() {});
-                                },
+                              Expanded(
+                                flex: 2,
+                                child: m.priceDelta == 0
+                                    ? const Text('Sin costo',
+                                        style: TextStyle(
+                                            color: LaTerciaColors.tan))
+                                    : Text(
+                                        m.priceDelta > 0
+                                            ? '+${formatCurrency(m.priceDelta, symbol)}'
+                                            : formatCurrency(
+                                                m.priceDelta, symbol),
+                                        style: const TextStyle(
+                                            fontWeight: FontWeight.w600,
+                                            color: LaTerciaColors.success)),
+                              ),
+                              Expanded(
+                                flex: 2,
+                                child: Text(m.categoryScope ?? 'Todas'),
+                              ),
+                              SizedBox(
+                                width: 88,
+                                child: Row(
+                                  children: [
+                                    IconButton(
+                                      icon: const Icon(Icons.edit_outlined,
+                                          size: 18, color: LaTerciaColors.tan),
+                                      visualDensity: VisualDensity.compact,
+                                      onPressed: () => _showForm(context, m),
+                                    ),
+                                    IconButton(
+                                      icon: const Icon(Icons.delete_outline,
+                                          size: 18,
+                                          color: LaTerciaColors.danger),
+                                      visualDensity: VisualDensity.compact,
+                                      onPressed: () async {
+                                        await ref
+                                            .read(databaseProvider)
+                                            .modifiersDao
+                                            .deleteModifier(m.id);
+                                        await _load();
+                                      },
+                                    ),
+                                  ],
+                                ),
                               ),
                             ],
-                          ),
-                        ),
+                          );
+                        }),
                       ],
-                    );
-                  }),
-                ],
-              ),
-            ),
-          );
-        },
-      ),
+                    ),
+                  ),
+                ),
+        ),
+      ],
     );
   }
 
@@ -124,7 +179,7 @@ class _ModifiersScreenState extends ConsumerState<ModifiersScreen> {
       context: context,
       builder: (_) => _ModifierFormDialog(modifier: modifier),
     );
-    setState(() {});
+    await _load();
   }
 }
 

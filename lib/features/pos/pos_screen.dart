@@ -62,6 +62,10 @@ class _PosScreenState extends ConsumerState<PosScreen> {
   int? _selectedCategoryId;
   String _searchQuery = '';
   Timer? _clockTimer;
+  // Barra de categorías: controller + una key por chip (null = "Todos") para,
+  // al tocar una, centrarla y revelar las vecinas escondidas en el kiosco.
+  final _catScrollController = ScrollController();
+  final Map<int?, GlobalKey> _catKeys = {};
 
   // Controllers
   final _customerController = TextEditingController();
@@ -78,7 +82,25 @@ class _PosScreenState extends ConsumerState<PosScreen> {
     _addressController.dispose();
     _noteController.dispose();
     _searchController.dispose();
+    _catScrollController.dispose();
     super.dispose();
+  }
+
+  /// Centra suavemente la categoría [id] en la barra para revelar las vecinas
+  /// (en el kiosco no se puede arrastrar la barra a mano).
+  void _selectCategory(int? id) {
+    setState(() => _selectedCategoryId = id);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final ctx = _catKeys[id]?.currentContext;
+      if (ctx != null) {
+        Scrollable.ensureVisible(
+          ctx,
+          alignment: 0.5,
+          duration: const Duration(milliseconds: 250),
+          curve: Curves.easeOut,
+        );
+      }
+    });
   }
 
   // ─── Calculations ─────────────────────────────────────────────────────────
@@ -551,21 +573,24 @@ class _PosScreenState extends ConsumerState<PosScreen> {
           data: (cats) => SizedBox(
             height: 52,
             child: ListView(
+              controller: _catScrollController,
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
               children: [
                 _CategoryChip(
+                  key: _catKeys.putIfAbsent(null, () => GlobalKey()),
                   label: 'Todos',
                   selected: _selectedCategoryId == null,
-                  onTap: () => setState(() => _selectedCategoryId = null),
+                  onTap: () => _selectCategory(null),
                 ),
                 ...cats.map((c) => Padding(
                       padding: const EdgeInsets.only(left: 8),
                       child: _CategoryChip(
+                        key: _catKeys.putIfAbsent(c.id, () => GlobalKey()),
                         label: c.name,
                         dotColor: _parseColor(c.color),
                         selected: _selectedCategoryId == c.id,
-                        onTap: () => setState(() => _selectedCategoryId = c.id),
+                        onTap: () => _selectCategory(c.id),
                       ),
                     )),
               ],
@@ -1066,6 +1091,7 @@ class _CategoryChip extends StatelessWidget {
   final bool selected;
   final VoidCallback onTap;
   const _CategoryChip({
+    super.key,
     required this.label,
     this.dotColor,
     required this.selected,

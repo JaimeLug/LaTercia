@@ -390,6 +390,57 @@ class BackupService {
     return workbook.encode() ?? const <int>[];
   }
 
+  /// Exporta [tables] (o todas) a un `.db` SQLite **parcial** (solo esas tablas:
+  /// esquema + filas). A diferencia de `.sql`/`.xlsx`, este archivo SÍ se puede
+  /// traer a otro equipo con la restauración parcial por grupo. Ej.: exportar
+  /// solo `customers` para llevarse los clientes. `docs/backups.md` §Exportación.
+  Future<List<int>> exportDbBytes({List<String>? tables}) async {
+    final selected = _resolveSelection(tables);
+    // Se arma en un archivo temporal del sistema (sin plugins: testeable).
+    final tmp = File(p.join(Directory.systemTemp.path,
+        'latercia-export-${DateTime.now().microsecondsSinceEpoch}.db'));
+    if (await tmp.exists()) await tmp.delete();
+    final out = sq.sqlite3.open(tmp.path);
+    try {
+      // FKs apagadas: un subconjunto puede referir a tablas que no van en él.
+      out.execute('PRAGMA foreign_keys = OFF;');
+      for (final table in selected) {
+        final schema = await _db.customSelect(
+          "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = ?",
+          variables: [Variable.withString(table)],
+        ).getSingleOrNull();
+        final createSql = schema?.data['sql'] as String?;
+        if (createSql == null) continue; // tabla inesperada, se ignora
+        out.execute(createSql);
+
+        final cols = await _tableColumns(table);
+        final rows = await _db.customSelect('SELECT * FROM $table').get();
+        if (rows.isEmpty) continue;
+        final placeholders = List.filled(cols.length, '?').join(', ');
+        final stmt = out.prepare(
+            'INSERT INTO $table (${cols.join(', ')}) VALUES ($placeholders)');
+        try {
+          for (final row in rows) {
+            stmt.execute([for (final c in cols) _dbValue(row.data[c])]);
+          }
+        } finally {
+          stmt.dispose();
+        }
+      }
+    } finally {
+      out.dispose();
+    }
+    final bytes = await tmp.readAsBytes();
+    try {
+      await tmp.delete();
+    } catch (_) {/* best-effort */}
+    return bytes;
+  }
+
+  /// sqlite3 no acepta `bool`: drift ya los guarda como 0/1, pero por si acaso
+  /// se normalizan aquí antes de insertar en el `.db` parcial.
+  Object? _dbValue(Object? v) => v is bool ? (v ? 1 : 0) : v;
+
   // ─── Restauración parcial por grupo (docs/restauracion-parcial.md) ────────
 
   /// Abre el `.db` en SOLO LECTURA y compara fila por fila (por `id`) el

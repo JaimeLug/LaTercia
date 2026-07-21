@@ -7,6 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:latercia/core/database/database.dart';
 import 'package:latercia/core/services/backup_service.dart';
 import 'package:path/path.dart' as p;
+import 'package:sqlite3/sqlite3.dart' as sq;
 
 void main() {
   // Las pruebas de restauración parcial abren, a propósito, una segunda
@@ -210,6 +211,41 @@ void main() {
 
       expect(workbook.sheets.length, 1);
       expect(workbook.sheets.keys, isNot(contains('Sheet1')));
+    });
+  });
+
+  group('exportDbBytes', () {
+    test('exporta solo las tablas pedidas, con sus filas', () async {
+      await db.customersDao.insertCustomer(
+          CustomersCompanion.insert(name: 'Ana', phone: const Value('111')));
+
+      final bytes = await backup.exportDbBytes(tables: ['customers']);
+      final outPath = p.join(tempBase.path, 'export-partes.db');
+      await File(outPath).writeAsBytes(bytes);
+
+      final out = sq.sqlite3.open(outPath, mode: sq.OpenMode.readOnly);
+      try {
+        final rows = out.select('SELECT name, phone FROM customers');
+        expect(rows.map((r) => r['name']), contains('Ana'));
+        // No se pidió `categories`: la tabla NO debe existir en el .db parcial.
+        expect(() => out.select('SELECT * FROM categories'), throwsA(anything));
+      } finally {
+        out.dispose();
+      }
+    });
+
+    test('el .db exportado lo puede leer la restauración parcial', () async {
+      await db.customersDao
+          .insertCustomer(CustomersCompanion.insert(name: 'Ana'));
+
+      final bytes = await backup.exportDbBytes(tables: ['customers']);
+      final outPath = p.join(tempBase.path, 'export-clientes.db');
+      await File(outPath).writeAsBytes(bytes);
+
+      // Preview contra la base actual (misma data, mismo id) → "igual".
+      final diffs = await backup.previewGroupRestore(
+          backupPath: outPath, group: 'Clientes');
+      expect(diffs.any((d) => d.status == RestoreRowStatus.igual), isTrue);
     });
   });
 
