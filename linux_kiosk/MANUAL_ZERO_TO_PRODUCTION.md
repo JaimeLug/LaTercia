@@ -841,6 +841,133 @@ Type=Application
 Guarda igual. Con las dos creadas, en 4.5 usa `Session=latercia-kiosk` o
 `Session=latercia-kiosk-software` según cuál abrió bien arriba.
 
+### 4.3-tv Pantallas que son TVs: imagen cortada o resolución rara
+
+Cuando la pantalla de cocina es una **TV** (no un monitor de PC), aparecen dos
+problemas muy típicos. **No son bugs de la app** — la app dibuja bien; el
+problema está en cómo la TV/el cable/el adaptador manejan la señal. Identifica
+tu síntoma:
+
+- **Caso 1 (overscan):** la imagen se ve casi bien pero **los bordes están
+  recortados** — se pierde el reloj y "N pedidos activos" del encabezado, los
+  botones de la esquina (Recall, All-day) se cortan, todo parece "hecho zoom".
+- **Caso 2 (resolución de emergencia):** la imagen se ve **muy deforme /
+  estirada / borrosa**, y al abrir la app el diálogo **"¿En qué pantalla?"**
+  reporta esa TV como **640×480** (o `xrandr` solo ofrece `640x480` en esa
+  salida). Esto es más grave que el overscan y es un problema **distinto**.
+
+---
+
+**Caso 1 — Overscan (bordes recortados).**
+
+Las TVs de consumo por defecto aplican overscan a las entradas **HDMI** —
+recortan y amplían ~3-5% la imagen, porque asumen que es video. Las entradas
+**VGA** las tratan como "modo PC" y las muestran 1:1, sin recortar (por eso al
+pasar de un adaptador DP→VGA a uno DP→HDMI puede empezar a cortarse).
+
+**Arreglo A — en la TV (HAZLO PRIMERO, no toca la PC).** En el control remoto,
+entra al ajuste de **tamaño/formato de imagen** y ponlo en modo **1:1 sin
+escalar**. El nombre varía por marca:
+- **Toshiba:** *Imagen* → "Tamaño de imagen"/"Formato" → **Native / Dot by Dot
+  / Real / Nativo / Pantalla completa (Full)**. Truco: renombrar la entrada
+  HDMI a **"PC"** a veces fuerza el 1:1 por sí solo.
+- **Philips:** "Formato de imagen" → **Sin escalar (Unscaled)**.
+- **Genérico (Samsung/LG/otras):** **"Just Scan" / "Screen Fit" / "Ajuste de
+  pantalla" / "1:1"**.
+
+**Arreglo B — en Linux** (solo si la TV no tiene esa opción, método de dos
+monitores X11/wmctrl). Compensás con *underscan*:
+```bash
+xrandr --output DP-1 --set underscan on \
+       --set "underscan hborder" 32 --set "underscan vborder" 32
+```
+Sube/baja `32` hasta que entre completa. (Cambia `DP-1` por tu salida real —
+ver abajo cómo se llama.)
+
+---
+
+**Caso 2 — Resolución de emergencia 640×480 (EDID no leído). ⭐ El más común
+con TVs.**
+
+**Qué pasa:** Linux no pudo leer el **EDID** de la TV (los datos que la
+pantalla le manda a la PC diciendo "soy de tal resolución"). Cuando no lo lee,
+el sistema se rinde y cae a la resolución de emergencia **640×480**, y la TV
+estira esa mini-imagen a la fuerza. El menú de la TV **no lo arregla** porque
+el problema no es overscan, es la resolución equivocada.
+
+**Por qué no se lee el EDID:** casi siempre por un **splitter HDMI barato** o
+un **adaptador DP→HDMI pasivo** en medio — no dejan pasar el canal de datos
+(DDC/EDID) de la TV. Un splitter, además, tiene que armar un EDID único que
+sirva para las dos teles, y los baratos no lo hacen → 640×480.
+
+**Ojo con el nombre de la salida:** Lubuntu nombra las salidas por el **puerto
+físico de la tarjeta de video**, no por el cable. Un adaptador **DP→HDMI sigue
+apareciendo como `DP-x`** (`DP-0`, `DP-1`, `DisplayPort-1`…), NO como `HDMI`,
+porque para la GPU el puerto es DisplayPort. El "HDMI" solo existe de la mitad
+del cable en adelante.
+
+**Arreglo — forzar la resolución desde la PC** (método de dos monitores,
+X11/wmctrl). En una terminal de esa estación:
+
+1. Identifica la salida de la TV — la que **NO** es la del POS (1280×1024) y
+   que muestra `640x480`:
+   ```bash
+   xrandr        # busca la salida `connected` con 640x480, p.ej. DP-1
+   ```
+2. Crea el modo **1080p** (sincronía estándar de TV) y aplícalo — cambia
+   `DP-1` por tu salida real:
+   ```bash
+   xrandr --newmode "1920x1080_60" 148.50 1920 2008 2052 2200 1080 1084 1089 1125 +hsync +vsync
+   xrandr --addmode DP-1 "1920x1080_60"
+   xrandr --output DP-1 --mode "1920x1080_60"
+   ```
+3. **Si alguna TV se queda en "no signal"** (teles viejas/chicas 720p, o dos
+   teles distintas colgadas de un splitter que no coinciden), usa **720p**,
+   que aceptan todas:
+   ```bash
+   xrandr --newmode "1280x720_60" 74.25 1280 1390 1430 1650 720 725 730 750 +hsync +vsync
+   xrandr --addmode DP-1 "1280x720_60"
+   xrandr --output DP-1 --mode "1280x720_60"
+   ```
+4. Reabre la pantalla del KDS ("¿En qué pantalla?") — la TV debe verse
+   completa y reportar la nueva resolución.
+
+**Dejarlo permanente** (si no, al reiniciar vuelve a 640×480). Pega esas 3
+líneas al inicio de `~/kiosk-launch.sh`, **después del `sleep 5` y antes de
+lanzar la app**, y **ajusta la línea de `wmctrl` de la ventana de Cocina** a la
+resolución nueva (el `-e` de "Cocina" debía cuadrar con lo forzado):
+```bash
+sleep 5
+# --- forzar resolución de la TV (EDID no leído) ---
+xrandr --newmode "1920x1080_60" 148.50 1920 2008 2052 2200 1080 1084 1089 1125 +hsync +vsync 2>/dev/null
+xrandr --addmode DP-1 "1920x1080_60" 2>/dev/null
+xrandr --output DP-1 --mode "1920x1080_60"
+# ... (resto del script) ...
+# y más abajo, la ventana de Cocina a 1920x1080 en la posición del 2º monitor:
+#   wmctrl -r "Cocina" -e 0,1280,0,1920,1080
+```
+(El `2>/dev/null` en `--newmode`/`--addmode` evita ruido cuando el modo ya
+existe en arranques posteriores.)
+
+> **Con splitter (una entrada → dos teles):** desde la PC hay **una sola
+> salida que forzar** (la del DP→splitter); el splitter reparte la misma señal
+> a las dos teles. Elige una resolución que **ambas** acepten (1080p, o 720p
+> como apuesta segura).
+
+**Arreglo de raíz (para que "solo funcione" sin script):** un **splitter con
+EDID correcto** (algunos traen un switch de EDID manual a 1080p) o un
+**adaptador DP→HDMI activo** de mejor marca. Con eso la PC vuelve a leer la
+resolución real y no hace falta forzar nada.
+
+⚠️ **Lección de la instalación real (2026-07):** estación con **1 VGA + 2 DP**.
+El VGA daba el POS a 1280×1024 (perfecto). Un DP con **adaptador DP→HDMI** iba
+a un **splitter Steren** que duplicaba la cocina en **dos TVs** (Toshiba +
+Philips). Las dos salían **cortadas/deformes**; el menú de la TV NO lo arregló.
+El diálogo "¿En qué pantalla?" delató la causa: la segunda pantalla estaba en
+**640×480** — el splitter (y el adaptador pasivo) no pasaban el EDID. Se
+resolvió **forzando 1080p con `xrandr`** como arriba. Detalle que confunde: la
+salida se llamaba `DP-x`, no `HDMI`, aunque el cable terminara en HDMI.
+
 ### 4.4 Confirmar el gestor de sesión
 
 ```bash
@@ -1186,7 +1313,41 @@ como si fuera un día real:
    lista.
 9. Configuración → Equipo → **Reiniciar** → la PC vuelve sola a la app. ✔
 
-### 5.7 Checklist final de entrega (marca todo antes de irte)
+### 5.7 Soporte remoto — deja AnyDesk instalado (acceso desatendido)
+
+Como parte del setup, **instala AnyDesk** en la estación para poder dar soporte
+sin ir en persona (ajustar pantallas, editar el script del kiosko, revisar
+logs). Configurar el **acceso desatendido ahora** evita que en una futura
+urgencia tengas que dictarle la instalación por teléfono a un cliente no
+técnico. (Ver el **Apéndice B** para el detalle y el caso remoto.)
+
+⚠️ Requiere que la estación sea **X11** (método de dos monitores, Fase 4.3)
+para poder **controlar**, no solo ver. Si quedó en `cage`/Wayland (un monitor),
+AnyDesk solo verá — revisa el Apéndice B.
+
+En una terminal (lo haces tú, con teclado; en la Lubuntu mínima no hay
+navegador, por eso el `.deb` se baja con `wget`):
+```bash
+sudo apt update
+sudo apt install -y wget
+cd /tmp
+wget https://deb.anydesk.com/pool/main/a/anydesk/anydesk_8.0.4_amd64.deb
+sudo apt install -y ./anydesk_8.0.4_amd64.deb
+```
+(Si esa URL da 404, saca el `_amd64.deb` más nuevo de
+`https://deb.anydesk.com/pool/main/a/anydesk/` y ajusta la versión.)
+
+Configura el **acceso desatendido** y deja el servicio activo al arrancar:
+```bash
+echo "UNA_CONTRASEÑA_FUERTE" | sudo anydesk --set-password
+sudo systemctl enable --now anydesk
+anydesk --get-id            # anota este número de 9 dígitos
+```
+Apunta el **ID** y la **contraseña** en la hoja de entrega (guárdala bien: es
+acceso total a la caja registradora). Para dar soporte, te conectas desde tu
+AnyDesk con ese ID + contraseña, **sin que el cliente tenga que tocar nada**.
+
+### 5.8 Checklist final de entrega (marca todo antes de irte)
 
 - [ ] SO instalado y actualizado; red del local conectada (cable o Wi-Fi).
 - [ ] BIOS: "Restore on AC Power Loss" = **Power On** (probado: desconecta el
@@ -1211,8 +1372,11 @@ como si fuera un día real:
       apagar del sistema visible).
 - [ ] Contraseña del usuario del kiosko **NO es trivial** (nada tipo `1234`
       o `0000` — se usa para `sudo` y para el mantenimiento por TTY).
+- [ ] **AnyDesk** instalado + acceso desatendido configurado (5.7); ID y
+      contraseña de AnyDesk anotados en la hoja de entrega.
 - [ ] Hoja de entrega con: contraseña del usuario, IP de la PC, IP de
-      la impresora, nombre de la cola CUPS (si aplica).
+      la impresora, nombre de la cola CUPS (si aplica), **ID + contraseña de
+      AnyDesk**.
 
 ---
 
@@ -1464,3 +1628,73 @@ sudo lsof -i :8080                # ¿hay una conexión ESTABLISHED del ESP32?
                                   # pantalla — el problema estaría en la app,
                                   # no en la red; revisa el log del día)
 ```
+
+---
+
+# Apéndice B — Soporte remoto a la estación (AnyDesk)
+
+Para atender a un cliente **sin ir en persona** (ajustar resolución, editar el
+script del kiosko, revisar logs, etc.). La idea: que el cliente instale
+**AnyDesk** una sola vez y te lea su número; de ahí en adelante tú tecleas todo
+tú mismo desde tu PC, sin dictarle comandos.
+
+**Por qué AnyDesk y no TeamViewer:** en una PC **comercial** (un local),
+TeamViewer suele marcar "uso comercial" y **cortar la sesión a los 5 minutos** —
+te deja a medias. AnyDesk es más ligero en Lubuntu y menos quisquilloso.
+
+**Requisito clave — tiene que ser X11:** el control remoto **solo deja
+controlar** (mouse/teclado) si la estación corre en **X11**. El método de **dos
+monitores (Fase 4.3, escritorio + `wmctrl`) es X11 → funciona**. El método de
+**un monitor (4.3-alt, `cage`) es Wayland → AnyDesk solo VE, no controla**. Si
+la estación es `cage` y necesitas control, tendrás que pasarla temporalmente al
+escritorio normal o trabajar por otra vía (SSH).
+
+**Sin navegador:** la Lubuntu mínima del cliente normalmente **no trae
+navegador**, así que AnyDesk se instala **100% desde la terminal** (nada de
+descargar un `.deb` a mano).
+
+### B.1 Guion para el cliente (desde salir del kiosko hasta darte el número)
+
+Mándaselo por **WhatsApp** (mejor que dictarlo por voz — así copia los comandos
+tal cual):
+
+1. **Salir del kiosko:** en el POS, **Configuración → Kiosko → apagar "Modo
+   kiosko"**. Aparece el escritorio de Lubuntu y la barra de tareas.
+   - *Si la ventana no se libera* (porque en esa estación se fuerza fullscreen
+     con `wmctrl`, no con el flag de la app): `Ctrl+Alt+F3` → login → editar a
+     mano; o usa el atajo del gestor de ventanas para minimizar. Resuélvelo en
+     vivo según cómo quedó esa estación.
+2. **Abrir terminal:** menú de inicio → Herramientas del sistema → **QTerminal**.
+3. **Instalar AnyDesk** — teclear renglón por renglón (la contraseña de `sudo`
+   **no muestra nada al escribirla**, es normal):
+   ```bash
+   sudo apt update
+   sudo apt install -y wget
+   cd /tmp
+   wget https://deb.anydesk.com/pool/main/a/anydesk/anydesk_8.0.4_amd64.deb
+   sudo apt install -y ./anydesk_8.0.4_amd64.deb
+   anydesk
+   ```
+4. Al abrir AnyDesk, el cliente te lee el **número de 9 dígitos** (su dirección).
+   - *Si la ventana no abre bien* en el escritorio minimalista, saca el número
+     por terminal: `anydesk --get-id`.
+5. Tú metes ese número en tu AnyDesk (de Windows/Mac) → al cliente le sale un
+   aviso → **Aceptar**. Listo, tomas el control.
+
+### B.2 Notas de mantenimiento
+
+- **La versión del `.deb` cambia con el tiempo.** Si el `wget` da "no
+  encontrado", saca el nombre actual del archivo del repositorio oficial:
+  `https://deb.anydesk.com/pool/main/a/anydesk/` (usa el `_amd64.deb` más nuevo)
+  y ajusta la URL. `apt install -y ./archivo.deb` instala **y resuelve
+  dependencias** en un paso (no uses `dpkg -i` suelto: deja dependencias rotas).
+- **Acceso desatendido (para visitas repetidas, sin que el cliente tenga que
+  dar "Aceptar" cada vez):** una vez instalado, en la terminal del cliente:
+  ```bash
+  echo "UNA_CONTRASEÑA_FUERTE" | sudo anydesk --set-password
+  sudo systemctl enable --now anydesk   # deja el servicio corriendo al arrancar
+  ```
+  Guarda esa contraseña; con ella te conectas sin intervención del cliente.
+  ⚠️ Ponla **fuerte** — es acceso total a la caja registradora.
+- Terminado el soporte, si activaste acceso desatendido y no lo quieres
+  permanente, quítalo: `sudo systemctl disable --now anydesk`.
