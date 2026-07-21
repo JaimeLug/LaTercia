@@ -3,6 +3,17 @@ import 'package:flutter/material.dart';
 import 'package:screen_retriever/screen_retriever.dart';
 import '../../core/theme/app_theme.dart';
 
+/// Un display es "principal" si su origen está en (0,0). El POS se abre ahí
+/// (centrado), así que abrir el KDS a pantalla completa en ese monitor taparía
+/// el POS sin forma de cerrarlo. `docs/kds.md`.
+bool kdsDisplayIsPrimary(Display d) =>
+    (d.visiblePosition?.dx ?? 0) == 0 && (d.visiblePosition?.dy ?? 0) == 0;
+
+/// Monitores donde SÍ se puede abrir el KDS: todos menos el principal (el del
+/// POS). Evita el bloqueo reportado en sitio (la Cocina tapaba el POS).
+List<Display> kdsTargetDisplays(List<Display> all) =>
+    all.where((d) => !kdsDisplayIsPrimary(d)).toList();
+
 /// Muestra el selector "¿En qué pantalla?" para abrir la Cocina · KDS. Si se
 /// elige un monitor, lanza el KDS como ventana aparte en esa pantalla; devuelve
 /// `true` solo si el usuario elige "Esta ventana" (KDS embebido).
@@ -46,8 +57,13 @@ class _KdsPickerDialog extends StatelessWidget {
   final List<Display> displays;
   const _KdsPickerDialog({required this.displays});
 
-  bool _isPrimary(Display d) =>
-      (d.visiblePosition?.dx ?? 0) == 0 && (d.visiblePosition?.dy ?? 0) == 0;
+  /// Monitores ofrecibles (secundarios) con su número original de pantalla,
+  /// para etiquetarlos "Pantalla N" de forma estable.
+  List<({int index, Display display})> get _targets => [
+        for (var i = 0; i < displays.length; i++)
+          if (!kdsDisplayIsPrimary(displays[i]))
+            (index: i, display: displays[i]),
+      ];
 
   @override
   Widget build(BuildContext context) {
@@ -79,20 +95,27 @@ class _KdsPickerDialog extends StatelessWidget {
               ),
               const SizedBox(height: 4),
               const Text(
-                'Elige un monitor disponible para la vista de cocina.',
+                'Elige el monitor de cocina. La pantalla del POS no aparece '
+                'aquí para no taparla por accidente.',
                 style: TextStyle(color: LaTerciaColors.tan),
               ),
               const SizedBox(height: 20),
-              for (var i = 0; i < displays.length; i++)
+              for (final t in _targets)
                 _OptionTile(
-                  title: _isPrimary(displays[i])
-                      ? 'Pantalla ${i + 1} · Principal'
-                      : 'Pantalla ${i + 1}',
-                  subtitle:
-                      '${_isPrimary(displays[i]) ? 'Monitor principal' : 'Monitor secundario'} · '
-                      '${(displays[i].visibleSize?.width ?? displays[i].size.width).toInt()}×${(displays[i].visibleSize?.height ?? displays[i].size.height).toInt()}',
+                  title: 'Pantalla ${t.index + 1}',
+                  subtitle: 'Monitor secundario · '
+                      '${(t.display.visibleSize?.width ?? t.display.size.width).toInt()}×${(t.display.visibleSize?.height ?? t.display.size.height).toInt()}',
                   onTap: () =>
-                      Navigator.pop(context, _KdsChoice.monitor(displays[i])),
+                      Navigator.pop(context, _KdsChoice.monitor(t.display)),
+                ),
+              if (_targets.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.only(bottom: 12),
+                  child: Text(
+                    'No se detectó un segundo monitor. La cocina se abrirá en '
+                    'esta misma ventana.',
+                    style: TextStyle(color: LaTerciaColors.tan, fontSize: 13),
+                  ),
                 ),
               _OptionTile(
                 title: 'Esta ventana',
