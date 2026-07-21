@@ -174,6 +174,15 @@ metadatos por catálogo (ej. `c_ClaveProdServ` trae `iva_trasladado`,
 3. Al cerrar la venta: crear `FiscalDoc` (tipo `individual`, estado `pendiente`)
    + congelar sus `FiscalDocItems`.
 
+**Faltan datos / facturar después:** si el cliente aún no dio su RFC, se guarda
+sin datos (`estado = 'sin_datos'`) y se completa luego desde el módulo de
+Facturación (botón "Completar") o desde el detalle de la orden.
+
+**Facturar una venta pasada:** si no se marcó "Requiere factura" al cobrar, la
+venta se puede facturar después desde **Órdenes → detalle → "Facturar"**
+(usa `FiscalService.individualForOrder` para no duplicar: si ya existe la
+completa/informa en vez de crear otra).
+
 ## Flujo B — Factura global (colgada del corte Z)
 
 1. Al hacer corte Z (o desde el módulo con selector de periodo): consolidar

@@ -305,5 +305,27 @@ void main() {
       expect(doc.estado, 'pendiente');
       expect(doc.receptorRfc, 'AAA010101AAA');
     });
+
+    test('individualForOrder: null antes de facturar, el doc después',
+        () async {
+      final orderId = await ventaPagada('IF-1', 116);
+      // Sin factura todavía → facturar desde el historial de órdenes.
+      expect(await svc.individualForOrder(orderId), isNull);
+
+      final docId = await svc.freezeIndividual(
+        orderId: orderId,
+        receptor: (
+          rfc: 'AAA010101AAA',
+          razonSocial: 'ACME',
+          cpFiscal: '97000',
+          regimen: '601',
+          usoCfdi: 'G03',
+        ),
+        usoCfdi: 'G03',
+      );
+      final doc = await svc.individualForOrder(orderId);
+      expect(doc, isNotNull);
+      expect(doc!.id, docId);
+    });
   });
 }

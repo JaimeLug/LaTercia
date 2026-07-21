@@ -7,6 +7,7 @@ import '../../../core/providers/orders_provider.dart';
 import '../../../core/providers/session_provider.dart';
 import '../../../core/providers/settings_provider.dart';
 import '../../../core/services/audit_service.dart';
+import '../../../core/services/fiscal_service.dart';
 import '../../../core/services/permission_service.dart';
 import '../../../core/services/print_service.dart';
 import '../../../core/services/refund_service.dart';
@@ -14,6 +15,7 @@ import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/csv_exporter.dart';
 import '../../../core/utils/formatters.dart';
 import '../../auth/supervisor_pin_dialog.dart';
+import '../../pos/widgets/factura_capture_dialog.dart';
 import '../widgets/admin_panel.dart';
 
 class OrdersScreen extends ConsumerStatefulWidget {
@@ -200,6 +202,11 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> {
     final payments = await db.paymentsDao.getPaymentsForOrder(order.id);
     final settings = ref.read(settingsProvider).valueOrNull ?? {};
     final symbol = settings['currency_symbol'] ?? r'$';
+    // Estado fiscal de la venta: si ya se facturó (y en qué estado), para
+    // ofrecer "Facturar" / "Completar factura" desde el historial de órdenes.
+    // docs/facturacion.md §"Flujo A".
+    final fiscalDoc =
+        await ref.read(fiscalServiceProvider).individualForOrder(order.id);
 
     if (!context.mounted) return;
     showDialog(
@@ -252,6 +259,8 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> {
               onPressed: () => _reprintTicket(context, order, items, payments),
             ),
           if (order.paymentStatus == 'pagado')
+            _facturarAction(context, order, fiscalDoc),
+          if (order.paymentStatus == 'pagado')
             TextButton.icon(
               icon: const Icon(Icons.currency_exchange, size: 17),
               label: const Text('Reembolsar'),
@@ -270,6 +279,48 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  /// Acción "Facturar" del detalle de una orden pagada. Según el estado fiscal:
+  /// sin factura → la crea; "sin datos" → la completa; ya lista → solo informa
+  /// (no duplica). Cierra el detalle y abre el diálogo de captura.
+  /// docs/facturacion.md §"Flujo A".
+  Widget _facturarAction(BuildContext context, Order order, FiscalDoc? doc) {
+    if (doc == null) {
+      return TextButton.icon(
+        icon: const Icon(Icons.receipt_long, size: 17),
+        label: const Text('Facturar'),
+        style:
+            TextButton.styleFrom(foregroundColor: LaTerciaColors.burntOrange),
+        onPressed: () async {
+          Navigator.pop(context);
+          await showFacturaCapture(context, ref, order: order);
+          if (mounted) setState(() {});
+        },
+      );
+    }
+    if (doc.estado == 'sin_datos') {
+      return TextButton.icon(
+        icon: const Icon(Icons.edit_note, size: 18),
+        label: const Text('Completar factura'),
+        style:
+            TextButton.styleFrom(foregroundColor: LaTerciaColors.burntOrange),
+        onPressed: () async {
+          Navigator.pop(context);
+          await showFacturaCapture(context, ref, docToComplete: doc);
+          if (mounted) setState(() {});
+        },
+      );
+    }
+    // Ya facturada (pendiente o exportada): informativo, sin volver a crearla.
+    return TextButton.icon(
+      icon: const Icon(Icons.check_circle,
+          size: 17, color: LaTerciaColors.success),
+      label:
+          Text(doc.estado == 'exportada' ? 'Factura exportada' : 'Facturada'),
+      style: TextButton.styleFrom(foregroundColor: LaTerciaColors.success),
+      onPressed: null,
     );
   }
 

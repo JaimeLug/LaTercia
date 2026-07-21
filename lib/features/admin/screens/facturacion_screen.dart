@@ -32,6 +32,8 @@ class _FacturacionScreenState extends ConsumerState<FacturacionScreen> {
   );
   bool _busy = false;
   List<FiscalDoc> _docs = const [];
+  // Número de venta por orden (para mostrarlo en la tabla de documentos).
+  Map<int, String> _orderNums = const {};
 
   @override
   void initState() {
@@ -44,7 +46,20 @@ class _FacturacionScreenState extends ConsumerState<FacturacionScreen> {
     final docs = await (db.select(db.fiscalDocs)
           ..orderBy([(t) => OrderingTerm.desc(t.createdAt)]))
         .get();
-    if (mounted) setState(() => _docs = docs);
+    // Resuelve el número de venta de cada documento individual (por orden).
+    final nums = <int, String>{};
+    for (final d in docs) {
+      if (d.orderId != null) {
+        final o = await db.ordersDao.getOrderById(d.orderId!);
+        if (o != null) nums[d.orderId!] = o.orderNumber;
+      }
+    }
+    if (mounted) {
+      setState(() {
+        _docs = docs;
+        _orderNums = nums;
+      });
+    }
   }
 
   DateTime get _desde =>
@@ -128,7 +143,11 @@ class _FacturacionScreenState extends ConsumerState<FacturacionScreen> {
                   _emisorWarning(),
                   const SizedBox(height: 16),
                 ],
-                _periodoYExport(),
+                _periodoSelector(),
+                const SizedBox(height: 16),
+                _individualesCard(),
+                const SizedBox(height: 16),
+                _globalCard(),
                 const SizedBox(height: 16),
                 _docsPanel(),
               ],
@@ -190,55 +209,135 @@ class _FacturacionScreenState extends ConsumerState<FacturacionScreen> {
     );
   }
 
-  Widget _periodoYExport() {
+  /// Selector de periodo compartido por ambos flujos (individuales y global).
+  Widget _periodoSelector() {
     final f = DateFormat('d MMM yyyy', 'es_MX');
+    return AdminPanel(
+      padding: const EdgeInsets.all(18),
+      child: Row(
+        children: [
+          const Icon(Icons.date_range, color: LaTerciaColors.tan, size: 20),
+          const SizedBox(width: 12),
+          const Text('Periodo',
+              style: TextStyle(
+                  fontWeight: FontWeight.w700,
+                  color: LaTerciaColors.darkBrown)),
+          const SizedBox(width: 16),
+          Expanded(
+            child: OutlinedButton(
+              onPressed: _busy ? null : _pickPeriodo,
+              child: Text('${f.format(_periodo.start)} — '
+                  '${f.format(_periodo.end)}'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Flujo principal: las ventas marcadas "Requiere factura" en el POS. Aquí se
+  /// completan las que quedaron sin datos y se exportan las pendientes.
+  Widget _individualesCard() {
     return AdminPanel(
       padding: const EdgeInsets.all(18),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Periodo',
-              style: TextStyle(
-                  fontWeight: FontWeight.w700,
-                  color: LaTerciaColors.darkBrown)),
-          const SizedBox(height: 10),
           Row(
             children: [
-              Expanded(
-                child: OutlinedButton.icon(
-                  icon: const Icon(Icons.date_range),
-                  label: Text('${f.format(_periodo.start)} — '
-                      '${f.format(_periodo.end)}'),
-                  onPressed: _busy ? null : _pickPeriodo,
+              Container(
+                width: 34,
+                height: 34,
+                decoration: BoxDecoration(
+                  color: LaTerciaColors.burntOrange.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(10),
                 ),
+                child: const Icon(Icons.person_outline,
+                    size: 19, color: LaTerciaColors.burntOrange),
+              ),
+              const SizedBox(width: 12),
+              const Expanded(
+                child: Text('Facturas individuales',
+                    style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                        color: LaTerciaColors.darkBrown)),
               ),
             ],
           ),
-          const Divider(height: 28),
-          Wrap(
-            spacing: 12,
-            runSpacing: 10,
+          const SizedBox(height: 8),
+          const Text(
+            'Son las ventas que marcaste "Requiere factura" al cobrar. '
+            'Complétalas abajo si les faltan datos y expórtalas para timbrar.',
+            style: TextStyle(fontSize: 12.5, color: LaTerciaColors.tan),
+          ),
+          const SizedBox(height: 14),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: FilledButton.icon(
+              style: FilledButton.styleFrom(
+                  backgroundColor: LaTerciaColors.burntOrange),
+              icon: const Icon(Icons.description_outlined),
+              label: const Text('Exportar pendientes del periodo'),
+              onPressed: _busy
+                  ? null
+                  : () => _exportar(
+                        build: () => ref
+                            .read(fiscalExportServiceProvider)
+                            .exportIndividualesPendientes(_desde, _hasta),
+                        nombre: 'cfdi-individuales-$_periodoRef',
+                      ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Flujo secundario: una sola factura del periodo a "público en general" con
+  /// todas las ventas que NO se facturaron individualmente.
+  Widget _globalCard() {
+    return AdminPanel(
+      padding: const EdgeInsets.all(18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
             children: [
-              FilledButton.icon(
-                style: FilledButton.styleFrom(
-                    backgroundColor: LaTerciaColors.burntOrange),
-                icon: const Icon(Icons.receipt_long),
-                label: const Text('Generar factura global'),
-                onPressed: _busy ? null : _generarGlobal,
+              Container(
+                width: 34,
+                height: 34,
+                decoration: BoxDecoration(
+                  color: LaTerciaColors.llevar.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(Icons.groups_outlined,
+                    size: 19, color: LaTerciaColors.llevar),
               ),
-              OutlinedButton.icon(
-                icon: const Icon(Icons.description_outlined),
-                label: const Text('Exportar individuales pendientes'),
-                onPressed: _busy
-                    ? null
-                    : () => _exportar(
-                          build: () => ref
-                              .read(fiscalExportServiceProvider)
-                              .exportIndividualesPendientes(_desde, _hasta),
-                          nombre: 'cfdi-individuales-$_periodoRef',
-                        ),
+              const SizedBox(width: 12),
+              const Expanded(
+                child: Text('Factura global del periodo',
+                    style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                        color: LaTerciaColors.darkBrown)),
               ),
             ],
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'Junta en UNA sola factura (público en general) todas las ventas '
+            'pagadas del periodo que no se facturaron de forma individual.',
+            style: TextStyle(fontSize: 12.5, color: LaTerciaColors.tan),
+          ),
+          const SizedBox(height: 14),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: OutlinedButton.icon(
+              icon: const Icon(Icons.receipt_long),
+              label: const Text('Generar factura global'),
+              onPressed: _busy ? null : _generarGlobal,
+            ),
           ),
         ],
       ),
@@ -275,10 +374,11 @@ class _FacturacionScreenState extends ConsumerState<FacturacionScreen> {
           else ...[
             const AdminHeaderRow(cells: [
               Expanded(flex: 2, child: Text('TIPO')),
-              Expanded(flex: 3, child: Text('RECEPTOR / PERIODO')),
+              Expanded(flex: 3, child: Text('RECEPTOR')),
+              Expanded(flex: 2, child: Text('VENTA / PERIODO')),
               Expanded(flex: 2, child: Text('CREADO')),
               Expanded(flex: 2, child: Text('ESTADO')),
-              SizedBox(width: 96, child: Text('')),
+              SizedBox(width: 108, child: Text('')),
             ]),
             for (var i = 0; i < _docs.length; i++) _docRow(_docs[i], i),
           ],
@@ -289,6 +389,14 @@ class _FacturacionScreenState extends ConsumerState<FacturacionScreen> {
 
   Widget _docRow(FiscalDoc d, int i) {
     final esGlobal = d.tipo == 'global';
+    final receptor = esGlobal
+        ? 'Público en general'
+        : (d.receptorRazonSocial ?? d.receptorRfc ?? 'Sin datos');
+    final ventaOPeriodo = esGlobal
+        ? (d.periodoRef ?? '—')
+        : (d.orderId != null && _orderNums[d.orderId] != null
+            ? 'Venta ${_orderNums[d.orderId]}'
+            : '—');
     return AdminRow(
       isLast: i == _docs.length - 1,
       cells: [
@@ -299,12 +407,11 @@ class _FacturacionScreenState extends ConsumerState<FacturacionScreen> {
         ),
         Expanded(
           flex: 3,
-          child: Text(
-            esGlobal
-                ? (d.periodoRef ?? 'Público en general')
-                : (d.receptorRazonSocial ?? d.receptorRfc ?? '—'),
-            overflow: TextOverflow.ellipsis,
-          ),
+          child: Text(receptor, overflow: TextOverflow.ellipsis),
+        ),
+        Expanded(
+          flex: 2,
+          child: Text(ventaOPeriodo, overflow: TextOverflow.ellipsis),
         ),
         Expanded(flex: 2, child: Text(formatDate(d.createdAt))),
         Expanded(flex: 2, child: _estadoPill(d.estado)),

@@ -369,16 +369,8 @@ class _PaymentModalState extends ConsumerState<PaymentModal> {
                 const SizedBox(height: 8),
                 // Flujo A: al confirmar, si está marcado, se piden los datos
                 // fiscales y se congela la factura. docs/facturacion.md.
-                CheckboxListTile(
-                  value: _requiereFactura,
-                  onChanged: _processing
-                      ? null
-                      : (v) => setState(() => _requiereFactura = v ?? false),
-                  contentPadding: EdgeInsets.zero,
-                  controlAffinity: ListTileControlAffinity.leading,
-                  dense: true,
-                  title: const Text('Requiere factura (CFDI)'),
-                ),
+                _buildRequiereFactura(),
+                const SizedBox(height: 12),
                 Row(
                   children: [
                     Expanded(
@@ -410,6 +402,66 @@ class _PaymentModalState extends ConsumerState<PaymentModal> {
                 ),
               ],
             ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Tile "Requiere factura" con el mismo lenguaje visual del modal (redondeado,
+  /// borde burntOrange al activarse) e indicador circular — evita el checkbox
+  /// cuadrado default de Material. docs/facturacion.md §"Flujo A".
+  Widget _buildRequiereFactura() {
+    final on = _requiereFactura;
+    return Material(
+      color: on ? LaTerciaColors.surfaceVariant : Colors.white,
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap:
+            _processing ? null : () => setState(() => _requiereFactura = !on),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: on ? LaTerciaColors.burntOrange : LaTerciaColors.border,
+              width: on ? 1.6 : 1,
+            ),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 22,
+                height: 22,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: on ? LaTerciaColors.burntOrange : Colors.transparent,
+                  border: Border.all(
+                    color: on ? LaTerciaColors.burntOrange : LaTerciaColors.tan,
+                    width: 1.6,
+                  ),
+                ),
+                child: on
+                    ? const Icon(Icons.check, size: 14, color: Colors.white)
+                    : null,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  'Requiere factura (CFDI)',
+                  style: TextStyle(
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w600,
+                    color:
+                        on ? LaTerciaColors.burntOrange : LaTerciaColors.cocoa,
+                  ),
+                ),
+              ),
+              Icon(Icons.receipt_long_outlined,
+                  size: 18,
+                  color: on ? LaTerciaColors.burntOrange : LaTerciaColors.tan),
+            ],
           ),
         ),
       ),

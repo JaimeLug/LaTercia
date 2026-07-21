@@ -155,6 +155,17 @@ class FiscalService {
     ));
   }
 
+  /// El documento fiscal individual de una orden, si ya existe. Sirve para
+  /// facturar una venta pasada desde el historial de órdenes sin duplicarla
+  /// (y para saber si quedó "sin datos"). docs/facturacion.md §"Flujo A".
+  Future<FiscalDoc?> individualForOrder(int orderId) async {
+    final docs = await (_db.select(_db.fiscalDocs)
+          ..where((t) => t.orderId.equals(orderId))
+          ..where((t) => t.tipo.equals('individual')))
+        .get();
+    return docs.isEmpty ? null : docs.last;
+  }
+
   /// Consolida las ventas del periodo [desde, hasta] que estén pagadas, no
   /// canceladas y **sin** factura individual, en un [FiscalDocs] global
   /// (receptor público en general). Con [itemizado] (default) hay una fila por
