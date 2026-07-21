@@ -13,8 +13,10 @@ FASE 0 (en tu casa, VM Linux)  →  compilar el bundle, pasarlo a USB y
 FASE 1 (PC del cliente)        →  instalar Lubuntu desde USB booteable
 FASE 2                         →  actualizar sistema + dependencias
 FASE 3                         →  copiar la app a /opt/latercia y probarla
-FASE 4                         →  autologin + modo kiosko (cage)
+FASE 4                         →  autologin + modo kiosko
 FASE 5                         →  impresora, botonera ESP32, checklist final
+FASE 6                         →  actualizaciones futuras (y la transición
+                                  única a la versión con módulo de updates)
 ```
 
 **Convenciones de este manual:**
@@ -224,9 +226,10 @@ domésticos lo traen activo en la banda de invitados).
 **Contexto del hardware:** PC de ~2010–2014. Eso implica:
 - Puede ser **BIOS Legacy** (sin UEFI) o UEFI de primera generación — la
   Fase 1.1 cubre ambos.
-- GPU integrada vieja (Intel HD de esa época): es probable que `cage`
-  necesite el **Plan B de software rendering** (Fase 4.4) — no te asustes si
-  pasa, ya está previsto y es el mismo modo que corre en tu VM.
+- GPU integrada vieja (Intel HD de esa época): si usas el método de un solo
+  monitor (`cage`, Fase 4.3-alt), es probable que necesite el modo por
+  software (`LIBGL_ALWAYS_SOFTWARE=1`) — no te asustes si pasa, ya está
+  previsto y es el mismo modo que corre en tu VM.
 - RAM posiblemente 2–4 GB → por eso **Lubuntu** (escritorio LXQt ligero) en
   vez de Ubuntu normal. La app corre bien; solo evita abrir mil cosas a la
   vez durante la instalación.
@@ -401,19 +404,22 @@ cuesta nada y evita rarezas.)
 
 ### 2.3 Instalar dependencias de ejecución
 
-Tras el reinicio, terminal de nuevo:
+Tras el reinicio, terminal de nuevo. Instala todo de una vez — aunque en la
+Fase 4 solo termines usando uno de los dos métodos de kiosko (`cage` o
+`wmctrl`), es más simple dejar ambos listos ahora que decidir a medias:
 ```bash
-sudo apt install -y gstreamer1.0-plugins-base gstreamer1.0-plugins-good cups cage
+sudo apt install -y gstreamer1.0-plugins-base gstreamer1.0-plugins-good cups cage wmctrl xdotool
 ```
 Qué es cada cosa:
 - `gstreamer...`: sonidos de alerta del KDS.
 - `cups`: sistema de impresión (para impresora USB; no estorba si es de red).
-- `cage`: el compositor que convierte la PC en "electrodoméstico" (Fase 4).
+- `cage`: compositor para el método de kiosko de **un solo monitor** (Fase 4.3-alt).
+- `wmctrl`/`xdotool`: acomodo de ventanas para el método de **dos monitores** (Fase 4.3).
 
 Verifica que quedaron:
 ```bash
-which cage
-# → /usr/bin/cage
+which cage wmctrl xdotool
+# → /usr/bin/cage, /usr/bin/wmctrl, /usr/bin/xdotool
 systemctl status cups --no-pager | head -3
 # → debe decir "active (running)"
 ```
@@ -543,7 +549,9 @@ desde terminal y lee el error. Si menciona GL/GPU/renderer, prueba:
 LIBGL_ALWAYS_SOFTWARE=1 /opt/latercia/latercia
 ```
 Si así sí abre, la GPU de esta PC no puede con el render acelerado —
-**apúntalo**: en la Fase 4 irás directo al Plan B (4.4).
+**apúntalo**: en la Fase 4 irás directo a la variante "software rendering"
+(4.3-alt si es un monitor, o con `LIBGL_ALWAYS_SOFTWARE=1` agregado al script
+de 4.3 si son dos).
 
 ### 3.3b Cargar la base de datos con el catálogo real
 
@@ -555,14 +563,17 @@ fábrica). Ahora reemplázala por la base buena que traes en el USB-2.
 2. Localiza dónde creó la app su base en esta PC:
    ```bash
    find ~ -name "latercia.sqlite*" 2>/dev/null
-   # → lo esperado: /home/pos/Documents(o Documentos)/latercia.sqlite
+   # → lo esperado: /home/pos/.local/share/mx.latercia.pos/latercia.sqlite
    #   (pueden aparecer también latercia.sqlite-wal / -shm)
    ```
+   *(La base vive en la carpeta de soporte de la app, no en Documentos — el
+   nombre `mx.latercia.pos` sale del bundle ID; si algún día cambia, este
+   `find` lo sigue encontrando igual.)*
 3. Reemplaza (ajusta las rutas a lo que te dio el `find` y al nombre real de
    tu USB):
    ```bash
-   rm -f ~/Documents/latercia.sqlite-wal ~/Documents/latercia.sqlite-shm
-   cp /media/pos/KINGSTON/latercia.sqlite ~/Documents/latercia.sqlite
+   rm -f ~/.local/share/mx.latercia.pos/latercia.sqlite-wal ~/.local/share/mx.latercia.pos/latercia.sqlite-shm
+   cp /media/pos/KINGSTON/latercia.sqlite ~/.local/share/mx.latercia.pos/latercia.sqlite
    ```
    *(Los `-wal`/`-shm` son restos de la sesión anterior; hay que borrarlos
    para que no mezclen datos de la base vacía con la nueva.)*
@@ -599,6 +610,12 @@ groups
 
 # FASE 4 — Autologin y modo kiosko
 
+> ⚠️ **Usuario de este manual:** todos los comandos de aquí en adelante usan
+> `pos` como usuario del kiosko. Si en tu instalación (Fase 1.3) usaste otro
+> nombre (en la instalación real del 18-jul fue `latercia`), **sustituye
+> `pos` por tu usuario real en TODO — rutas, `chown`, nombres de sesión, todo.**
+> Es la causa más común de "no existe el archivo" en esta fase.
+
 ### 4.1 Aprende la ruta de escape ANTES de activar nada
 
 En modo kiosko no hay escritorio ni menús. La única puerta trasera son las
@@ -610,66 +627,227 @@ pantalla gráfica.
    `latercia-caja1 login:`.
 2. Teclea `pos`, Enter, tu contraseña (no se ve), Enter. Ya estás en una
    terminal de texto plena.
-3. Teclea `exit`, Enter, y regresa al gráfico con `Ctrl+Alt+F1` (si F1 no,
-   prueba `Ctrl+Alt+F2` — varía según la distro).
+3. Teclea `exit`, Enter, y regresa al gráfico con **`Ctrl+Alt+F2`** (en la
+   instalación real esa fue la tecla que funcionó — `F1` NO regresó a la
+   sesión gráfica en ese hardware; pruébalas las dos, varía por equipo).
 
 No sigas hasta que esto te haya funcionado. Es tu salvavidas.
 
-### 4.2 Probar `cage` a mano
+### 4.2 ¿Un monitor o dos? — decide el método de kiosko
+
+La app puede abrir **una sola ventana** (POS, con la cocina en una pestaña
+dentro de la misma pantalla) o **dos ventanas separadas** (POS + una ventana
+aparte de Cocina·KDS, pensada para un segundo monitor en la cocina). Si el
+sitio tiene **dos monitores** (uno para caja, otro para cocina — el caso más
+común en un local con área de preparación separada), usa **4.3 (wmctrl)**.
+Si es **un solo monitor**, usa **4.3-alt (cage)**, más simple.
+
+⚠️ **Lección de la instalación real:** se intentó primero con `cage` (el
+compositor "de una sola app") también para el caso de dos monitores, y
+**no funciona para eso** — `cage` trata los dos monitores físicos como si
+fueran un solo lienzo gigante, no hay forma de decirle "esta ventana va en
+el monitor 1, esta otra en el monitor 2". Por eso el método con dos
+monitores usa el escritorio normal + un script que acomoda cada ventana con
+`wmctrl`, no `cage`.
+
+### 4.3 Dos monitores (RECOMENDADO si aplica) — escritorio normal + `wmctrl`
+
+**1) Instala las herramientas de acomodo de ventanas:**
+```bash
+sudo apt install -y wmctrl xdotool
+```
+⚠️ Escribe el comando completo — un typo real del día de instalación fue
+escribir `sudo apt wmctrl xdotool` (sin la palabra `install`), que da un
+error confuso ("no tiene sentido la opción «l»") que no deja claro cuál es
+el problema real.
+
+**2) Identifica tus monitores** (con los dos ya conectados):
+```bash
+xrandr --listmonitors
+```
+Verás algo como:
+```
+Monitors: 2
+ 0: +*VGA-0 1280/338x1024/270+0+0  VGA-0
+ 1: +DisplayPort-1 1360/300x768/230+1280+0  DisplayPort-1
+```
+Anota: el **nombre** de cada salida (`VGA-0`, `DisplayPort-1` — varía según
+tu tarjeta/cableado), su **resolución** (`1280x1024`, `1360x768`) y su
+**posición** (`+0+0` el primero, `+1280+0` el segundo — el número tras el
+`+` es dónde empieza en X, así que el segundo monitor normalmente arranca
+donde termina el ancho del primero). Estos datos son los que vas a usar en
+el paso 4 — **van a ser distintos en cada instalación**, no copies los
+números de este ejemplo a ciegas.
+
+**3) Prueba manual antes de automatizar nada.** Corre la app en el
+escritorio normal:
+```bash
+/opt/latercia/latercia &
+```
+Deben abrir dos ventanas flotando en el mismo monitor (normal, todavía no
+las acomodamos). Confirma sus nombres exactos:
+```bash
+wmctrl -l
+# → debe listar algo como:
+#   0x... 0 jaime-virtualbox LaTercia POS
+#   0x... 0 jaime-virtualbox Cocina — LaTercia KDS
+```
+Con esos nombres y los datos del paso 2, pruébalo a mano (ajusta resolución
+y posición a LO QUE TE DIO TU `xrandr`, no copies estos números):
+```bash
+wmctrl -r "LaTercia POS" -e 0,0,0,1280,1024
+wmctrl -r "Cocina — LaTercia KDS" -e 0,1280,0,1360,768
+```
+Si cada ventana se movió a su monitor correspondiente, los datos son
+correctos — ciérralas (`killall latercia`) y sigue al paso 4.
+
+**4) Crea el script que hace esto solo al arrancar.**
+
+⚠️⚠️ **Antes de teclear nada: usa `nano` con el teclado físico de la PC,
+NUNCA copies/pegues este script desde un visor de documentos como Okular.**
+En la instalación real, pegar comandos desde un `.txt` abierto en Okular
+insertó caracteres invisibles (separadores de párrafo Unicode) que rompieron
+el script DOS VECES antes de detectar la causa — el error se veía como
+"No existe el archivo o el directorio" o "error de sintaxis cerca de
+'then'" sin ninguna pista de que el problema era el texto pegado, no el
+comando. Tecleado a mano en `nano` funcionó a la primera. Si de verdad
+necesitas copiar texto largo desde otra máquina, pásalo por USB como
+archivo `.sh` ya escrito (no como texto para pegar), o límpialo primero con:
+```bash
+tr -d '\r' < origen.sh | python3 -c "import sys; print(sys.stdin.read().replace(chr(8233),'').replace(chr(8232),''))" > limpio.sh
+```
 
 ```bash
+nano ~/kiosk-launch.sh
+```
+Pega esto (ajustando las coordenadas de las dos líneas `wmctrl -r ... -e` a
+las de TU `xrandr --listmonitors` del paso 2 — el resto no cambia):
+```bash
+#!/bin/bash
+sleep 5
+
+APP="/opt/latercia/latercia"
+
+if ! pgrep -f "$APP" > /dev/null; then
+  "$APP" &
+fi
+
+for i in $(seq 1 30); do
+  POS_WIN=$(wmctrl -l | grep "LaTercia POS")
+  KDS_WIN=$(wmctrl -l | grep "Cocina")
+  if [ -n "$POS_WIN" ] && [ -n "$KDS_WIN" ]; then
+    break
+  fi
+  sleep 1
+done
+
+sleep 2
+
+wmctrl -r "LaTercia POS" -e 0,0,0,1280,1024
+wmctrl -r "LaTercia POS" -b add,fullscreen
+
+wmctrl -r "Cocina" -e 0,1280,0,1360,768
+wmctrl -r "Cocina" -b add,fullscreen
+```
+Guarda (`Ctrl+O`, Enter, `Ctrl+X`) y hazlo ejecutable:
+```bash
+chmod +x ~/kiosk-launch.sh
+```
+**Verifica que quedó limpio** (sin caracteres raros — debe terminar cada
+línea justo en el texto, sin nada más):
+```bash
+cat -A ~/kiosk-launch.sh | head -5
+# cada línea debe terminar en $ pegado al último caracter visible,
+# NO en algo como M-bM-^@M-)$ (eso sería el separador de Okular colado)
+```
+
+**5) Pruébalo a mano** antes de conectarlo al arranque automático:
+```bash
+killall latercia 2>/dev/null
+~/kiosk-launch.sh
+```
+Espera ~7 segundos — la app debe abrir sola y las dos ventanas deben
+acomodarse cada una en su monitor, a pantalla completa.
+
+**6) Conéctalo al inicio de sesión** (arranca solo cuando alguien inicia
+sesión gráfica — lo combinamos con autologin en 4.5):
+```bash
+mkdir -p ~/.config/autostart
+nano ~/.config/autostart/kiosk-launch.desktop
+```
+Teclea/pega esto (5 líneas, ajusta `Exec=` a tu usuario real si no es `pos`):
+```
+[Desktop Entry]
+Type=Application
+Name=La Tercia Kiosk Launch
+Exec=/home/pos/kiosk-launch.sh
+X-LXQt-Need-Tray=false
+NoDisplay=true
+```
+Guarda (`Ctrl+O`, Enter, `Ctrl+X`).
+⚠️ Si tu usuario no es `pos`, corrige la ruta `Exec=` de arriba a la real
+(`/home/TU_USUARIO/kiosk-launch.sh`).
+
+**Prueba con logout/login manual ANTES de activar autologin** (cierra sesión
+desde el menú y vuelve a entrar con tu contraseña) — debe acomodarse solo,
+sin que hayas corrido el script a mano. Si funciona, sigue a **4.5**
+(saltando 4.3-alt).
+
+### 4.3-alt Un solo monitor (alternativa más simple) — `cage`
+
+Si el sitio solo tiene un monitor (todo en una sola ventana/pestaña), `cage`
+sigue siendo la opción más simple — un compositor de una sola app, sin
+necesitar el script de `wmctrl`.
+
+```bash
+sudo apt install -y cage
 cage -- /opt/latercia/latercia
 ```
-- **Si abre la app a pantalla completa:** perfecto. Ciérrala desde dentro si
-  la app lo permite, o `Ctrl+Alt+F3` → login → `killall latercia cage` →
-  `Ctrl+Alt+F1`. Continúa en 4.3 usando la sesión **normal**.
-- **Si da pantalla negra, error de renderer, o se cierra solo** (probable en
-  esta PC por la GPU vieja): prueba el modo por software:
+- **Si abre la app a pantalla completa:** perfecto, sigue con la sesión
+  **normal** en el paso siguiente.
+- **Si da pantalla negra, error de renderer, o se cierra solo** (común en
+  GPUs integradas viejas): prueba el modo por software:
   ```bash
   LIBGL_ALWAYS_SOFTWARE=1 cage -- /opt/latercia/latercia
   ```
-  Si así abre (aunque las animaciones se sientan menos fluidas), usarás la
-  sesión **software** en 4.3/4.4. Es exactamente el mismo modo con el que
-  corre tu VM — totalmente operativo.
-- **Si NINGUNA de las dos abre:** no actives autologin. Lee el error en la
-  terminal. Alternativa de emergencia: usa el método "autostart sobre el
-  escritorio" (archivos `latercia-kiosk.service` / `.desktop` en
-  `~/linux_kiosk/`, instrucciones en `setup.md` §4–5) — muestra el
-  escritorio un instante al arrancar, pero funciona sin cage.
+  Si así abre (animaciones menos fluidas, pero operativo), usa esa variante.
+- **Si NINGUNA abre:** no actives autologin todavía; lee el error en la
+  terminal antes de seguir.
 
-### 4.3 Crear las sesiones kiosko (crea LAS DOS, elige una en 4.5)
-
-Sesión normal (GPU):
+Crea la(s) sesión(es) kiosko. Primero la normal:
 ```bash
-sudo tee /usr/share/wayland-sessions/latercia-kiosk.desktop > /dev/null <<'EOF'
+sudo nano /usr/share/wayland-sessions/latercia-kiosk.desktop
+```
+Teclea/pega (5 líneas):
+```
 [Desktop Entry]
 Name=La Tercia Kiosko
 Comment=POS
 Exec=cage -- /opt/latercia/latercia
 Type=Application
-EOF
 ```
-
-Sesión software (fallback sin GPU):
+Guarda (`Ctrl+O`, Enter, `Ctrl+X`). Ahora la variante software:
 ```bash
-sudo tee /usr/share/wayland-sessions/latercia-kiosk-software.desktop > /dev/null <<'EOF'
+sudo nano /usr/share/wayland-sessions/latercia-kiosk-software.desktop
+```
+Teclea/pega (5 líneas):
+```
 [Desktop Entry]
 Name=La Tercia Kiosko (software rendering)
 Comment=POS — fallback sin GPU
 Exec=env LIBGL_ALWAYS_SOFTWARE=1 cage -- /opt/latercia/latercia
 Type=Application
-EOF
 ```
-
-Tener las dos instaladas te deja cambiar de una a otra editando **una sola
-línea** (4.5), sin volver a crear archivos.
+Guarda igual. Con las dos creadas, en 4.5 usa `Session=latercia-kiosk` o
+`Session=latercia-kiosk-software` según cuál abrió bien arriba.
 
 ### 4.4 Confirmar el gestor de sesión
 
 ```bash
 cat /etc/X11/default-display-manager
 ```
-- `→ /usr/bin/sddm` (lo esperado en Lubuntu 24.04): continúa en 4.5.
+- `→ /usr/bin/sddm` (lo esperado en Lubuntu 24.04, confirmado en la
+  instalación real): continúa en 4.5.
 - **Ramificación — dice `gdm3`** (Ubuntu normal con GNOME): el autologin se
   configura distinto. Edita `/etc/gdm3/custom.conf`:
   ```bash
@@ -680,37 +858,53 @@ cat /etc/X11/default-display-manager
   AutomaticLoginEnable=true
   AutomaticLogin=pos
   ```
-  (guardar en nano: `Ctrl+O`, Enter; salir: `Ctrl+X`). GDM no permite fijar
-  la sesión por archivo de config: al primer arranque con autologin, cierra
-  sesión una vez, y en la pantalla de login elige el engrane ⚙ → "La Tercia
-  Kiosko" antes de entrar — GDM recuerda la última sesión usada.
+  (guardar en nano: `Ctrl+O`, Enter; salir: `Ctrl+X`).
 - **Ramificación — dice `lightdm`:**
   ```bash
   sudo mkdir -p /etc/lightdm/lightdm.conf.d
-  sudo tee /etc/lightdm/lightdm.conf.d/50-autologin.conf > /dev/null <<'EOF'
+  sudo nano /etc/lightdm/lightdm.conf.d/50-autologin.conf
+  ```
+  Teclea/pega (3 líneas):
+  ```
   [Seat:*]
   autologin-user=pos
-  autologin-session=latercia-kiosk
-  EOF
+  autologin-session=lubuntu
   ```
-  (usa `latercia-kiosk-software` si aplica el Plan B) y salta 4.5.
+  (o `latercia-kiosk`/`latercia-kiosk-software` si usaste 4.3-alt). Guarda
+  (`Ctrl+O`, Enter, `Ctrl+X`) y salta a 4.6.
 
 ### 4.5 Autologin con SDDM
 
-Usa `Session=latercia-kiosk` **o** `Session=latercia-kiosk-software` según lo
-que funcionó en 4.2:
-
+**Si usaste 4.3 (wmctrl, dos monitores):** apunta a la sesión NORMAL del
+escritorio (`Lubuntu.desktop` o `lubuntu`, confírmalo con
+`ls /usr/share/wayland-sessions/ /usr/share/xsessions/ 2>/dev/null`) — el
+autostart que creaste en 4.3 paso 6 es lo que la convierte en kiosko, no una
+sesión especial:
 ```bash
 sudo mkdir -p /etc/sddm.conf.d
-sudo tee /etc/sddm.conf.d/autologin.conf > /dev/null <<'EOF'
+sudo nano /etc/sddm.conf.d/autologin.conf
+```
+Teclea/pega (3 líneas):
+```
+[Autologin]
+User=pos
+Session=lubuntu
+```
+Guarda (`Ctrl+O`, Enter, `Ctrl+X`).
+
+**Si usaste 4.3-alt (cage, un monitor):** apunta a tu sesión cage:
+```bash
+sudo mkdir -p /etc/sddm.conf.d
+sudo nano /etc/sddm.conf.d/autologin.conf
+```
+Teclea/pega (3 líneas):
+```
 [Autologin]
 User=pos
 Session=latercia-kiosk-software
-EOF
 ```
-*(El bloque de arriba deja la variante software, la más probable en esta PC.
-Si en 4.2 funcionó la GPU normal, cambia esa línea a
-`Session=latercia-kiosk`.)*
+*(cambia `Session=` a `latercia-kiosk` si te funcionó la variante con GPU).*
+Guarda igual.
 
 ⚠️ **Punto de no retorno del kiosko:** desde el próximo arranque la PC entra
 directa a la app, sin login ni escritorio. Tu vía de reversa es la TTY que ya
@@ -721,39 +915,39 @@ practicaste (4.1).
 ```bash
 sudo reboot
 ```
-La secuencia esperada: logo del fabricante → breve pantalla de arranque → la
-app de La Tercia a pantalla completa. **Nada de escritorio.**
+La secuencia esperada: logo del fabricante → breve pantalla de arranque →
+(con wmctrl: un parpadeo del escritorio de ~7 s mientras se acomodan las
+ventanas) → la app de La Tercia a pantalla completa, en su(s) monitor(es).
 
-**Ramificación — arrancó al escritorio normal en vez de la app:** el nombre
-en `Session=` no coincide con el archivo `.desktop`. El valor debe ser el
-nombre del archivo **sin** `.desktop`:
-```bash
-ls /usr/share/wayland-sessions/
-# → latercia-kiosk.desktop  latercia-kiosk-software.desktop
-sudo nano /etc/sddm.conf.d/autologin.conf   # corrige, guarda, reinicia
-```
+**Ramificación — arrancó al escritorio normal en vez de la app:**
+- Con wmctrl: revisa que `~/.config/autostart/kiosk-launch.desktop` exista y
+  que la ruta `Exec=` sea correcta.
+- Con cage: el nombre en `Session=` no coincide con el archivo `.desktop`
+  (debe ser el nombre del archivo **sin** `.desktop`):
+  ```bash
+  ls /usr/share/wayland-sessions/
+  sudo nano /etc/sddm.conf.d/autologin.conf   # corrige, guarda, reinicia
+  ```
 
 **Ramificación — pantalla negra tras el reinicio:** `Ctrl+Alt+F3` → login →
-- Si usaste la sesión GPU, cámbiala a la software:
+- Con cage: cambia a la sesión software y reinicia:
   ```bash
   sudo sed -i 's/Session=latercia-kiosk$/Session=latercia-kiosk-software/' /etc/sddm.conf.d/autologin.conf
   sudo reboot
   ```
-- Si ya estabas en software y aun así está negro, desactiva el kiosko para
-  diagnosticar con calma:
+- Si sigue negro, desactiva el kiosko para diagnosticar con calma:
   ```bash
   sudo rm /etc/sddm.conf.d/autologin.conf
   sudo reboot
   ```
-  (arranca al escritorio normal; repite 4.2 mirando el error).
+  (arranca al escritorio normal; repite 4.2/4.3 mirando el error).
 
-**Ramificación — la app crasheó y quedó pantalla negra estando en
-producción:** con cage puro, si la app muere la sesión termina y no se
-reinicia sola. Apagar y encender la PC la restaura (el arranque completo la
-vuelve a lanzar). Si esto pasara seguido, el plan alterno con reinicio
-automático es el servicio systemd de `~/linux_kiosk/latercia-kiosk.service`
-(instrucciones en sus comentarios) — pero implica el método autostart, no
-cage.
+**Ramificación — la app crasheó y quedó pantalla negra/vacía estando en
+producción:** ni cage ni el autostart de wmctrl reinician la app sola si
+truena. Apagar y encender la PC la restaura (el arranque completo la vuelve
+a lanzar). Si esto pasara seguido, hay un plan con reinicio automático vía
+systemd (`~/linux_kiosk/latercia-kiosk.service`, instrucciones en sus
+comentarios) — pero es otro método, no se combina con 4.3/4.3-alt.
 
 ---
 
@@ -806,10 +1000,24 @@ nc -zv IP_DE_LA_IMPRESORA 9100
 Si dice `refused` o `timed out`: la IP está mal, la impresora está apagada, o
 no están en la misma red. Resuélvelo aquí — la app no puede arreglar eso.
 
-**Paso 3 — recomendado: fijar la IP de la impresora.** En el panel del
-router, crea una **reserva DHCP** para la MAC de la impresora (la MAC viene
-en el mismo autotest). Sin esto, un reinicio del router puede cambiarle la IP
-y la impresión "se rompe sola" un día cualquiera.
+**Paso 3 — recomendado: fijar la IP de la impresora.** Lo ideal es una
+**reserva DHCP** en el panel del router (para la MAC de la impresora, que
+sale en el mismo autotest) — pero en la práctica **muchos routers
+domésticos/genéricos (Tenda y similares) no la exponen de forma clara**, o
+la esconden en un menú confuso. Si no la encuentras en 5 minutos, no pierdas
+más tiempo ahí — la impresora casi siempre trae su propia forma de fijar IP
+estática desde su panel/menú de configuración (revisa el manual del modelo).
+Si tampoco, la app funciona igual con DHCP mientras la IP no cambie sola —
+solo confirma la IP actual (Paso 1) cada vez que reinicies el router.
+
+⚠️ **Cuidado con el filtro MAC de routers Tenda:** en la sección "Gestión del
+dispositivo" hay un botón **"Añadir"** bajo una columna que dice **"Lista
+negra"** — a simple vista parece la forma de "agregar" una reserva, pero es
+lo opuesto: agrega la MAC a una **lista negra que le QUITA el acceso a
+internet** a ese dispositivo. Si tu impresora (o la PC) deja de responder en
+la red justo después de tocar el panel del router, revisa
+**Configuración avanzada → Filtrar la dirección MAC** y quita cualquier MAC
+que hayas agregado por accidente.
 
 **Paso 4 — configurar la app:** Configuración → Impresión → activa
 impresión → transporte **"red"** → dirección: la IP (o `IP:9100`) → ancho de
@@ -842,26 +1050,34 @@ pero nunca crea `lp0`, no expone la clase estándar de impresora — en ese caso
 **usa la vía CUPS de abajo de todos modos**, que la maneja por su driver usb
 propio.
 
-**Paso 2 — vía recomendada: cola RAW en CUPS.** (Necesitas el grupo
-`lpadmin` de la Fase 3.4 ya aplicado — verifica con `groups`.)
+**Paso 2 — dar de alta la cola RAW en CUPS.** (Necesitas el grupo `lpadmin`
+de la Fase 3.4 ya aplicado — verifica con `groups`.)
 
-1. Abre el navegador de la PC (menú → Internet → Firefox) y ve a:
-   `http://localhost:631`
-2. Pestaña **Administration** → botón **Add Printer**.
-   - Si pide usuario/contraseña: usa `pos` y tu contraseña.
-3. En "Local Printers" debe aparecer tu térmica (p.ej. "EPSON TM-T20
-   (USB)"). Selecciónala → Continue.
-4. **Name:** `termica` (sin espacios — este nombre exacto se usa en la app).
-   Location y Description: lo que quieras → Continue.
-5. **Make:** elige **`Raw`** (hasta arriba de la lista) → Continue.
-6. **Model:** `Raw Queue (en)` → **Add Printer**.
-7. En las opciones por defecto que siguen, deja todo como está → Set
-   Default Options.
+**Vía recomendada — línea de comandos** (un kiosko normalmente no trae
+navegador instalado; esto evita depender de uno):
+```bash
+lpinfo -v | grep usb
+# → algo como: direct usb://STMicroelectronics/USB%20POS%20Printer...
+```
+Copia esa URI completa (tal cual, con los `%20` y todo) y créala como cola
+**raw** con `lpadmin` (ojo: el comando es `lpadmin`, no `lpandmin` — un typo
+fácil que da "orden no encontrada" sin pista de qué falló):
+```bash
+sudo lpadmin -p termica -E -v "usb://STMicroelectronics/USB%20POS%20Printer%20%20%20%20%20%20%20%20" -m raw
+```
+(cambia la URI por la que te dio TU `lpinfo -v` — la marca/modelo varía).
+`-p termica` es el nombre de la cola (el mismo que usarás en la app), `-E`
+la habilita, `-m raw` es justo el modo crítico — nunca un driver "de
+verdad": si CUPS intenta traducir a lenguaje de impresora de documentos, la
+térmica imprime basura o nada, porque la app ya manda bytes ESC/POS listos.
 
-⚠️ **Crítico:** el Make/Model debe ser **Raw**. Si eliges un driver "de
-verdad", CUPS intentará convertir los trabajos a lenguaje de impresora de
-documentos y la térmica imprimirá basura o nada — la app manda bytes ESC/POS
-ya listos y necesita que CUPS los pase intactos.
+**Alternativa — con navegador, si sí hay uno instalado:**
+1. Ve a `http://localhost:631` → pestaña **Administration** → **Add Printer**
+   (usuario/contraseña: tu usuario y su contraseña de sistema).
+2. En "Local Printers" elige tu térmica → Continue.
+3. **Name:** `termica` (sin espacios, este nombre se usa en la app) → Continue.
+4. **Make:** `Raw` (hasta arriba de la lista) → Continue → **Model:**
+   `Raw Queue (en)` → Add Printer → deja las opciones por defecto.
 
 **Paso 3 — probar la cola desde terminal, antes que la app:**
 ```bash
@@ -905,10 +1121,24 @@ el ESP32 (firmware ya grabado) se conecta solo al puerto **8080** de la PC.
    ip addr show | grep "inet " | grep -v 127.0.0.1
    # → inet 192.168.1.34/24 ...  ← esta es la IP de la PC
    ```
-3. **Reserva esa IP en el router** (reserva DHCP por MAC, igual que con la
-   impresora — la MAC de la PC sale con `ip link show`). Si el firmware del
-   ESP32 apunta a una IP fija de la PC y el router se la cambia, la botonera
-   muere en silencio.
+3. **Fija esa IP en la PC** — más confiable que depender de una reserva DHCP
+   del router (en la práctica, muchos routers domésticos ni la exponen
+   claramente, y algunos hasta le asignan una IP distinta a la PC entre
+   reinicios sin avisar). Usa `nmcli` sobre tu conexión (mira su nombre con
+   `nmcli connection show`, normalmente "Conexión cableada 1" si es por
+   cable):
+   ```bash
+   sudo nmcli connection modify "Conexión cableada 1" ipv4.addresses 192.168.1.34/24
+   sudo nmcli connection modify "Conexión cableada 1" ipv4.gateway 192.168.1.1
+   sudo nmcli connection modify "Conexión cableada 1" ipv4.dns "8.8.8.8,1.1.1.1"
+   sudo nmcli connection modify "Conexión cableada 1" ipv4.method manual
+   sudo nmcli connection down "Conexión cableada 1"
+   sudo nmcli connection up "Conexión cableada 1"
+   ```
+   (ajusta la IP/gateway a tu red real — usa una IP que esté FUERA del rango
+   que reparte el DHCP del router, para que no choque con otro dispositivo).
+   Verifica: `ip addr` debe mostrar la IP fija, y `ping 192.168.1.1` (tu
+   gateway) debe responder. Apunta el firmware del ESP32 a esta IP.
 4. **Firewall:** Ubuntu/Lubuntu trae `ufw` **inactivo** por defecto —
    verifica y solo actúa si está activo:
    ```bash
@@ -929,8 +1159,12 @@ el ESP32 (firmware ya grabado) se conecta solo al puerto **8080** de la PC.
   # → LISTEN 0 ... 0.0.0.0:8080 ... latercia
   ```
   Si no aparece: la pantalla del KDS no está abierta, u otra instancia tomó
-  el puerto (revisa el log del día en
-  `~/.local/share/latercia/logs/`).
+  el puerto (revisa el log del día en `~/Documentos/latercia/logs/`).
+- **Truco útil:** `sudo lsof -i :8080` muestra si hay una conexión
+  `ESTABLISHED` desde la IP del ESP32 — si aparece, la botonera SÍ está
+  hablando con la PC (el problema estaría en la app o en el hardware físico
+  del botón, no en la red). Si no aparece ninguna conexión, el problema es
+  de red/firmware, no de la app.
 - Si el servidor escucha pero el ESP32 no llega: el firmware apunta a otra
   IP (¿cambió la IP de la PC? — ver punto 3), o el router tiene "AP/client
   isolation" activado (búscalo en la config Wi-Fi del router y desactívalo —
@@ -966,16 +1200,199 @@ como si fuera un día real:
 - [ ] Ruta de escape por TTY **probada por ti en esta PC** (no solo leída).
 - [ ] PIN admin cambiado; cajeros reales creados; PINs anotados con el dueño.
 - [ ] Impresora imprime ticket y comanda **físicamente verificados**.
-- [ ] IPs reservadas en el router (impresora de red y/o PC para la botonera).
+- [ ] IP de la PC fijada (`nmcli`, 5.5) y/o de la impresora reservada en el
+      router si fue posible (5.3).
 - [ ] Botonera ESP32 probada (si ya está instalada).
 - [ ] Backup automático ON + **copia inicial a USB** de
-      `/home/pos/.local/share/latercia/backups/`.
+      `/home/pos/Documentos/latercia/backups/`.
 - [ ] Flujo completo 5.6 ejecutado sin errores.
 - [ ] El dueño sabe: su PIN, abrir/cerrar turno, corte Z, y que
       **apagar/reiniciar es desde Configuración → Equipo** (no hay botón de
       apagar del sistema visible).
-- [ ] Hoja de entrega con: contraseña del usuario `pos`, IP de la PC, IP de
+- [ ] Contraseña del usuario del kiosko **NO es trivial** (nada tipo `1234`
+      o `0000` — se usa para `sudo` y para el mantenimiento por TTY).
+- [ ] Hoja de entrega con: contraseña del usuario, IP de la PC, IP de
       la impresora, nombre de la cola CUPS (si aplica).
+
+---
+
+# FASE 6 — Actualizaciones
+
+A partir de la versión instalada en esta visita, la app trae un **módulo de
+actualizaciones integrado** (Configuración/Administración → **Quiosco** →
+sección **"Actualizaciones"**). Ya no hace falta entrar por terminal a
+reemplazar archivos a mano — se hace desde la propia pantalla, con
+verificación de integridad y respaldo automático antes de aplicar.
+
+⚠️ **Ojo:** la instalación que ya está en el sitio (hecha el 18-jul, antes de
+que existiera este módulo) **no lo tiene todavía**. La primera vez que
+actualices esa PC, hay que hacer un paso especial — ver **6.2 Transición
+única** más abajo. De ahí en adelante, siempre usas el flujo normal (6.1).
+
+## 6.1 Flujo normal (de aquí en adelante, para cualquier actualización futura)
+
+**En tu VM (o donde compiles):**
+
+1. Sube el código con `git pull` (o trae los cambios como sea que lo hagas).
+2. **Sube el número de versión** en dos lugares — deben quedar iguales:
+   - `pubspec.yaml`, línea `version:`.
+   - `lib/core/utils/app_version.dart`, la constante `appVersion`.
+   (No hay un solo lugar automático todavía; si olvidas uno de los dos, la
+   app seguirá reportando la versión vieja aunque el código sí se actualizó.)
+3. Compila el bundle:
+   ```bash
+   cd ~/LaTercia
+   flutter clean
+   flutter pub get
+   flutter build linux --release
+   ```
+4. **Genera el manifiesto** del paquete (usa el mismo número que pusiste en
+   el paso 2):
+   ```bash
+   dart run tool/generate_update_manifest.dart \
+       build/linux/x64/release/bundle 1.1.0
+   ```
+   Debe terminar con algo como:
+   ```
+   Listo: build/linux/x64/release/bundle/update_manifest.json
+     Versión: 1.1.0
+     Archivos: 31
+   ```
+   Este comando corre como Dart puro (no necesita `flutter run` ni la app
+   abierta) — calcula un checksum de cada archivo del bundle, para que la
+   app del cliente pueda verificar que el paquete llegó completo e intacto
+   antes de aplicarlo.
+5. Copia la **carpeta `bundle/` completa** (ahora con el `update_manifest.json`
+   adentro) a un USB.
+
+**En la PC del cliente:**
+
+6. Conecta el USB. Entra a la app con el PIN de admin → **Administración →
+   Quiosco** → baja hasta **"Actualizaciones"**.
+7. **"Buscar paquete"** → en el selector de carpetas, navega hasta la carpeta
+   `bundle` dentro del USB y **ábrela** (quédate dentro de ella, viendo su
+   contenido — `data`, `lib`, etc. — y dale "Abrir" ahí; no selecciones un
+   archivo suelto, es la carpeta completa la que se elige).
+8. La pantalla debe mostrar **Versión instalada** (la actual), **Versión del
+   paquete** (la que acabas de generar) y el aviso verde **"✓ Más nueva que
+   la instalada — se puede aplicar."** Si dice que es igual o anterior, el
+   botón "Aplicar" queda deshabilitado — revisa que subiste bien el número de
+   versión en el paso 2.
+9. **"Aplicar actualización"** → confirma en el diálogo (avisa que se hace un
+   respaldo automático antes de aplicar, y recomienda no cobrar mientras se
+   aplica — ciérrale el turno de caja antes si puedes).
+10. Al terminar, sale un diálogo **"Actualización aplicada"** con botón
+    **"Reiniciar ahora"** — dale clic. La app se cierra y vuelve a abrir sola
+    ya con la versión nueva.
+
+**Qué pasa detrás (por si algo sale raro):** antes de tocar la instalación
+activa, la app copia el paquete nuevo a una carpeta temporal y verifica sus
+checksums otra vez; solo si todo cuadra, respalda la carpeta actual como
+`/opt/latercia.backup-<numero-largo>` y pone la nueva en su lugar — los dos
+pasos son renombrados de carpeta (instantáneos, no una copia larga a medio
+camino). Si el último paso fallara por cualquier motivo, la app **restaura
+sola** el respaldo automáticamente — nunca debería quedar la PC sin una app
+funcional.
+
+**Ramificación — "Paquete corrupto o incompleto":** algún archivo no coincide
+con el manifiesto (el USB se dañó en el camino, o se copió a medias). No
+aplica nada — la instalación activa queda intacta. Vuelve a copiar la carpeta
+`bundle/` completa al USB (asegúrate de esperar a que termine de copiar antes
+de sacar el USB) e intenta de nuevo.
+
+**Ramificación — quiero volver a la versión anterior (aplicaste pero algo no
+te convenció):** la pantalla todavía no tiene un botón para esto — hay que
+hacerlo por terminal, con la app cerrada:
+```bash
+Ctrl+Alt+F3                          # entra a una TTY
+# Averigua el nombre exacto del respaldo (hay uno por cada actualización que
+# hayas aplicado; el de timestamp más alto es el más reciente):
+ls -d /opt/latercia.backup-*
+sudo mv /opt/latercia /opt/latercia.no-me-gusto-$(date +%s)
+sudo mv /opt/latercia.backup-<EL_QUE_ELEGISTE> /opt/latercia
+sudo reboot
+```
+
+**Mantenimiento — los respaldos no se borran solos:** cada actualización deja
+una carpeta `/opt/latercia.backup-<timestamp>` del mismo tamaño que el bundle
+(unos cientos de MB). De vez en cuando, en una visita de mantenimiento, revisa
+cuántos hay (`ls -d /opt/latercia.backup-*`) y borra los más viejos si el
+disco anda apretado — **conserva siempre al menos el más reciente**:
+```bash
+df -h /opt                           # espacio disponible
+sudo rm -rf /opt/latercia.backup-<EL_MAS_VIEJO>
+```
+
+## 6.2 Transición única — llevar el sitio a esta versión (próxima visita)
+
+Este paso se hace **UNA sola vez**: la PC del sitio tiene una instalación de
+antes de que existiera el módulo de actualizaciones, así que este primer
+salto se hace a mano — como la instalación original, más un paso extra
+porque esta versión también cambió **dónde vive la base de datos** (antes en
+`Documentos`, ahora en la carpeta de soporte de la app). De aquí en adelante,
+todas las actualizaciones siguientes usan el flujo normal de 6.1.
+
+⚠️ **Punto de no retorno:** el paso 2 (respaldo) es el que protege el
+catálogo/ventas real del negocio. No sigas al paso 3 sin haberlo hecho y
+confirmado.
+
+1. **Cierra la app** en el sitio (si está en modo kiosko: `Ctrl+Alt+F3` →
+   inicia sesión → `killall latercia` o similar, o simplemente apaga el
+   kiosko temporalmente quitando el autologin — ver el Apéndice).
+
+2. **Respalda la base ACTUAL** (la que trae el catálogo/ventas real del
+   negocio, en la ruta VIEJA):
+   ```bash
+   find ~ -iname "latercia.sqlite*" 2>/dev/null
+   # esperado: /home/latercia/Documentos/latercia.sqlite (+ -wal / -shm)
+   ```
+   Copia esos archivos a un USB (o a una carpeta temporal en el propio
+   disco, `~/respaldo-antes-de-actualizar/`, si no traes USB a la mano):
+   ```bash
+   mkdir -p ~/respaldo-antes-de-actualizar
+   cp /home/latercia/Documentos/latercia.sqlite* ~/respaldo-antes-de-actualizar/
+   ```
+
+3. **Reemplaza el bundle** con el nuevo (compilado con A3/A4/el módulo de
+   actualizaciones — el mismo que armaste en 6.1, pasos 1–5):
+   ```bash
+   sudo cp -r /opt/latercia /opt/latercia.pre-modulo-updates   # respaldo del binario viejo, por si acaso
+   sudo rm -rf /opt/latercia
+   sudo mkdir -p /opt/latercia
+   sudo cp -r /ruta/al/USB/bundle/* /opt/latercia/
+   sudo chmod +x /opt/latercia/latercia
+   ```
+
+4. **Mueve la base respaldada a la ruta NUEVA.** El nombre de la carpeta sale
+   del bundle ID (`mx.latercia.pos` — confírmalo si acaso con
+   `grep APPLICATION_ID /opt/latercia/../linux/CMakeLists.txt` desde tu
+   checkout, o simplemente usa este valor):
+   ```bash
+   mkdir -p ~/.local/share/mx.latercia.pos
+   cp ~/respaldo-antes-de-actualizar/latercia.sqlite ~/.local/share/mx.latercia.pos/
+   # NO copies los -wal/-shm viejos — son restos de la sesión anterior en la
+   # ruta vieja; la app crea los suyos nuevos al abrir en modo WAL.
+   ```
+
+5. **Abre la app** (`/opt/latercia/latercia`, o reinicia si ya tienes
+   autologin/kiosko activo) → **debe cargar el catálogo real**, no vacío.
+   Si aparece vacía, revisa que copiaste el `.sqlite` a la ruta exacta del
+   paso 4 (un nombre de carpeta con una letra distinta y la app no la
+   encuentra, y arranca con una base nueva en blanco).
+
+6. **Confirma las rutas nuevas** están en uso:
+   ```bash
+   find ~/.local/share/mx.latercia.pos -type f
+   # esperado: latercia.sqlite (+ -wal / -shm que la app acaba de crear)
+   find ~/Documentos/latercia -type f
+   # esperado (tras la primera venta/backup): logs/... y backups/...
+   ```
+
+7. Corre la **prueba de fuego** de 5.6 completa antes de dar por buena la
+   transición (venta → cocina → cobro → corte Z → backup).
+
+A partir de aquí, la próxima vez que haya una actualización, se hace con el
+flujo normal de **6.1** — ya no hace falta repetir nada de esto.
 
 ---
 
@@ -990,21 +1407,30 @@ sudo reboot                                  → arranca a login/escritorio norm
 ```
 Para reactivar el kiosko, recrear el archivo (Fase 4.5) y reiniciar.
 
-**Actualizar la app:** compilar bundle nuevo (Fase 0), y en la PC:
+**Actualizar la app:** desde esta versión, usa el módulo integrado —
+ver **Fase 6** (Configuración → Quiosco → Actualizaciones). Ya no hace falta
+copiar archivos a mano; el único caso para hacerlo por terminal es una
+emergencia (rollback manual, ver 6.1) o si la pantalla de Actualizaciones
+no abre por algún motivo — en ese caso extremo, el método a mano sigue
+siendo válido:
 ```bash
 sudo cp -r /opt/latercia /opt/latercia.anterior   # respaldo del binario actual
-sudo cp -r /media/pos/USB/bundle/* /opt/latercia/
+sudo cp -r /ruta/al/USB/bundle/* /opt/latercia/
 sudo reboot
 ```
 Los datos NO se tocan (viven fuera del bundle). Si el bundle nuevo falla,
 restaurar: `sudo rm -rf /opt/latercia && sudo mv /opt/latercia.anterior /opt/latercia`.
 
-**Rutas importantes:**
-- Base de datos: `/home/pos/Documents/latercia.sqlite` (o `Documentos/` según
-  el idioma del sistema — confírmala con `find ~ -name "latercia.sqlite"`)
+**Rutas importantes (desde la transición de la Fase 6.2 — bundle ID
+`mx.latercia.pos`):**
+- Base de datos: `~/.local/share/mx.latercia.pos/latercia.sqlite`
+  (confírmala con `find ~ -name "latercia.sqlite"` si dudas).
 - Logs (uno por día, purga automática 30 días / tope 50 MB):
-  `/home/pos/.local/share/latercia/logs/`
-- Backups: `/home/pos/.local/share/latercia/backups/`
+  `~/Documentos/latercia/logs/`
+- Backups: `~/Documentos/latercia/backups/`
+- Respaldos de actualizaciones aplicadas: `/opt/latercia.backup-<timestamp>`
+  (uno por cada actualización aplicada desde el módulo — ver "los respaldos
+  no se borran solos" en 6.1).
 - Restaurar backup: desde la app, Configuración → Respaldo → Restaurar.
 
 **Recomendación de compra — no-break (UPS):** un no-break chico (~$800–1200
@@ -1032,4 +1458,9 @@ lpq -P termica                   # ¿trabajos atorados?  limpiar: cancel -a term
 ```bash
 ss -tlnp | grep 8080             # ¿el POS está escuchando? (KDS abierto)
 ip addr show | grep "inet "      # ¿la IP de la PC sigue siendo la reservada?
+sudo lsof -i :8080                # ¿hay una conexión ESTABLISHED del ESP32?
+                                  # (si aparece, la botonera SÍ está hablando
+                                  # con el POS aunque no se vea/oiga nada en
+                                  # pantalla — el problema estaría en la app,
+                                  # no en la red; revisa el log del día)
 ```

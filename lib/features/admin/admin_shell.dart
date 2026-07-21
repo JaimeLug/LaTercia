@@ -19,6 +19,7 @@ import 'screens/shifts_screen.dart';
 import 'screens/botonera_screen.dart';
 import 'screens/kiosk_screen.dart';
 import 'screens/delivery_zones_screen.dart';
+import 'screens/backups_screen.dart';
 
 class AdminShell extends ConsumerStatefulWidget {
   const AdminShell({super.key});
@@ -97,6 +98,10 @@ class _AdminShellState extends ConsumerState<AdminShell> {
         selectedIcon: Icon(Icons.dvr),
         label: Text('Quiosco')),
     NavigationRailDestination(
+        icon: Icon(Icons.backup_outlined),
+        selectedIcon: Icon(Icons.backup),
+        label: Text('Backups')),
+    NavigationRailDestination(
         icon: Icon(Icons.settings_outlined),
         selectedIcon: Icon(Icons.settings),
         label: Text('Configuración')),
@@ -119,6 +124,7 @@ class _AdminShellState extends ConsumerState<AdminShell> {
     DeliveryZonesScreen(),
     BotoneraScreen(),
     KioskScreen(),
+    BackupsScreen(),
     SettingsScreen(),
   ];
 

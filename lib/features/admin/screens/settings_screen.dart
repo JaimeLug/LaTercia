@@ -3,11 +3,9 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flex_color_picker/flex_color_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../../core/providers/database_provider.dart';
 import '../../../core/providers/settings_provider.dart';
 import '../../../core/services/print_service.dart';
 import '../../../core/theme/app_theme.dart';
-import '../../../core/utils/backup_helper.dart';
 import '../widgets/admin_panel.dart';
 
 /// Metadatos de cada categoría de Configuración, para la vista de tarjetas de
@@ -81,12 +79,6 @@ const _settingsCategories = <_SettingsCategory>[
     title: 'Ticket / Recibo',
     subtitle: 'Pie de página y detalles'
   ),
-  (
-    key: 'respaldo',
-    icon: Icons.backup_outlined,
-    title: 'Respaldo',
-    subtitle: 'Backups automáticos'
-  ),
 ];
 
 class SettingsScreen extends ConsumerStatefulWidget {
@@ -125,10 +117,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   // Ventas avanzadas (Fase 4)
   bool _propinasActivas = false;
 
-  // Respaldo (Fase 5)
-  bool _backupAuto = true;
-  late TextEditingController _backupRetentionDays;
-
   // Moneda
   late TextEditingController _currencySymbol;
   String _currencyDecimals = '2';
@@ -154,6 +142,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   bool _gavetaAutoEfectivo = true;
   // Impresoras de Windows detectadas, para el desplegable de dirección (USB).
   List<String> _availablePrinters = const [];
+  // 2026-07-20 (feedback en vivo): "Buscar impresoras" respondía tan rápido
+  // (EnumPrinters es síncrono) que no se notaba que hizo algo — si no
+  // encontraba nada, se sentía como que el mensaje de abajo ("No se
+  // detectaron impresoras") ya estaba ahí de antes, no como resultado de la
+  // búsqueda que se acababa de pedir. Este flag da una confirmación visual.
+  bool _searchingPrinters = false;
 
   bool _loaded = false;
 
@@ -172,12 +166,20 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     _receiptFooter = TextEditingController();
     _autoLockMin = TextEditingController();
     _printerAddress = TextEditingController();
-    _backupRetentionDays = TextEditingController();
     _availablePrinters = listWindowsPrinters();
   }
 
-  void _refreshPrinters() {
-    setState(() => _availablePrinters = listWindowsPrinters());
+  Future<void> _refreshPrinters() async {
+    setState(() => _searchingPrinters = true);
+    final found = listWindowsPrinters();
+    // EnumPrinters responde casi al instante — sin esta pausa el "Buscando…"
+    // no alcanza a verse ni cuando SÍ encuentra la impresora recién conectada.
+    await Future.delayed(const Duration(milliseconds: 400));
+    if (!mounted) return;
+    setState(() {
+      _availablePrinters = found;
+      _searchingPrinters = false;
+    });
   }
 
   @override
@@ -191,7 +193,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     _receiptFooter.dispose();
     _autoLockMin.dispose();
     _printerAddress.dispose();
-    _backupRetentionDays.dispose();
     super.dispose();
   }
 
@@ -228,8 +229,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     _printerWidth = s['printer_width'] ?? '80';
     _gavetaActiva = s['gaveta_activa'] == 'true';
     _gavetaAutoEfectivo = s['gaveta_auto_efectivo'] != 'false';
-    _backupAuto = s['backup_auto'] != 'false';
-    _backupRetentionDays.text = s['backup_retention_days'] ?? '14';
   }
 
   Color _parseColor(String hex) {
@@ -748,44 +747,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             contentPadding: EdgeInsets.zero,
           ),
         ];
-      case 'respaldo':
-        return [
-          SwitchListTile(
-            title: const Text('Backup automático'),
-            subtitle: const Text(
-                'Copia diaria de la base y al cerrar turno, a la carpeta de respaldos.'),
-            value: _backupAuto,
-            onChanged: (v) => setState(() => _backupAuto = v),
-            contentPadding: EdgeInsets.zero,
-          ),
-          if (_backupAuto)
-            TextField(
-              controller: _backupRetentionDays,
-              decoration: const InputDecoration(
-                labelText: 'Retención (días)',
-                helperText:
-                    'Se borran los respaldos más antiguos. 0 = no borrar.',
-              ),
-              keyboardType: TextInputType.number,
-            ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              OutlinedButton.icon(
-                icon: const Icon(Icons.download),
-                label: const Text('Descargar backup'),
-                onPressed: () =>
-                    downloadBackup(context, ref.read(databaseProvider)),
-              ),
-              const SizedBox(width: 12),
-              OutlinedButton.icon(
-                icon: const Icon(Icons.restore),
-                label: const Text('Restaurar backup'),
-                onPressed: () => restoreBackup(context),
-              ),
-            ],
-          ),
-        ];
       default:
         return const [];
     }
@@ -806,45 +767,63 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Expanded(
-          child: options.isEmpty
+          child: _searchingPrinters
               ? const Padding(
                   padding: EdgeInsets.symmetric(vertical: 12),
-                  child: Text(
-                    'No se detectaron impresoras instaladas en Windows.',
-                    style: TextStyle(color: Colors.grey),
+                  child: Row(
+                    children: [
+                      SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                      SizedBox(width: 10),
+                      Text('Buscando impresoras…',
+                          style: TextStyle(color: Colors.grey)),
+                    ],
                   ),
                 )
-              : DropdownButtonFormField<String>(
-                  value: current.isEmpty ? null : current,
-                  isExpanded: true,
-                  decoration: const InputDecoration(
-                    labelText: 'Impresora',
-                    prefixIcon: Icon(Icons.print_outlined),
-                  ),
-                  hint: const Text('Selecciona una impresora'),
-                  items: options
-                      .map((name) => DropdownMenuItem(
-                            value: name,
-                            child: Text(
-                              showVirtualWarning && isVirtualPrinter(name)
-                                  ? '$name  ·  no térmica'
-                                  : name,
-                              overflow: TextOverflow.ellipsis,
-                              style:
+              : options.isEmpty
+                  ? const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 12),
+                      child: Text(
+                        'No se detectó ninguna impresora instalada en Windows. '
+                        'Conéctala e instálala desde "Dispositivos e impresoras" '
+                        'de Windows, luego toca buscar de nuevo.',
+                        style: TextStyle(color: Colors.grey),
+                      ),
+                    )
+                  : DropdownButtonFormField<String>(
+                      value: current.isEmpty ? null : current,
+                      isExpanded: true,
+                      decoration: const InputDecoration(
+                        labelText: 'Impresora',
+                        prefixIcon: Icon(Icons.print_outlined),
+                      ),
+                      hint: const Text('Selecciona una impresora'),
+                      items: options
+                          .map((name) => DropdownMenuItem(
+                                value: name,
+                                child: Text(
                                   showVirtualWarning && isVirtualPrinter(name)
+                                      ? '$name  ·  no térmica'
+                                      : name,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: showVirtualWarning &&
+                                          isVirtualPrinter(name)
                                       ? const TextStyle(color: Colors.grey)
                                       : null,
-                            ),
-                          ))
-                      .toList(),
-                  onChanged: (v) =>
-                      setState(() => _printerAddress.text = v ?? ''),
-                ),
+                                ),
+                              ))
+                          .toList(),
+                      onChanged: (v) =>
+                          setState(() => _printerAddress.text = v ?? ''),
+                    ),
         ),
         IconButton(
           tooltip: 'Buscar impresoras',
           icon: const Icon(Icons.refresh),
-          onPressed: _refreshPrinters,
+          onPressed: _searchingPrinters ? null : _refreshPrinters,
         ),
       ],
     );
@@ -985,10 +964,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       'printer_width': _printerWidth,
       'gaveta_activa': _gavetaActiva.toString(),
       'gaveta_auto_efectivo': _gavetaAutoEfectivo.toString(),
-      'backup_auto': _backupAuto.toString(),
-      'backup_retention_days': _backupRetentionDays.text.trim().isEmpty
-          ? '14'
-          : _backupRetentionDays.text.trim(),
     };
 
     await ref.read(settingsProvider.notifier).setSettings(settings);

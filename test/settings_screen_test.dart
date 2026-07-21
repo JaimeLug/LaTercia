@@ -104,4 +104,35 @@ void main() {
     expect(after.color, const Color(0xFF123456),
         reason: 'el color elegido no debe revertirse antes de guardar');
   });
+
+  // Feedback en vivo 2026-07-20: "Buscar impresoras" respondía tan rápido
+  // (EnumPrinters es síncrono) que un resultado vacío se sentía como que el
+  // mensaje "No se detectó ninguna impresora" ya estaba ahí de antes, no
+  // como el resultado de la búsqueda recién pedida.
+  testWidgets('buscar impresoras muestra "Buscando…" mientras resuelve',
+      (tester) async {
+    await pumpSettings(tester);
+
+    await tester.tap(find.text('Impresión y gaveta'));
+    await tester.pumpAndSettle();
+
+    // El picker de Windows solo aparece con transporte USB (con Red, se ve
+    // un campo de IP en su lugar).
+    await tester.tap(find.text('Red (socket 9100)'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('USB / impresora local').last);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Buscando impresoras…'), findsNothing);
+
+    await tester.tap(find.byTooltip('Buscar impresoras'));
+    await tester.pump(); // primer frame tras el tap: ya debe mostrarse.
+
+    expect(find.text('Buscando impresoras…'), findsOneWidget);
+
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Buscando impresoras…'), findsNothing);
+  });
 }
