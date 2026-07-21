@@ -10,26 +10,8 @@ import '../providers/database_provider.dart';
 import '../utils/formatters.dart';
 import 'audit_service.dart';
 
-/// Creates an order and charges it as a single atomic operation.
-///
-/// Before this existed, checking out was three separate write paths glued
-/// together by the caller: `OrdersNotifier.sendToKitchen` created the order
-/// (itself already transactional), then the UI inserted a payment row
-/// directly via `paymentsDao`, then called `OrdersNotifier.markPaid`, then
-/// (maybe) `customersDao.incrementVisits` — four independent commits. A
-/// failure between any two of them could leave an order with no payment, a
-/// payment on a half-built order, or inventory decremented for a sale that
-/// was never actually charged.
-///
-/// [checkout] folds all of that into one `db.transaction`: if anything
-/// throws partway through, drift rolls back everything — no order, no items,
-/// no inventory movement, no payment, and no customer update survive.
-/// Un pago (parcial o total) que compone el cobro de una orden. Para pagos
-/// mixtos (4.2) el modal produce varios; para el cobro simple, uno solo.
-///
-/// [amountTendered]/[changeGiven] son lo entregado y el cambio (el cambio solo
-/// aparece en el tramo en efectivo que cierra el saldo). [tipAmount] es la
-/// propina asociada a este pago (4.1).
+/// Un pago (parcial o total) que compone el cobro de una orden; para pagos
+/// mixtos el modal produce varios. `docs/ventas-cobro-turnos.md` §Pagos.
 class PaymentDraft {
   final String method;
   final double amountTendered;
@@ -46,6 +28,8 @@ class PaymentDraft {
   });
 }
 
+/// Crea y cobra una orden como una sola operación atómica (una transacción).
+/// `docs/ventas-cobro-turnos.md` §"Cobro atómico".
 class CheckoutService {
   CheckoutService(this._db);
 
@@ -73,9 +57,8 @@ class CheckoutService {
     ];
   }
 
-  /// Defensa en profundidad (M1): lo aplicado por los pagos (entregado − cambio)
-  /// debe cubrir el total antes de marcar la orden pagada. La propina infla lo
-  /// aplicado por encima del total, así que ≥ es correcto.
+  /// Defensa en profundidad: los pagos deben cubrir el total.
+  /// `docs/ventas-cobro-turnos.md` §Pagos.
   void _assertCovers(List<PaymentDraft> drafts, double total) {
     final applied =
         drafts.fold(0.0, (a, d) => a + d.amountTendered - d.changeGiven);
@@ -114,10 +97,8 @@ class CheckoutService {
         changeGiven, tipAmount, reference);
     return _db.transaction(() async {
       _assertCovers(drafts, total);
-      // Insert with a temporary unique placeholder, then derive the real,
-      // human-readable order number from the autoincrement id — mirrors
-      // OrdersNotifier.sendToKitchen, see its docs for why (avoids a
-      // max(id)+1 race between the POS and KDS processes).
+      // Placeholder temporal → número legible derivado del id (evita la carrera
+      // max(id)+1 entre POS y KDS). docs/ventas-cobro-turnos.md.
       final tempNumber = 'tmp-${const Uuid().v4()}';
       final openShift = await _db.shiftsDao.getCurrentOpenShift();
       final orderId = await _db.ordersDao.insertOrder(
@@ -176,7 +157,7 @@ class CheckoutService {
             .decrementForSale(ci.product.id, ci.quantity, orderId: orderId);
       }
 
-      // Record the payment(s) — one row per tramo (pago mixto 4.2).
+      // Un renglón de pago por tramo (pago mixto).
       for (final d in drafts) {
         await _db.paymentsDao.insertPayment(
           PaymentsCompanion.insert(
@@ -191,12 +172,7 @@ class CheckoutService {
         );
       }
 
-      // Mark it paid. Mirrors OrdersNotifier.markPaid: paying does not by
-      // itself deliver the order (that would hide it from the kitchen) — it
-      // only completes the order here if the kitchen had *already* marked it
-      // ready before the cashier charged it, which can't happen for a
-      // brand-new order but keeps this in lock-step with markPaid's
-      // semantics for future callers.
+      // Pagar no entrega la orden por sí solo. docs/ventas-cobro-turnos.md.
       await _db.ordersDao.updateOrderPaymentStatus(orderId, 'pagado');
       var order = await _db.ordersDao.getOrderById(orderId);
       if (order != null && order.status == 'listo') {
@@ -211,9 +187,7 @@ class CheckoutService {
         await _db.customersDao.incrementVisits(customerId, total);
       }
 
-      // Logged inside the same transaction as the sale itself so the audit
-      // trail is atomic with the checkout: if anything above rolls back,
-      // this row never lands either.
+      // Auditoría dentro de la misma transacción que la venta.
       final tipTotal = drafts.fold(0.0, (a, d) => a + d.tipAmount);
       await AuditService(_db).log(
         employeeId: employeeId,
@@ -234,20 +208,9 @@ class CheckoutService {
     });
   }
 
-  /// Charges an order that was already created (and sent to the kitchen)
-  /// without being paid — the "Enviar a Cocina" / pay-at-the-end mesa flow.
-  ///
-  /// Unlike [checkout], this does NOT create the order, its items, or the
-  /// inventory movements (those already happened when the order was sent to
-  /// the kitchen). It only records the payment against the current open shift
-  /// and marks the order paid — mirroring `OrdersNotifier.markPaid`'s
-  /// delivery/table semantics — all in one transaction so the payment and the
-  /// paid-status flip either both land or neither does.
-  ///
-  /// The order's monetary amounts (subtotal/discount/tax/total) are already
-  /// fixed from when it was built, so nothing is recomputed here; if the order
-  /// carried a manual discount it already passed the supervisor gate at
-  /// send-to-kitchen time.
+  /// Cobra una orden ya creada y enviada a cocina sin pagar (flujo de mesa
+  /// "pagar al final"). No recrea orden/items/inventario.
+  /// `docs/ventas-cobro-turnos.md` §"Cobro atómico".
   Future<OrderWithItems> chargeExistingOrder({
     required int orderId,
     required int employeeId,
@@ -276,9 +239,8 @@ class CheckoutService {
 
       final openShift = await _db.shiftsDao.getCurrentOpenShift();
 
-      // Atribuye la orden al turno que la cobra si aún no tenía turno (fue
-      // creada con "Enviar a Cocina" antes de cobrar), para que el corte Z
-      // cuente su venta.
+      // Atribuye la orden al turno que la cobra si aún no tenía (para que el
+      // corte Z cuente su venta).
       if (existing.shiftId == null && openShift != null) {
         await _db.ordersDao.updateOrderShift(orderId, openShift.id);
       }
@@ -297,10 +259,7 @@ class CheckoutService {
         );
       }
 
-      // Same rule as OrdersNotifier.markPaid: paying doesn't by itself deliver
-      // the order (that would hide it from the kitchen). It's only delivered
-      // here if the kitchen already marked it 'listo'; otherwise it stays
-      // visible on the KDS until the kitchen finishes it.
+      // Pagar no entrega la orden por sí solo. docs/ventas-cobro-turnos.md.
       await _db.ordersDao.updateOrderPaymentStatus(orderId, 'pagado');
       var order = await _db.ordersDao.getOrderById(orderId);
       if (order != null && order.status == 'listo') {

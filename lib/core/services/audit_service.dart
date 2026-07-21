@@ -6,12 +6,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../database/database.dart';
 import '../providers/database_provider.dart';
 
-/// Thin wrapper around [AuditLogDao] used by every audit hook in the app.
-///
-/// Centralizing the insert here (instead of calling `db.auditLogDao.insertLog`
-/// everywhere) keeps the JSON-encoding of `detail` in one place and gives the
-/// call sites a single, greppable API. Never pass `Employees.pin` (or any
-/// raw PIN string) inside [detail] — nothing here scrubs it for you.
+/// API única para escribir en `audit_log`. Nunca pasar PINs en [detail].
+/// `docs/permisos-y-auditoria.md`.
 class AuditService {
   AuditService(this._db);
 

@@ -1,7 +1,5 @@
-// Parseo de modificadores de un item de pedido, compartido entre las
-// tarjetas del KDS (order_card_kds.dart) y la vista All-day (kds_screen.dart)
-// — 2026-07-20, para que "sin azúcar"/"extra shot" también se vean en
-// All-day, no solo en las tarjetas.
+// Parseo de modificadores de un item de pedido, compartido por las tarjetas y
+// la vista All-day del KDS. `docs/kds.md` §Modificadores.
 
 import 'dart:convert';
 
@@ -16,12 +14,9 @@ class KdsModifier {
   String get label => included ? '$name (incluido)' : name;
 }
 
-/// Parsea el JSON de modificadores de un item ([OrderItem.modifiersJson]).
-/// Nunca lanza: devuelve lista vacía si [json] es nulo, vacío o inválido.
-///
-/// Siempre una lista MUTABLE (`<KdsModifier>[]`, no `const []`) — quien la
-/// use puede necesitar ordenarla (`..sort(...)`, como en la vista All-day) y
-/// un literal `const` lanza `Unsupported operation` al intentar mutarlo.
+/// Parsea [OrderItem.modifiersJson]; nunca lanza. `docs/kds.md` §Modificadores.
+/// Devuelve lista MUTABLE (no `const []`): la vista All-day la ordena con
+/// `..sort(...)` y un `const` lanzaría `Unsupported operation`.
 List<KdsModifier> parseKdsModifiers(String? json) {
   if (json == null || json.isEmpty) return <KdsModifier>[];
   try {

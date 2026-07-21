@@ -23,12 +23,9 @@ class OrderCardKds extends ConsumerStatefulWidget {
   final OrderWithItems orderWithItems;
   final VoidCallback? onSoundPlay;
 
-  /// Controller de la lista de items. La cocina solo tiene 6 botones físicos
-  /// (sin mouse ni pantalla táctil) — `KdsScreen` necesita poder desplazar
-  /// ESTA tarjeta desde Anterior/Siguiente cuando le queda contenido oculto
-  /// (2026-07-20), así que le pasa su propio controller externo. Si se usa
-  /// esta tarjeta suelta (p.ej. en un test) y no se pasa ninguno, se crea y
-  /// gestiona uno internamente — comportamiento previo, sin cambios.
+  /// Controller de la lista de items, opcional: `KdsScreen` lo pasa para poder
+  /// desplazar esta tarjeta desde la botonera; si no, se crea uno interno.
+  /// docs/kds.md §"Pantalla y navegación".
   final ScrollController? itemsScrollController;
 
   const OrderCardKds({
@@ -48,11 +45,8 @@ class _OrderCardKdsState extends ConsumerState<OrderCardKds>
   late Animation<double> _opacityAnimation;
   bool _dismissing = false;
 
-  // 2026-07-20 — reporte del dueño: en pedidos con muchos productos, la
-  // lista YA tenía scroll interno, pero sin ninguna señal visual de que
-  // había más abajo — se leía como "eso es todo" y se podía perder un
-  // producto. `_itemsScrollController` + este flag pintan un degradado con
-  // flecha SOLO cuando de verdad falta contenido por ver.
+  // Degradado + flecha cuando hay más productos abajo (sin señal, se leía como
+  // "eso es todo" y se perdía un producto). docs/kds.md.
   ScrollController? _ownedController;
   ScrollController get _itemsScrollController =>
       widget.itemsScrollController ?? (_ownedController ??= ScrollController());
@@ -153,11 +147,8 @@ class _OrderCardKdsState extends ConsumerState<OrderCardKds>
         padding: const EdgeInsets.all(18),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
-          // 2026-07-20 (3ª pasada) — min: la tarjeta se encoge a su
-          // contenido (pedidos cortos = tarjeta chica) en vez de siempre
-          // estirarse al tope disponible. Necesario para que el `Flexible`
-          // de los items (abajo) funcione como "crece con el contenido,
-          // pero con tope" en vez de "siempre al máximo".
+          // min: la tarjeta se encoge a su contenido (necesario para que el
+          // Flexible de los items funcione con tope). docs/kds.md.
           mainAxisSize: MainAxisSize.min,
           children: [
             // Header row
@@ -210,11 +201,8 @@ class _OrderCardKdsState extends ConsumerState<OrderCardKds>
                 height: 22),
             // Items — con degradado + flecha si hay más abajo del corte
             // visible (solo aparece cuando de verdad hace falta desplazar).
-            // Flexible (no Expanded, 2026-07-20 3ª pasada): toma solo el
-            // alto que su contenido necesita, hasta el tope que imponga el
-            // ConstrainedBox exterior (KdsOrderGrid) — con Expanded, la
-            // tarjeta SIEMPRE se estiraba al máximo aunque el pedido fuera
-            // corto.
+            // Flexible (no Expanded): toma solo el alto que necesita, hasta el
+            // tope del ConstrainedBox exterior. docs/kds.md.
             Flexible(
               child: Stack(
                 children: [
@@ -253,8 +241,8 @@ class _OrderCardKdsState extends ConsumerState<OrderCardKds>
                                         ],
                                       ),
                                     ),
-                                    for (final m
-                                        in parseKdsModifiers(item.modifiersJson))
+                                    for (final m in parseKdsModifiers(
+                                        item.modifiersJson))
                                       Padding(
                                         padding: const EdgeInsets.only(
                                             left: 16, top: 2),
@@ -453,5 +441,4 @@ class _OrderCardKdsState extends ConsumerState<OrderCardKds>
       ),
     );
   }
-
 }

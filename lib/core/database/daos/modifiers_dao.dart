@@ -10,12 +10,9 @@ class ModifiersDao extends DatabaseAccessor<AppDatabase>
 
   Future<List<Modifier>> getAllModifiers() => select(modifiers).get();
 
-  /// Returns the modifiers that apply to a product in the given category.
-  /// A modifier with an empty [categoryScope] applies to everything; otherwise
-  /// [categoryScope] es una lista separada por comas de nombres de categoría
-  /// (ej. "Frappés,Especialidades") y aplica si CUALQUIERA coincide
-  /// (case-insensitive) — un valor de una sola categoría sigue funcionando
-  /// igual. Avoids showing e.g. "Extra shot" on a cheesecake.
+  /// Modificadores que aplican a una categoría. [categoryScope] vacío aplica a
+  /// todo; si no, es una lista separada por comas de nombres de categoría y
+  /// aplica si cualquiera coincide (evita ver "Extra shot" en un cheesecake).
   Future<List<Modifier>> getModifiersForCategoryName(
       String? categoryName) async {
     final all = await select(modifiers).get();

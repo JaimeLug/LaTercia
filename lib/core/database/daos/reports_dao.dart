@@ -65,7 +65,7 @@ class ReportsDao extends DatabaseAccessor<AppDatabase> with _$ReportsDaoMixin {
 
   Future<Map<String, double>> getSalesByCategory(
       DateTime from, DateTime to) async {
-    // This is simplified — in a full impl you'd join with products/categories
+    // Simplificado: una versión completa uniría con products/categories.
     final query = select(orderItems).join([
       innerJoin(orders, orders.id.equalsExp(orderItems.orderId)),
     ])

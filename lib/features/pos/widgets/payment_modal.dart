@@ -30,17 +30,14 @@ String _methodLabel(String method) {
 class PaymentModal extends ConsumerStatefulWidget {
   final double total;
 
-  /// Charges the order with one or more payments (pagos mixtos, 4.2). For a
-  /// simple checkout the list has a single [PaymentDraft]. Returns the
-  /// persisted order so the receipt can be shown.
+  /// Cobra la orden con uno o más pagos (mixtos). docs/ventas-cobro-turnos.md
+  /// §Pagos.
   final Future<OrderWithItems?> Function({
     required List<PaymentDraft> payments,
   }) onCheckout;
 
-  /// Whether to also print the kitchen ticket after charging. `false` for the
-  /// deferred pay-at-the-end flow, where the kitchen ticket was already
-  /// printed when the order was sent to the kitchen — reprinting it would
-  /// duplicate the comanda.
+  /// Si además imprime la comanda tras cobrar. `false` en el cobro diferido
+  /// (ya se imprimió al enviar a cocina). docs/ordenes-y-cocina.md.
   final bool printKitchenComanda;
 
   const PaymentModal({
@@ -157,10 +154,8 @@ class _PaymentModalState extends ConsumerState<PaymentModal> {
     setState(() => _committed.removeAt(index));
   }
 
-  /// Ensambla la lista final de pagos (parciales + el tramo que cierra) y
-  /// adjunta la propina al **tramo que cierra** el cobro (B3): es el método con
-  /// el que el cliente liquida el total, atribución más intuitiva que el primer
-  /// tramo. El gran total ya la incluye; `tipAmount` es la etiqueta del reporte.
+  /// Ensambla los pagos (parciales + el tramo que cierra) y adjunta la propina
+  /// al tramo que cierra. docs/ventas-cobro-turnos.md §Pagos.
   List<PaymentDraft> _buildDrafts() {
     final drafts = <PaymentDraft>[..._committed];
     // Tramo que cierra el saldo. En tarjeta/transferencia no hay cambio, así que
@@ -211,8 +206,7 @@ class _PaymentModalState extends ConsumerState<PaymentModal> {
 
     final drafts = _buildDrafts();
 
-    // Charges the order (creating it or against an existing one) in one atomic
-    // transaction — the order and all its payment rows either persist or none.
+    // Cobra en una transacción atómica. docs/ventas-cobro-turnos.md.
     final order = await widget.onCheckout(payments: drafts);
     if (order == null) {
       if (mounted) {
@@ -269,8 +263,8 @@ class _PaymentModalState extends ConsumerState<PaymentModal> {
           employee: employee!,
         ),
       );
-      // Optional post-sale re-lock: only after the receipt has finished
-      // being shown to the user, so it never interrupts the cobro flow.
+      // Re-bloqueo opcional tras la venta (`lock_tras_venta`), después del
+      // recibo para no interrumpir el cobro.
       if (settings['lock_tras_venta'] == 'true' && mounted) {
         ref.read(sessionProvider.notifier).state = null;
       }

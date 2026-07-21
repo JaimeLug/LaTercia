@@ -3,11 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:screen_retriever/screen_retriever.dart';
 import '../../core/theme/app_theme.dart';
 
-/// Shows the "¿En qué pantalla?" picker for opening the Cocina · KDS view.
-///
-/// For a monitor choice it launches the KDS as a separate full-screen window
-/// on that display. Returns `true` only when the user picks "Esta ventana",
-/// meaning the caller should show the KDS embedded in the current window.
+/// Muestra el selector "¿En qué pantalla?" para abrir la Cocina · KDS. Si se
+/// elige un monitor, lanza el KDS como ventana aparte en esa pantalla; devuelve
+/// `true` solo si el usuario elige "Esta ventana" (KDS embebido).
 Future<bool> showKdsScreenPicker(BuildContext context) async {
   final displays = await screenRetriever.getAllDisplays();
   if (!context.mounted) return false;

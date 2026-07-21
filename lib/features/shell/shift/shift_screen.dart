@@ -12,9 +12,9 @@ import 'cut_ticket.dart';
 import 'open_shift_dialog.dart';
 
 /// Turno / Corte X screen — reachable from the top nav bar at any time.
-/// Shows the current shift (open form if none), lets the active employee
-/// register deposits/withdrawals, view the live Corte X, or close the shift
-/// (Corte Z).
+/// Muestra el turno actual (o el formulario de apertura), permite registrar
+/// depósitos/retiros, ver el Corte X en vivo o cerrar el turno (Corte Z).
+/// docs/ventas-cobro-turnos.md §Turnos.
 class ShiftScreen extends ConsumerWidget {
   const ShiftScreen({super.key});
 

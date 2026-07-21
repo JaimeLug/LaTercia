@@ -30,51 +30,35 @@ class _KdsScreenState extends ConsumerState<KdsScreen>
   bool _hasLoadedOnce = false;
   late final AnimationController _pulseController;
 
-  // FASE 5.3 — alto tráfico.
   bool _allDay = false; // vista consolidada "7× Frappé de Café"
 
-  // 2026-07-20 — rediseño: antes las tarjetas se repartían en páginas fijas
-  // y "Siguiente" saltaba de golpe a un lienzo completamente distinto (con 6-7
-  // pedidos activos, las órdenes 5+ quedaban en otra "pantalla" invisible
-  // hasta darle clic). Ahora es una cuadrícula con scroll continuo: todas las
-  // órdenes activas viven en el mismo lienzo, y avanzar es desplazarse, no
-  // saltar. El controller también sirve para llevar la vista hasta la tarjeta
-  // seleccionada por la botonera (`_selectAndReveal`).
+  // Cuadrícula de scroll continuo (todas las órdenes en un lienzo, no páginas).
+  // docs/kds.md §"Pantalla y navegación".
   final ScrollController _gridScrollController = ScrollController();
-  // Una GlobalKey por orden activa, para poder ubicar su posición en el
-  // scroll y traerla a la vista (Scrollable.ensureVisible).
+  // Una GlobalKey por orden, para traerla a la vista (Scrollable.ensureVisible).
   final Map<int, GlobalKey> _cardKeys = {};
 
   GlobalKey _cardKeyFor(int orderId) =>
       _cardKeys.putIfAbsent(orderId, () => GlobalKey());
 
-  // 2026-07-20 — cocina solo tiene 6 botones físicos (sin mouse ni pantalla
-  // táctil): dos flechas, recall, prep, listo, tiempo. Anterior/Siguiente
-  // hacían un movimiento horizontal (cambiar de orden), pero no había forma
-  // de desplazarse VERTICALMENTE dentro de un pedido largo ni en la vista
-  // All-day. Fix: `KdsScreen` posee un ScrollController por orden (en vez de
-  // que cada tarjeta gestione el suyo aislado) para poder leer/mover su
-  // posición desde `_onButton` — ver `_scrollSelectedCard`.
+  // ScrollControllers por orden que posee la pantalla (no cada tarjeta), para
+  // moverlos desde la botonera. docs/kds.md §"Pantalla y navegación".
   final Map<int, ScrollController> _itemScrollControllers = {};
 
   ScrollController _itemsControllerFor(int orderId) =>
       _itemScrollControllers.putIfAbsent(orderId, () => ScrollController());
 
-  // Scroll de la vista All-day (lista vertical consolidada) — mismo problema
-  // y misma solución: Anterior/Siguiente la desplazan cuando esa vista está
-  // activa (ahí no tiene sentido "cambiar de orden").
+  // Scroll de la vista All-day. docs/kds.md §All-day.
   final ScrollController _allDayScrollController = ScrollController();
 
-  // FASE 3.5 — botonera física (ESP32). Cursor de la tarjeta "seleccionada":
-  // ANTERIOR/SIGUIENTE la mueven; PREP/LISTO actúan sobre ella.
+  // Botonera: cursor de la tarjeta seleccionada. docs/kds.md §"Pantalla y
+  // navegación".
   int? _selectedOrderId;
   StreamSubscription<KdsButton>? _buttonSub;
   StreamSubscription<String>? _rawButtonSub;
   bool _botoneraStarted = false;
-  // GlobalKey (no `ScaffoldMessenger.of(context)`): el context de este State
-  // vive FUERA del árbol que arma build(), así que `.of(context)` seguiría
-  // encontrando el ScaffoldMessenger raíz de la app en vez del propio de esta
-  // pantalla. La key apunta directo al ScaffoldMessenger local.
+  // GlobalKey al ScaffoldMessenger local (no `.of(context)`, que encontraría el
+  // raíz de la app: el context de este State vive fuera del árbol de build()).
   final _messengerKey = GlobalKey<ScaffoldMessengerState>();
 
   @override
@@ -83,10 +67,7 @@ class _KdsScreenState extends ConsumerState<KdsScreen>
     _updateClock();
     _clockTimer =
         Timer.periodic(const Duration(seconds: 1), (_) => _updateClock());
-    // Auto-scroll para un tablero de pared sin tocar (5.3) — antes saltaba de
-    // golpe a la "siguiente página"; ahora se desplaza suave un lienzo hacia
-    // abajo (y vuelve arriba al llegar al final), consistente con el resto
-    // del rediseño de scroll continuo.
+    // Auto-scroll para un tablero de pared sin tocar. docs/kds.md.
     _rotateTimer = Timer.periodic(const Duration(seconds: 12), (_) {
       if (_allDay || !mounted || !_gridScrollController.hasClients) return;
       final position = _gridScrollController.position;
@@ -103,14 +84,10 @@ class _KdsScreenState extends ConsumerState<KdsScreen>
       duration: const Duration(seconds: 2),
     )..repeat(reverse: true);
 
-    // El stream real: local si este proceso tiene el socket del ESP32
-    // (KDS embebido/POS), o reenviado por WS si es la ventana separada —
-    // ver `kdsButtonStreamProvider`.
+    // Stream de botones (local o reenviado por WS). docs/kds-conexion.md.
     _buttonSub = ref.read(kdsButtonStreamProvider).listen(_onButton);
-    // Diagnóstico (3.5) de mensajes crudos no reconocidos: solo existe en el
-    // proceso que tiene el socket real (no se reenvía por WS) — en la ventana
-    // separada simplemente no habrá diagnóstico de mensajes basura, pero sí
-    // de los botones reconocidos (que es lo que importa operar).
+    // Diagnóstico de mensajes crudos no reconocidos (solo en el proceso con el
+    // socket real). docs/kds-conexion.md §Botonera.
     final buttons = ref.read(kdsButtonServiceProvider);
     _rawButtonSub = buttons.mensajeCrudo.listen((raw) {
       if (!mounted || parseKdsButton(raw) != null) return;
@@ -156,8 +133,7 @@ class _KdsScreenState extends ConsumerState<KdsScreen>
   }
 
   /// Arranca/detiene el servidor de la botonera según `botonera_activa`
-  /// (reactivo — apagar el flag en Configuración lo detiene sin cerrar la
-  /// app). Llamado desde build() con el settings ya cargado.
+  /// (reactivo). `docs/kds-conexion.md` §Botonera.
   void _syncBotonera(Map<String, String> settings) {
     final enabled = settings['botonera_activa'] == 'true';
     final service = ref.read(kdsButtonServiceProvider);
@@ -187,18 +163,12 @@ class _KdsScreenState extends ConsumerState<KdsScreen>
     if (!mounted) return;
     final active = _activeOrdered;
     final ids = active.map((o) => o.order.id).toList();
-    // Siempre hay una selección operable si hay algo activo — antes, si la
-    // selección se perdía (p.ej. tras marcar "listo"), PREP/LISTO quedaban en
-    // no-op silencioso hasta la siguiente navegación. Corrige el bug
-    // reportado de "el botón solo sirve una vez".
+    // Siempre hay una selección operable si hay algo activo. docs/kds.md.
     final current = effectiveSelection(ids, _selectedOrderId);
 
     switch (btn) {
       case KdsButton.tiempo:
-        // "TIEMPO": alterna la vista all-day (5.3) — la lectura de conjunto
-        // por tiempos, en vez de tarjeta por tarjeta. Con la cola vacía ambas
-        // vistas se ven igual ("Sin pedidos"), así que el aviso es lo único
-        // que confirma que el botón sí hizo algo.
+        // TIEMPO alterna la vista All-day. docs/kds.md §All-day.
         setState(() => _allDay = !_allDay);
         _toast(_allDay ? '🕐 Vista: All-day' : '🕐 Vista: Tarjetas');
         return;
@@ -212,9 +182,7 @@ class _KdsScreenState extends ConsumerState<KdsScreen>
       case KdsButton.anterior:
       case KdsButton.siguiente:
         final forward = btn == KdsButton.siguiente;
-        // Cocina solo tiene estos 6 botones (sin mouse ni touch, 2026-07-20)
-        // — en All-day, Anterior/Siguiente son la ÚNICA forma de bajar la
-        // lista consolidada (no hay "órdenes" entre las que cambiar aquí).
+        // En All-day, las flechas desplazan la lista. docs/kds.md §All-day.
         if (_allDay) {
           _scrollAllDay(forward);
           return;
@@ -223,11 +191,8 @@ class _KdsScreenState extends ConsumerState<KdsScreen>
           _toast('Sin pedidos activos para navegar', warn: true);
           return;
         }
-        // Si la tarjeta seleccionada tiene más contenido en esa dirección
-        // (pedido largo, varios productos), desplázala primero — recién
-        // cuando ya no queda más que ver ahí, el botón cambia de orden. Para
-        // un pedido corto que cabe completo, esto es un no-op y el botón
-        // cambia de orden directo, como siempre.
+        // Desplaza dentro de la tarjeta si le queda contenido; si no, cambia de
+        // orden. docs/kds.md §"Pantalla y navegación".
         if (current != null && _scrollSelectedCard(current, forward)) {
           return;
         }
@@ -257,8 +222,7 @@ class _KdsScreenState extends ConsumerState<KdsScreen>
         } else {
           _playOrderDone();
           notifier.markReady(current);
-          // Encadena a la siguiente tarjeta (cadencia de bump bar) en vez de
-          // exigir otra navegación manual tras cada "listo".
+          // Encadena a la siguiente (cadencia de bump bar). docs/kds.md.
           _selectAndReveal(nextAfterReady(ids, current));
           _toast('✅ Listo: $num');
         }
@@ -266,11 +230,8 @@ class _KdsScreenState extends ConsumerState<KdsScreen>
     }
   }
 
-  /// Fija la selección de la botonera Y desplaza el scroll para que esa
-  /// tarjeta quede a la vista — sin esto, con la cuadrícula de scroll
-  /// continuo (2026-07-20) la botonera podía "seleccionar" una orden que
-  /// quedó fuera de la pantalla, invisible hasta que alguien desplazara a
-  /// mano. `id == null` limpia la selección sin intentar desplazar nada.
+  /// Fija la selección y trae esa tarjeta a la vista (`id == null` solo limpia).
+  /// docs/kds.md §"Pantalla y navegación".
   void _selectAndReveal(int? id) {
     setState(() => _selectedOrderId = id);
     if (id == null) return;
@@ -287,13 +248,8 @@ class _KdsScreenState extends ConsumerState<KdsScreen>
     });
   }
 
-  /// Desplaza la tarjeta [orderId] en la dirección [forward] si le queda
-  /// contenido por ver ahí (2026-07-20 — cocina solo tiene 6 botones, sin
-  /// mouse ni touch). Devuelve `true` si desplazó algo (el botón "se
-  /// consume" en el scroll) o `false` si no había nada más que ver en esa
-  /// dirección — ahí el caller (`_onButton`) debe cambiar de orden. Para un
-  /// pedido corto que cabe completo (`maxScrollExtent == 0`), esto siempre
-  /// devuelve `false` de inmediato: cambia de orden directo, sin pausa.
+  /// Desplaza la tarjeta [orderId] si le queda contenido en [forward]; devuelve
+  /// `true` si desplazó (el caller no cambia de orden). docs/kds.md.
   bool _scrollSelectedCard(int orderId, bool forward) {
     final controller = _itemScrollControllers[orderId];
     if (controller == null || !controller.hasClients) return false;
@@ -311,9 +267,7 @@ class _KdsScreenState extends ConsumerState<KdsScreen>
     return true;
   }
 
-  /// Anterior/Siguiente en la vista All-day: ahí no hay "órdenes" entre las
-  /// que cambiar, así que desplazan la lista consolidada — es la única forma
-  /// de bajarla sin mouse ni touch (2026-07-20).
+  /// Anterior/Siguiente en All-day desplazan la lista. docs/kds.md §All-day.
   void _scrollAllDay(bool forward) {
     if (!_allDayScrollController.hasClients) return;
     final position = _allDayScrollController.position;
@@ -381,20 +335,14 @@ class _KdsScreenState extends ConsumerState<KdsScreen>
     _prevOrderIds = activeIds;
     _hasLoadedOnce = true;
 
-    // Resaltado a mostrar: la selección real si sigue vigente, si no la
-    // primera activa — así siempre hay una tarjeta claramente operable, aun
-    // antes de que la botonera navegue por primera vez. Es solo para pintar;
-    // el estado real (_selectedOrderId) lo fija _onButton.
+    // Resaltado a pintar (la selección real, o la primera activa). El estado
+    // real lo fija _onButton. docs/kds.md.
     final highlightId = effectiveSelection(
         active.map((o) => o.order.id).toList(), _selectedOrderId);
 
-    // ScaffoldMessenger PROPIO: sin esto, los avisos de la botonera
-    // (_toast/SnackBar) suben al ScaffoldMessenger raíz de MaterialApp y se
-    // ven flotando sobre el POS/Admin aunque la pestaña Cocina·KDS no esté
-    // visible (KdsScreen vive siempre montado dentro del IndexedStack de
-    // _Root). Con su propio ScaffoldMessenger, los avisos quedan confinados a
-    // esta pantalla y, al no pintarse las pestañas no-seleccionadas del
-    // IndexedStack, no aparecen en ningún otro lado.
+    // ScaffoldMessenger propio: confina los avisos de la botonera a esta
+    // pantalla (KdsScreen vive montada en el IndexedStack de _Root; sin esto
+    // los toasts flotarían sobre POS/Admin).
     return ScaffoldMessenger(
       key: _messengerKey,
       child: Scaffold(
@@ -402,9 +350,8 @@ class _KdsScreenState extends ConsumerState<KdsScreen>
         body: Column(
           children: [
             _buildHeader(businessName, active.length),
-            // Barra PERMANENTE (no un aviso que desaparece, no solo un borde en
-            // la tarjeta): siempre visible mientras la botonera está activa, para
-            // que sea imposible no notar cuál pedido está seleccionado.
+            // Barra permanente con la selección de la botonera (siempre visible,
+            // para no perder de vista cuál pedido está seleccionado).
             if (settings['botonera_activa'] == 'true')
               _buildSelectionBar(active, highlightId),
             Expanded(
@@ -437,9 +384,7 @@ class _KdsScreenState extends ConsumerState<KdsScreen>
     );
   }
 
-  /// Barra fija bajo el header con la selección actual de la botonera —
-  /// deliberadamente NO es un SnackBar (desaparece) ni depende de fijarse en
-  /// el borde de una tarjeta entre muchas: siempre está ahí, siempre legible.
+  /// Barra fija con la selección de la botonera (no un SnackBar; siempre visible).
   Widget _buildSelectionBar(List<OrderWithItems> active, int? highlightId) {
     String label;
     if (active.isEmpty) {
@@ -469,12 +414,8 @@ class _KdsScreenState extends ConsumerState<KdsScreen>
     );
   }
 
-  /// Cuadrícula de tarjetas con scroll continuo (2026-07-20) — ver
-  /// [KdsOrderGrid] para el detalle del rediseño. Poda las GlobalKeys y los
-  /// ScrollController de órdenes que ya no están activas (higiene, para no
-  /// acumularlos indefinidamente en un turno largo — los controllers, a
-  /// diferencia de las keys, hay que liberarlos explícitamente) y delega el
-  /// layout al widget.
+  /// Cuadrícula de scroll continuo (ver [KdsOrderGrid]). Poda las keys y libera
+  /// los ScrollController de órdenes ya inactivas. docs/kds.md.
   Widget _buildScrollableGrid(List<OrderWithItems> active, int? highlightId) {
     final activeIds = active.map((o) => o.order.id).toSet();
     _cardKeys.removeWhere((id, _) => !activeIds.contains(id));
@@ -494,17 +435,11 @@ class _KdsScreenState extends ConsumerState<KdsScreen>
     );
   }
 
-  /// Vista all-day: consolida las cantidades pendientes en toda la cocina
-  /// ("7× Frappé de Café"), en texto grande legible a distancia (5.3).
-  ///
-  /// 2026-07-20 (feedback en VM): se agrupa por producto + combinación de
-  /// modificadores, no solo por producto — antes "Café Americano sin azúcar"
-  /// y "Café Americano" a secas se sumaban juntos, perdiendo justo el dato
-  /// que le importa a quien prepara. Dos pedidos con los MISMOS
-  /// modificadores sí se siguen sumando en una sola línea.
+  /// Vista all-day: consolida cantidades pendientes por producto + combinación
+  /// de modificadores. docs/kds.md §All-day.
   Widget _buildAllDay(List<OrderWithItems> active) {
-    final groups = <String,
-        ({String product, List<KdsModifier> mods, int count})>{};
+    final groups =
+        <String, ({String product, List<KdsModifier> mods, int count})>{};
     for (final o in active) {
       for (final it in o.items) {
         if (it.itemStatus == 'listo' || it.itemStatus == 'cancelado') continue;
@@ -519,14 +454,8 @@ class _KdsScreenState extends ConsumerState<KdsScreen>
         );
       }
     }
-    // Orden (feedback en VM): las variantes del MISMO producto deben quedar
-    // SEGUIDAS — antes se ordenaba solo por cantidad, así que "Café
-    // Americano sin azúcar" podía quedar lejos de "Café Americano" a secas
-    // si algún otro producto se metía en medio por tener una cantidad
-    // intermedia. Ahora se agrupa por producto (el de mayor total arriba,
-    // para seguir priorizando lo más pedido) y, dentro de cada producto,
-    // sus variantes van ordenadas por cantidad — así "si sacaron 6 cafés,
-    // se ven los 6 juntos" aunque tengan modificadores distintos.
+    // Orden: producto de mayor total arriba, con sus variantes seguidas.
+    // docs/kds.md §All-day.
     final productTotals = <String, int>{};
     for (final e in groups.values) {
       productTotals[e.product] = (productTotals[e.product] ?? 0) + e.count;
@@ -542,9 +471,7 @@ class _KdsScreenState extends ConsumerState<KdsScreen>
       });
 
     return ListView.separated(
-      // 2026-07-20: controller propio para que Anterior/Siguiente puedan
-      // desplazarla desde la botonera (`_scrollAllDay`) — sin mouse ni
-      // touch, es la única forma de bajar esta lista.
+      // Controller propio para desplazarla con la botonera. docs/kds.md.
       controller: _allDayScrollController,
       padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
       itemCount: entries.length,
@@ -631,7 +558,7 @@ class _KdsScreenState extends ConsumerState<KdsScreen>
             ),
           ),
           const Spacer(),
-          // Toggle vista all-day (consolidada) ↔ tarjetas (5.3).
+          // Toggle All-day ↔ tarjetas. docs/kds.md §All-day.
           TextButton.icon(
             onPressed: () => setState(() => _allDay = !_allDay),
             style: TextButton.styleFrom(
@@ -717,18 +644,9 @@ class _KdsScreenState extends ConsumerState<KdsScreen>
   }
 }
 
-/// Cuadrícula de tarjetas de órdenes con SCROLL CONTINUO (2026-07-20).
-///
-/// Antes las tarjetas se repartían en páginas de tamaño fijo y "Siguiente"
-/// saltaba de golpe a un lienzo completamente distinto — con 6-7 pedidos
-/// activos, las órdenes 5+ quedaban invisibles en "otra pantalla" hasta
-/// hacer clic (reporte del dueño en sitio, café abierto). Ahora TODAS las
-/// órdenes activas conviven en el mismo lienzo desplazable — avanzar es
-/// desplazarse, no saltar.
-///
-/// Extraído como widget propio (en vez de un método de `_KdsScreenState`)
-/// para poder probarlo sin depender del resto de `KdsScreen` (audio, sockets
-/// de la botonera, timers de reloj/auto-scroll).
+/// Cuadrícula de órdenes con scroll continuo (extraída como widget propio para
+/// poder testearla sin el resto de KdsScreen). docs/kds.md §"Pantalla y
+/// navegación".
 class KdsOrderGrid extends StatelessWidget {
   const KdsOrderGrid({
     super.key,
@@ -744,50 +662,30 @@ class KdsOrderGrid extends StatelessWidget {
   final int? highlightId;
   final ScrollController controller;
   final Key Function(int orderId) cardKeyFor;
-  // Controller del scroll de items DENTRO de cada tarjeta — opcional (si no
-  // se pasa, cada OrderCardKds gestiona el suyo internamente). KdsScreen lo
-  // pasa para poder desplazar la tarjeta seleccionada desde la botonera
-  // (2026-07-20, ver `KdsScreen._scrollSelectedCard`).
+  // Controller del scroll de items dentro de cada tarjeta — opcional; KdsScreen
+  // lo pasa para moverlo desde la botonera. docs/kds.md.
   final ScrollController Function(int orderId)? itemsControllerFor;
   final VoidCallback? onSoundPlay;
 
-  // Ancho fijo (columnas parejas en el scroll horizontal); el alto YA NO es
-  // fijo (ver build) — 340 sigue siendo un ancho cómodo para leer a 2 m.
+  // Ancho fijo (columnas parejas); el alto crece con el contenido (ver build).
   static const cardW = 340.0, gap = 16.0, pad = 20.0;
 
   @override
   Widget build(BuildContext context) {
-    // 2026-07-20 (2ª pasada, feedback del dueño probando en la VM): el scroll
-    // ENTRE pedidos debe ser HORIZONTAL (como pasar tarjetas de lado a lado);
-    // el vertical es solo el de los productos DENTRO de cada tarjeta (ya
-    // existía). Antes ambos eran verticales — dos barras de scroll verticales
-    // encimadas (la de la cuadrícula y la de la tarjeta) se veían confusas.
-    // Con ejes perpendiculares (esta horizontal abajo, la de la tarjeta
-    // vertical al costado) ya no chocan visualmente.
-    //
-    // 3ª pasada (mismo día): ya no tiene sentido forzar TODAS las tarjetas a
-    // la misma altura fija — con scroll horizontal, un pedido de 2 productos
-    // puede ser una tarjeta chica y uno de 12 una tarjeta grande. Cada
-    // tarjeta crece con su contenido (`OrderCardKds` usa `Flexible` +
-    // `mainAxisSize.min` para esto) hasta un TOPE = el alto disponible de la
-    // pantalla (calculado aquí con LayoutBuilder); pasado ese tope, entra el
-    // scroll vertical interno que ya existía (flecha + degradado).
+    // Scroll ENTRE pedidos horizontal (el vertical es solo el de los productos
+    // dentro de cada tarjeta); tarjetas de alto automático con tope = alto de
+    // pantalla, y scroll interno pasado el tope. docs/kds.md §"Pantalla y
+    // navegación".
     return LayoutBuilder(builder: (context, constraints) {
       final maxCardHeight =
           (constraints.maxHeight - pad * 2).clamp(200.0, double.infinity);
       return Scrollbar(
-        // Key propia: cada OrderCardKds trae además su propio Scrollbar
-        // interno para su lista de items (2026-07-20), así que
-        // `find.byType(Scrollbar)` ya no basta para identificar el de la
-        // cuadrícula en los tests.
+        // Key propia: cada tarjeta trae su propio Scrollbar/scroll interno, así
+        // que `find.byType` no basta para identificar el de la cuadrícula en tests.
         key: const Key('kds-grid-scrollbar'),
         controller: controller,
         thumbVisibility: true,
         child: SingleChildScrollView(
-          // Key propia también aquí: cada tarjeta trae su propio
-          // SingleChildScrollView interno, así que buscar por tipo dentro
-          // del Scrollbar de arriba encuentra varios — esta apunta exacto
-          // al de la cuadrícula.
           key: const Key('kds-grid-scroll-view'),
           controller: controller,
           scrollDirection: Axis.horizontal,
@@ -824,11 +722,8 @@ class KdsOrderGrid extends StatelessWidget {
   }
 }
 
-/// Envuelve una tarjeta del KDS con un anillo visible cuando está seleccionada
-/// (cursor de la botonera, 3.5). Necesita padding propio: la tarjeta interior
-/// ya pinta su borde y su fondo hasta el borde, así que sin ese hueco el
-/// anillo exterior queda completamente tapado y no se ve — el bug reportado
-/// era justo este.
+/// Envuelve una tarjeta del KDS con un anillo cuando está seleccionada (cursor
+/// de la botonera). Necesita padding propio para que el anillo no quede tapado.
 class SelectableOrderCard extends StatelessWidget {
   final bool selected;
   final Widget child;

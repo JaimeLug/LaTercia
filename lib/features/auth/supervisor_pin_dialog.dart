@@ -7,15 +7,10 @@ import '../../core/services/audit_service.dart';
 import '../../core/services/permission_service.dart';
 import '../../core/theme/app_theme.dart';
 
-/// Reusable gate for the 7 sensitive [PermissionAction]s.
-///
-/// Call [SupervisorPinDialog.ensure] before performing the action:
-/// - If [actor] already has the permission (admin/gerente), it returns
-///   `true` immediately — no dialog is ever shown.
-/// - Otherwise it prompts for a supervisor PIN. On a valid PIN from a
-///   different admin/gerente employee, it logs the approval to `audit_log`
-///   (both employee ids) and returns `true`. Cancelling, or failing to
-///   provide a valid supervisor PIN, returns `false`.
+/// Gate reutilizable para las acciones sensibles. `ensure` devuelve `true` de
+/// inmediato si el actor ya tiene permiso; si no, pide PIN de supervisor y, si
+/// es válido (de otro admin/gerente), audita la aprobación y devuelve `true`.
+/// docs/permisos-y-auditoria.md.
 class SupervisorPinDialog {
   SupervisorPinDialog._();
 

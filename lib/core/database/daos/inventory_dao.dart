@@ -56,9 +56,8 @@ class InventoryDao extends DatabaseAccessor<AppDatabase>
     );
   }
 
-  /// Adds [qty] units back to stock — e.g. when an order is cancelled and the
-  /// reserved stock must be returned. Only affects products that track
-  /// inventory, mirroring [decrementStock]. Logged as an inventory movement.
+  /// Devuelve [qty] unidades al stock (p. ej. al cancelar una orden). Solo
+  /// productos con inventario rastreado. `docs/inventario.md`.
   Future<void> incrementStock(int productId, int qty, String reason) async {
     final product = await (select(products)
           ..where((p) => p.id.equals(productId)))
@@ -83,11 +82,8 @@ class InventoryDao extends DatabaseAccessor<AppDatabase>
             ..orderBy([(m) => OrderingTerm.desc(m.createdAt)]))
           .get();
 
-  /// FASE 7 — Punto único de descuento al vender: decide entre receta
-  /// (insumos) y stock simple, para que los call sites de venta (checkout,
-  /// enviar a cocina) no dupliquen esa decisión. Si el sistema de insumos
-  /// está apagado o el producto no tiene receta, cae al [decrementStock] de
-  /// siempre.
+  /// Punto único de descuento al vender: decide entre receta y stock simple.
+  /// `docs/inventario.md` §"Punto único de descuento".
   Future<void> decrementForSale(int productId, int qty, {int? orderId}) async {
     if (await _shouldUseRecipe(productId)) {
       await _adjustRecipeStock(productId, -qty, 'venta', orderId: orderId);

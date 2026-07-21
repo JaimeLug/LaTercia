@@ -67,9 +67,8 @@ const _sans = 'Poppins';
 
 Color _hex(String hex) => Color(int.parse(hex.replaceFirst('#', '0xFF')));
 
-/// Builds the POS / Admin light theme. [primaryHex] and [secondaryHex] come
-/// from Settings so the business can customize the accent colors; the brand
-/// neutrals (creams, browns, serif headings) stay constant.
+/// Tema claro del POS / Admin. [primaryHex]/[secondaryHex] vienen de Settings
+/// (colores de acento personalizables); los neutros de marca son constantes.
 ThemeData buildTheme(String primaryHex, String secondaryHex) {
   final primary = _hex(primaryHex);
   final secondary = _hex(secondaryHex);
@@ -217,7 +216,7 @@ ThemeData buildTheme(String primaryHex, String secondaryHex) {
   );
 }
 
-/// The KDS "Cocina" dark theme — always a dark blue slate, independent of
+/// Tema oscuro de la Cocina (KDS), siempre azul pizarra, independiente de
 /// Settings.
 ThemeData buildKdsTheme() {
   final base = ThemeData(

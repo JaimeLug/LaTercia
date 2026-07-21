@@ -7,18 +7,12 @@ import 'package:path_provider/path_provider.dart';
 import '../database/database.dart';
 import '../models/order_with_items.dart';
 
-/// FASE 5.1 — Protocolo compartido del enlace POS↔KDS por WebSocket.
-///
-/// El proceso POS es el único dueño de la BD y expone un servidor WS local
-/// (127.0.0.1). La ventana KDS separada se conecta como *viewer*: recibe los
-/// pedidos activos empujados y manda de vuelta los comandos (marcar listo,
-/// recall, cambio de estado). Si el WS no está disponible, el KDS cae al
-/// polling de BD (fallback), así nunca se queda sin datos.
+// Protocolo compartido del enlace POS↔KDS por WebSocket. `docs/kds-conexion.md`.
 
 const kdsWsPath = '/kds';
 
-/// El POS escribe aquí `{port, token}` al arrancar el servidor; el KDS lo lee
-/// para conectarse sin tocar la BD.
+/// Archivo endpoint `{port, token}` que el POS publica y el KDS lee.
+/// `docs/kds-conexion.md` §"Enlace POS↔KDS".
 Future<File> kdsEndpointFile() async {
   final appDir = await getApplicationSupportDirectory();
   final dir = Directory(p.join(appDir.path, 'latercia'));
@@ -29,8 +23,8 @@ Future<File> kdsEndpointFile() async {
 Future<void> writeKdsEndpoint(int port, String token) async {
   final f = await kdsEndpointFile();
   await f.writeAsString(jsonEncode({'port': port, 'token': token}));
-  // B1 — endurecimiento: restringe el archivo al dueño (600) en POSIX para que
-  // otros usuarios locales no lean el token. En Windows lo omite (best-effort).
+  // Restringe el archivo al dueño (600) en POSIX para que otros usuarios no
+  // lean el token. En Windows se omite (best-effort). docs/kds-conexion.md.
   if (Platform.isLinux || Platform.isMacOS) {
     try {
       await Process.run('chmod', ['600', f.path]);

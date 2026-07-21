@@ -7,22 +7,15 @@ import 'package:path/path.dart' as p;
 
 enum LogLevel { info, warn, error }
 
-/// Simple file logger with one log file per day, written to
-/// `%APPDATA%/latercia/logs/latercia-YYYY-MM-DD.log`.
-///
-/// Kept intentionally small: no external logging package, just append-only
-/// text lines flushed to disk. Never pass employee PINs (the `Employees.pin`
-/// column) into a logged message or error object.
+/// Logger a archivo, un archivo por día, append-only. Nunca loguear PINs.
+/// `docs/logs.md`.
 class AppLogger {
   AppLogger._();
 
   static final AppLogger instance = AppLogger._();
 
   static const _retentionDays = 30;
-  // Auditoría 2026-07-17 — tope duro de tamaño total como red de seguridad:
-  // sin esto, un bug que loguee en loop llenaría el disco sin límite hasta
-  // el próximo reinicio (la purga por antigüedad no ayuda si todo el
-  // volumen se generó hoy).
+  // Tope duro de tamaño total como red de seguridad (docs/logs.md).
   static const _maxTotalBytes = 50 * 1024 * 1024; // 50 MB
 
   Directory? _logDir;
@@ -38,9 +31,8 @@ class AppLogger {
 
   Future<Directory> _getLogDir() async {
     if (_logDir != null) return _logDir!;
-    // A3 (2026-07-20): logs a Documentos junto con los backups — pensados
-    // para que un técnico los encuentre y copie a mano, no en la carpeta
-    // interna de soporte de la app (donde ahora vive la base de datos).
+    // A3: logs a Documentos (para copiarlos a mano), no a la carpeta de soporte
+    // donde vive la base. docs/logs.md.
     final appDir = logDirOverrideForTesting != null
         ? await logDirOverrideForTesting!()
         : await getApplicationDocumentsDirectory();
@@ -78,14 +70,8 @@ class AppLogger {
     return _sink!;
   }
 
-  /// Initializes the logger and purges log files older than
-  /// [_retentionDays] days. Call once at app startup.
-  ///
-  /// Auditoría 2026-07-17 — antes la purga corría UNA sola vez, al arrancar.
-  /// En un kiosko que corre semanas sin reiniciar (`Restart=always` solo
-  /// reacciona a crashes, no al paso del tiempo), los logs viejos se
-  /// acumulaban hasta el siguiente arranque. Ahora también corre cada 24h
-  /// mientras el proceso siga vivo.
+  /// Inicializa el logger y purga logs viejos; corre la purga al arrancar y
+  /// cada 24h. Llamar una vez al inicio. `docs/logs.md`.
   Future<void> init() async {
     try {
       await purgeOldLogs();
@@ -116,11 +102,8 @@ class AppLogger {
     }
   }
 
-  /// Borra logs más viejos que [_retentionDays] y, si aun así el total sigue
-  /// por encima de [_maxTotalBytes], sigue borrando los más antiguos hasta
-  /// quedar debajo del tope — red de seguridad ante un bug que loguee en
-  /// loop dentro de un solo día (la purga por antigüedad sola no alcanza en
-  /// ese caso).
+  /// Purga por antigüedad ([_retentionDays]) y, si aún se pasa de
+  /// [_maxTotalBytes], sigue borrando los más antiguos. `docs/logs.md`.
   Future<void> purgeOldLogs() async {
     final dir = await _getLogDir();
     final cutoff =
@@ -217,5 +200,5 @@ class AppLogger {
       _write(LogLevel.error, message, error, stackTrace);
 }
 
-/// Global convenience accessor, e.g. `appLogger.warn('...')`.
+/// Acceso global de conveniencia, p. ej. `appLogger.warn('...')`.
 final appLogger = AppLogger.instance;

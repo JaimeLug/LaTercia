@@ -222,9 +222,8 @@ class InventoryMovements extends Table {
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
 }
 
-/// Append-only trail of sensitive actions (sales, cancellations, permission
-/// overrides, settings changes, etc). Never write [Employees.pin] into
-/// [detailJson] — see individual hook call sites for what each action logs.
+/// Bitácora append-only de acciones sensibles. Nunca escribir [Employees.pin]
+/// en [detailJson]. `docs/permisos-y-auditoria.md`.
 class AuditLog extends Table {
   IntColumn get id => integer().autoIncrement()();
   DateTimeColumn get ts => dateTime().withDefault(currentDateAndTime)();
@@ -245,11 +244,9 @@ class CashMovements extends Table {
   DateTimeColumn get ts => dateTime().withDefault(currentDateAndTime)();
 }
 
-/// FASE 4.4 — Reembolsos post-pago. Nunca editan la venta original: son un
-/// contra-movimiento inmutable. [orderItemId] nullable = reembolso total de la
-/// orden; con valor = reembolso de una línea. [supervisorId] es el empleado que
-/// autorizó con su PIN (obligatorio; el reembolso siempre pasa por supervisor).
-/// [shiftId] liga el reembolso al turno para que el corte Z lo reste.
+/// Reembolsos post-pago (contra-movimiento inmutable). [orderItemId] null =
+/// reembolso total; con valor = de una línea. `docs/ventas-cobro-turnos.md`
+/// §Reembolsos.
 class Refunds extends Table {
   IntColumn get id => integer().autoIncrement()();
   IntColumn get orderId => integer().references(Orders, #id)();
@@ -371,11 +368,12 @@ class DeliveryZones extends Table {
   RecipeItems,
   DeliveryZones,
 ])
+
+/// Base de datos SQLite (Drift). `docs/base-de-datos.md`.
 class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
 
-  /// Builds a database on top of an explicit executor — used by tests to run
-  /// against an in-memory SQLite instance (NativeDatabase.memory()).
+  /// Base sobre un executor explícito — para tests con SQLite en memoria.
   AppDatabase.forTesting(super.executor);
 
   @override
@@ -383,9 +381,8 @@ class AppDatabase extends _$AppDatabase {
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
-        // A1: integridad referencial forzada por la BD. Se activa por conexión,
-        // fuera de transacción (requisito de SQLite), en cada apertura —incl.
-        // los tests, que usan `forTesting` y no pasan por `_openConnection`.
+        // A1: fuerza foreign_keys en cada apertura (incl. tests).
+        // docs/base-de-datos.md §"Integridad referencial".
         beforeOpen: (details) async {
           await customStatement('PRAGMA foreign_keys = ON');
         },
@@ -394,8 +391,8 @@ class AppDatabase extends _$AppDatabase {
           await SeederService(this).seedIfNeeded();
         },
         onUpgrade: (Migrator m, int from, int to) async {
-          // v2: PINs are now stored hashed. Re-hash the plaintext PINs that
-          // existing installs still have so logins keep working.
+          // v2: PINs ahora hasheados. Re-hashea los PINs en claro de instala-
+          // ciones existentes para que el login siga funcionando.
           if (from < 2) {
             final existing = await select(employees).get();
             for (final e in existing) {
@@ -404,12 +401,13 @@ class AppDatabase extends _$AppDatabase {
             }
           }
           if (from < 3) {
-            // Redesign: apply new brand defaults where still unchanged.
+            // Rediseño: aplica los nuevos defaults de marca donde no se hayan
+            // cambiado.
             await SeederService(this).syncBrandDefaults();
           }
           if (from < 4) {
-            // FASE 2 parte A: audit trail, cash movements, and the shift /
-            // order / payment / inventory-movement linking columns they need.
+            // v4: bitácora de auditoría, movimientos de caja y las columnas de
+            // enlace (turno/orden/pago/movimiento) que necesitan.
             await m.createTable(auditLog);
             await m.createTable(cashMovements);
             await m.addColumn(inventoryMovements, inventoryMovements.orderId);
@@ -429,10 +427,8 @@ class AppDatabase extends _$AppDatabase {
             await settingsDao.setValue('tax_included', 'true');
           }
           if (from < 6) {
-            // A1: al empezar a forzar foreign_keys, una instalación existente
-            // podría tener filas huérfanas de antes (cuando no se validaban).
-            // No podemos borrarlas a ciegas; las detectamos y las dejamos en el
-            // log para revisión manual (red de seguridad, no bloquea el arranque).
+            // v6: al forzar foreign_keys, detecta filas huérfanas viejas y las
+            // deja en el log (no bloquea). docs/base-de-datos.md §Migraciones.
             try {
               final violations =
                   await customSelect('PRAGMA foreign_key_check').get();
@@ -502,20 +498,11 @@ QueryExecutor _openConnection() {
   return driftDatabase(
     name: 'latercia',
     native: DriftNativeOptions(
-      // A3 (2026-07-20): la base vive en la carpeta de soporte de la app
-      // (`~/.local/share/<APPLICATION_ID>/` en Linux — ver
-      // `linux/CMakeLists.txt`), NO en Documentos. Antes, sin este override,
-      // drift_flutter usaba `getApplicationDocumentsDirectory()` por
-      // default — así fue como la base terminó mezclada con los documentos
-      // del usuario en la instalación del 18-jul. Los backups (pensados para
-      // que un técnico los copie a mano) SÍ van a Documentos —
-      // ver `BackupService._appDir`.
+      // A3: la base vive en la carpeta de soporte, NO en Documentos (donde
+      // sí van los backups). docs/base-de-datos.md §Ubicación, docs/backups.md.
       databaseDirectory: getApplicationSupportDirectory,
-      // POS and KDS are two separate processes sharing the same SQLite file.
-      // WAL lets readers and writers proceed concurrently instead of
-      // blocking on a single writer lock, and busy_timeout makes SQLite
-      // retry for up to 5s instead of throwing "database is locked"
-      // immediately when the two processes do collide on a write.
+      // WAL + busy_timeout para el acceso multiproceso POS/KDS al mismo archivo.
+      // docs/base-de-datos.md §"Ubicación y acceso multiproceso".
       setup: (db) {
         db.execute('PRAGMA journal_mode=WAL;');
         db.execute('PRAGMA busy_timeout=5000;');

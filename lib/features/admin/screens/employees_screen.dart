@@ -184,8 +184,8 @@ class _EmployeeFormDialogState extends ConsumerState<_EmployeeFormDialog> {
     super.initState();
     final e = widget.employee;
     _nameCtrl = TextEditingController(text: e?.name ?? '');
-    // Never prefill the PIN: stored values are hashes, not the real PIN. On
-    // edit, an empty field means "keep the current PIN".
+    // Nunca precargar el PIN (lo guardado es un hash). Al editar, campo vacío =
+    // mantener el PIN actual. docs/seguridad.md.
     _pinCtrl = TextEditingController();
     _role = e?.role ?? 'cashier';
   }
@@ -230,7 +230,7 @@ class _EmployeeFormDialogState extends ConsumerState<_EmployeeFormDialog> {
               maxLength: 4,
               validator: (v) {
                 final value = v ?? '';
-                // On edit, an empty field keeps the current PIN.
+                // Al editar, campo vacío mantiene el PIN actual.
                 if (widget.employee != null && value.isEmpty) return null;
                 if (value.length != 4) return 'PIN de 4 dígitos';
                 if (int.tryParse(value) == null) return 'Solo números';
@@ -265,14 +265,13 @@ class _EmployeeFormDialogState extends ConsumerState<_EmployeeFormDialog> {
     if (!_formKey.currentState!.validate()) return;
     final db = ref.read(databaseProvider);
 
-    // On edit, an empty PIN field means "keep the current PIN"; solo estamos
-    // fijando un PIN cuando el campo trae valor (o es un empleado nuevo).
+    // Al editar, campo vacío = mantener el PIN; solo fijamos PIN si trae valor
+    // (o es empleado nuevo).
     final pinText = _pinCtrl.text;
     final settingPin = !(widget.employee != null && pinText.isEmpty);
 
-    // Impedir dos empleados ACTIVOS con el mismo PIN (auditoría 2026-07-18):
-    // sin esto, dos cajeros podían compartir PIN y la auditoría por empleado
-    // quedaba ambigua. Solo se valida cuando se está fijando un PIN.
+    // Impedir dos empleados ACTIVOS con el mismo PIN (la auditoría por empleado
+    // quedaría ambigua). Solo al fijar un PIN. docs/seguridad.md.
     if (settingPin &&
         await db.employeesDao
             .pinInUseByActive(pinText, excludeId: widget.employee?.id)) {
@@ -284,7 +283,7 @@ class _EmployeeFormDialogState extends ConsumerState<_EmployeeFormDialog> {
       return;
     }
 
-    // Store the PIN hashed. On edit with an empty field, leave the PIN as-is.
+    // Guarda el PIN hasheado; al editar con campo vacío, lo deja igual.
     final pinValue =
         settingPin ? Value(hashPin(pinText)) : const Value<String>.absent();
 

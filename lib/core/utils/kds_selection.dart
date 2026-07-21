@@ -1,25 +1,16 @@
-// Lógica pura del cursor de "tarjeta seleccionada" del KDS (botonera física,
-// 3.5) — separada de `KdsScreen` para poder testearla sin montar widgets.
+// Lógica pura del cursor de la botonera del KDS. `docs/kds.md`.
 
-/// La selección efectiva a usar/resaltar: la actual si sigue siendo una orden
-/// activa, o si no (nunca se eligió, o la seleccionada ya no está activa) la
-/// primera de la lista. Devuelve null solo si no hay ninguna orden activa.
-///
-/// Esto es lo que corrige el bug reportado ("el botón de prep/listo solo
-/// sirve una vez"): antes, si la selección se perdía (por ejemplo tras
-/// marcar "listo"), PREP/LISTO se convertían en no-op silencioso hasta la
-/// siguiente pulsación de ANTERIOR/SIGUIENTE — con esto siempre hay una
-/// tarjeta operable, aunque nunca se haya navegado.
+/// Selección efectiva a resaltar/operar (la actual si sigue activa, si no la
+/// primera; null si no hay órdenes). `docs/kds.md` §"Cursor de tarjeta
+/// seleccionada".
 int? effectiveSelection(List<int> activeIds, int? selected) {
   if (activeIds.isEmpty) return null;
   if (selected != null && activeIds.contains(selected)) return selected;
   return activeIds.first;
 }
 
-/// Próxima selección tras marcar `removedId` como "listo" (sale de la lista
-/// activa): la que ocupaba la siguiente posición, para que la botonera pueda
-/// encadenar LISTO, LISTO, LISTO sin tener que navegar entre cada una — el
-/// flujo natural de un bump bar de cocina.
+/// Próxima selección tras marcar `removedId` como "listo". `docs/kds.md`
+/// §"Encadenar listo, listo, listo".
 int? nextAfterReady(List<int> idsBeforeRemoval, int removedId) {
   final idx = idsBeforeRemoval.indexOf(removedId);
   if (idx == -1) return null;

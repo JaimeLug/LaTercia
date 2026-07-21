@@ -11,10 +11,8 @@ import '../../../core/utils/formatters.dart';
 import '../../shell/shift/cut_ticket.dart';
 import '../widgets/admin_panel.dart';
 
-/// Corte Z history: every closed shift, tap to see its full ticket. Backs
-/// the "should also be viewable later for closed shifts" requirement from
-/// 2.3 — the same result screen `CloseShiftDialog` shows right after
-/// closing is reused here.
+/// Historial de cortes Z: cada turno cerrado, tocar para ver su ticket
+/// completo (reusa la pantalla de resultado de `CloseShiftDialog`).
 class ShiftsScreen extends ConsumerWidget {
   const ShiftsScreen({super.key});
 

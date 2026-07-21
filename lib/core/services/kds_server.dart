@@ -18,19 +18,15 @@ final kdsServerProvider = Provider<KdsServer>((ref) {
   return server;
 });
 
-/// FASE 5.1 — Servidor WebSocket local que corre en el proceso POS (el único
-/// dueño de la BD). Empuja los pedidos activos a las ventanas KDS conectadas y
-/// ejecuta los comandos que estas mandan a través de los callbacks.
-///
-/// Bind a 127.0.0.1 con puerto efímero (se publica en el archivo de endpoint) y
-/// un token aleatorio por sesión para que solo el KDS local pueda conectarse.
+/// Servidor WebSocket local del proceso POS (dueño de la BD): empuja pedidos a
+/// las ventanas KDS y ejecuta sus comandos. `docs/kds-conexion.md`.
 class KdsServer {
   HttpServer? _server;
   String? _token;
   final Set<WebSocket> _clients = {};
   String? _lastMessage;
 
-  // B2 — límites defensivos: los comandos son diminutos y las cocinas pocas.
+  // Límites defensivos (docs/kds-conexion.md): comandos diminutos, pocas cocinas.
   static const _maxClients = 8;
   static const _maxCommandBytes = 4096;
 
@@ -41,10 +37,9 @@ class KdsServer {
 
   bool get isRunning => _server != null;
 
-  /// Verdadero si hay al menos una ventana KDS separada conectada por WS —
-  /// usado para que la pestaña KDS embebida del propio proceso POS deje de
-  /// procesar la botonera física en paralelo cuando ya hay una ventana
-  /// externa haciéndolo (ver [kdsButtonStreamProvider]).
+  /// Si hay al menos una ventana KDS separada conectada por WS. Se usa para
+  /// silenciar la botonera del KDS embebido (ver [kdsButtonStreamProvider] y
+  /// `docs/kds-conexion.md` §"El bug de RECALL").
   bool get hasClients => _clients.isNotEmpty;
 
   /// Solo para tests (en producción el KDS descubre el endpoint por archivo).
@@ -105,9 +100,8 @@ class KdsServer {
     }
   }
 
-  /// Empuja el snapshot actual a todas las cocinas conectadas. Si el contenido
-  /// es idéntico al último enviado (M3), no reenvía —el POS emite en cada tick
-  /// de 2 s aunque nada cambie— pero conserva el snapshot para clientes nuevos.
+  /// Empuja el snapshot a las cocinas; no reenvía si es idéntico al último pero
+  /// lo conserva para clientes nuevos. `docs/kds-conexion.md`.
   void broadcast(List<OrderWithItems> orders, bool canRecall) {
     final msg = encodeOrdersMessage(orders, canRecall);
     if (msg == _lastMessage) return;
@@ -121,10 +115,8 @@ class KdsServer {
     }
   }
 
-  /// Reenvía un botón de la botonera física a las ventanas KDS separadas
-  /// conectadas — el ESP32 solo puede hablarle a este proceso (dueño real del
-  /// puerto 8080 de la botonera); sin esto, una ventana KDS en otra pantalla
-  /// se queda sorda aunque el POS sí reciba las pulsaciones.
+  /// Retransmite un botón físico a las ventanas KDS separadas (el ESP32 solo le
+  /// habla a este proceso). `docs/kds-conexion.md` §"Un solo proceso escucha".
   void broadcastBoton(KdsButton btn) {
     final msg = jsonEncode({'type': 'boton', 'boton': kdsButtonLabel(btn)});
     for (final ws in _clients.toList()) {

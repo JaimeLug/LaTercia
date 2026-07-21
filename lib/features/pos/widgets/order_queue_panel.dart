@@ -281,15 +281,13 @@ class _OrderRow extends ConsumerWidget {
     final items = await db.orderItemsDao.getItemsForOrder(order.id);
     if (!context.mounted) return;
 
-    // A pending order (sent to the kitchen without charging) can still be
-    // collected here — the pay-at-the-end mesa flow.
+    // Una orden pendiente (enviada a cocina sin cobrar) se puede cobrar aquí
+    // (flujo de mesa pagar-al-final). docs/ordenes-y-cocina.md.
     final canCharge =
         order.paymentStatus == 'pendiente' && order.status != 'cancelado';
 
-    // A paid order that the kitchen never marked "listo" would otherwise sit
-    // in the active queue forever (paid ≠ delivered by design). Let the
-    // cashier close it out from here without needing the KDS. markReady on a
-    // paid order delivers it and frees its table.
+    // Una orden pagada que la cocina nunca marcó "listo" se puede entregar
+    // desde aquí sin el KDS (pagada ≠ entregada). docs/ordenes-y-cocina.md.
     final canDeliver = order.paymentStatus == 'pagado' &&
         order.status != 'entregado' &&
         order.status != 'cancelado';

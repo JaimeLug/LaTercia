@@ -49,15 +49,15 @@ Future<void> _mainImpl(List<String> args) async {
 
   final isKds = args.contains('kds');
 
-  // Apply a staged database restore, if any, before the database is opened.
-  // Only the main POS process does this — the KDS shares the same file and
-  // must not race to swap it.
+  // Aplica una restauración pendiente antes de abrir la base. Solo el proceso
+  // POS (el KDS comparte el archivo y no debe competir por el swap).
+  // docs/backups.md.
   if (!isKds) {
     await applyPendingRestoreIfAny();
   }
 
   if (isKds) {
-    // Parse optional screen position: kds --x=0 --y=0 --w=1920 --h=1080
+    // Posición opcional de pantalla: kds --x=0 --y=0 --w=1920 --h=1080
     double? sx, sy, sw, sh;
     for (final a in args) {
       if (a.startsWith('--x=')) sx = double.tryParse(a.substring(4));

@@ -53,25 +53,12 @@ typedef RestoreRowDiff = ({
 /// final que ve el usuario.
 typedef RestoreApplyResult = ({int added, int updated, int kept});
 
-/// FASE 5.2 — Backups automáticos.
-///
-/// Copia la base con checkpoint del WAL a `%APPDATA%/latercia/backups/`
-/// (en Linux, desde A3 2026-07-20: `~/Documentos/latercia/backups/`), con
-/// retención de N días. Corre a diario (una vez por día calendario) y al
-/// cerrar turno. Todo best-effort: nunca lanza hacia el caller ni bloquea el
-/// flujo de venta.
+/// Backups automáticos, exportación selectiva y restauración parcial.
+/// `docs/backups.md` y `docs/restauracion-parcial.md`.
 class BackupService {
-  /// [baseDir] resuelve la carpeta de datos de la app, donde viven backups y
-  /// logs — por defecto `getApplicationDocumentsDirectory` (A3: pensada para
-  /// que un técnico la encuentre y copie a mano, por eso Documentos y no la
-  /// carpeta de soporte de la app). [dbDir] resuelve la carpeta donde vive
-  /// el archivo **real** de la BD — por defecto `getApplicationSupportDirectory`
-  /// (así es como `driftDatabase(name: 'latercia', databaseDirectory: ...)`
-  /// la resuelve ahora, ver `_openConnection` en `database.dart`).
-  /// Son dos carpetas DISTINTAS a propósito — antes ambas asumían la misma
-  /// (soporte de la app), y los backups automáticos fallaban en silencio
-  /// (best-effort) sin respaldar nada real porque la BD nunca estuvo ahí.
-  /// Los tests inyectan ambas a temps aislados.
+  /// [baseDir] = carpeta de backups/logs (Documentos); [dbDir] = carpeta del
+  /// archivo real de la BD (soporte de la app). Son DISTINTAS a propósito
+  /// (`docs/backups.md` §Rutas). Los tests inyectan ambas a temps aislados.
   BackupService(
     this._db, {
     Future<Directory> Function()? baseDir,
@@ -85,10 +72,8 @@ class BackupService {
 
   static const _defaultRetentionDays = 14;
 
-  /// Tablas exportables a `.sql`/`.xlsx` (pantalla de Backups) — llave =
-  /// nombre real de la tabla en SQLite (ver `$name` en `database.g.dart`),
-  /// valor = etiqueta en español para la UI. El `.db` completo no pasa por
-  /// aquí: siempre es la base entera, sin selección.
+  /// Tablas exportables a `.sql`/`.xlsx` (nombre real → etiqueta en español).
+  /// El `.db` completo no pasa por aquí. `docs/backups.md` §Exportación.
   static const Map<String, String> exportableTables = {
     'products': 'Productos',
     'categories': 'Categorías',
@@ -116,23 +101,9 @@ class BackupService {
     'audit_log': 'Bitácora de auditoría',
   };
 
-  /// Grupos que SÍ se pueden restaurar por partes desde un `.db` (pantalla de
-  /// Backups → restauración parcial). Son "datos maestros" (catálogo-like):
-  /// autocontenidos o con referencias solo hacia otros datos maestros.
-  ///
-  /// A propósito NO están aquí:
-  /// - **Operación** (turnos, órdenes, pagos, gastos, reembolsos, movimientos
-  ///   de caja): historial real de negocio, ligado a casi todo — restaurarlo
-  ///   a medias mientras el resto de la base sigue vivo es justo donde se
-  ///   corrompen los datos. Se restaura solo con el `.db` completo.
-  /// - **Movimientos de inventario/ingredientes y compras**: son historial
-  ///   transaccional (referencian órdenes), mismo motivo que Operación.
-  /// - **Sistema** (settings, audit_log): restaurar settings pisaría en
-  ///   silencio la IP de la impresora / IVA actuales; el audit_log es un
-  ///   registro append-only que no tiene sentido "restaurar".
-  ///
-  /// El orden de cada lista es orden de INSERCIÓN (padres antes que hijos, por
-  /// las llaves foráneas). El borrado en modo "reemplazar" va en orden inverso.
+  /// Grupos restaurables por partes (datos maestros). Operación y Sistema
+  /// quedan fuera a propósito. Orden = inserción (padres antes que hijos; el
+  /// borrado va en orden inverso). `docs/restauracion-parcial.md`.
   static const Map<String, List<String>> restoreGroups = {
     'Catálogo': [
       'categories',
@@ -147,8 +118,7 @@ class BackupService {
     'Envío': ['delivery_zones'],
   };
 
-  /// Mismo universo de [exportableTables], agrupado para los checkboxes de
-  /// la pantalla de Backups (orden = orden de aparición en la UI).
+  /// [exportableTables] agrupado para los checkboxes de la pantalla.
   static const Map<String, List<String>> exportGroups = {
     'Catálogo': [
       'products',
@@ -204,17 +174,13 @@ class BackupService {
     return int.tryParse(v ?? '') ?? _defaultRetentionDays;
   }
 
-  /// Hace un checkpoint del WAL y copia la base a la carpeta de backups con un
-  /// nombre con fecha/hora; luego poda los antiguos y sella `last_backup_at`.
-  /// Devuelve el archivo creado, o null si falló (best-effort).
+  /// Checkpoint del WAL + copia con fecha/hora, poda y sella `last_backup_at`.
+  /// null si falló (best-effort). `docs/backups.md` §"Respaldo automático".
   Future<File?> backupNow({required String reason}) async {
     try {
-      // Vuelca el WAL al .db para que la copia incluya lo recién escrito.
-      // `PRAGMA wal_checkpoint(TRUNCATE)` devuelve (busy, log, checkpointed) —
-      // si hay un lector concurrente (ej. el KDS a media consulta del poll de
-      // 2s), el checkpoint puede quedar parcial sin lanzar error, y el backup
-      // copiaría el .db sin las transacciones más recientes del WAL. Lo
-      // logueamos (no bloqueante — best-effort) para poder diagnosticarlo.
+      // Vuelca el WAL al .db para incluir lo recién escrito. Un lector
+      // concurrente puede dejar el checkpoint parcial sin error: se loguea
+      // (no bloqueante). docs/backups.md.
       final checkpoint =
           await _db.customSelect('PRAGMA wal_checkpoint(TRUNCATE);').get();
       if (checkpoint.isNotEmpty) {
@@ -245,10 +211,8 @@ class BackupService {
       }
       final stamp = DateFormat('yyyy-MM-dd_HHmmss').format(DateTime.now());
       final dest = p.join(dir.path, 'latercia-$stamp.db');
-      // Copia a un archivo temporal y luego renombra — el rename es atómico
-      // en el mismo volumen (Windows/Linux), así que ante un corte de luz a
-      // medio `copy()` el respaldo nunca queda truncado con el nombre final:
-      // o existe completo, o no existe.
+      // Copia a .tmp y renombra (atómico): nunca queda un backup truncado con
+      // el nombre final. docs/backups.md §"Respaldo automático".
       final tmp = File('$dest.tmp');
       await src.copy(tmp.path);
       await tmp.rename(dest);
@@ -339,9 +303,7 @@ class BackupService {
     return result;
   }
 
-  /// Nombres de columna de [table] en su orden real (`PRAGMA table_info`),
-  /// para que el `.sql`/`.xlsx` tengan las columnas en el mismo orden que la
-  /// tabla real sin depender del orden de `Map` que devuelve `SELECT *`.
+  /// Columnas de [table] en su orden real (`PRAGMA table_info`).
   Future<List<String>> _tableColumns(String table) async {
     final info = await _db.customSelect('PRAGMA table_info($table)').get();
     final rows = info.toList()
@@ -349,22 +311,15 @@ class BackupService {
     return rows.map((r) => r.data['name'] as String).toList();
   }
 
-  /// Filtra [tables] contra [exportableTables]; vacío o null = todas. Nunca
-  /// confía ciegamente en lo que mande el caller (aunque hoy solo lo llama
-  /// la pantalla de Backups con sus propios checkboxes).
+  /// Filtra [tables] contra [exportableTables]; vacío o null = todas.
   List<String> _resolveSelection(List<String>? tables) {
     if (tables == null || tables.isEmpty) return exportableTables.keys.toList();
     final allowed = exportableTables.keys.toSet();
     return tables.where(allowed.contains).toList();
   }
 
-  /// Exporta [tables] (o todas si se omite) a un `.sql` legible: el
-  /// `CREATE TABLE` real de cada tabla (tal cual vive en `sqlite_master`,
-  /// con sus constraints) seguido de un `INSERT` por fila. Solo lectura de
-  /// exportación — nada en la app vuelve a importar un `.sql` (ver decisión
-  /// en `PLAN_ACTUALIZACION_GRANDE_2026-07.md`: reconstruir una BD relacional
-  /// desde un dump editado a mano es donde se corrompen los datos; el único
-  /// formato de restauración real sigue siendo `.db`).
+  /// Exporta [tables] (o todas) a un `.sql` legible (CREATE TABLE + INSERTs).
+  /// Solo exportación, no se reimporta. `docs/backups.md` §Exportación.
   Future<String> exportSql({List<String>? tables}) async {
     final selected = _resolveSelection(tables);
     final buffer = StringBuffer()
@@ -405,9 +360,8 @@ class BackupService {
     return "'${value.toString().replaceAll("'", "''")}'";
   }
 
-  /// Exporta [tables] (o todas si se omite) a un libro `.xlsx`, una hoja por
-  /// tabla con encabezados = nombre de columna. Igual que [exportSql], es
-  /// solo de exportación — no hay flujo de import de vuelta desde Excel.
+  /// Exporta [tables] (o todas) a un `.xlsx`, una hoja por tabla. Solo
+  /// exportación. `docs/backups.md` §Exportación.
   Future<List<int>> exportXlsxBytes({List<String>? tables}) async {
     final selected = _resolveSelection(tables);
     final workbook = xlsx.Excel.createExcel();
@@ -436,13 +390,11 @@ class BackupService {
     return workbook.encode() ?? const <int>[];
   }
 
-  // ─── Restauración parcial por grupo (asistente de fusión) ─────────────────
+  // ─── Restauración parcial por grupo (docs/restauracion-parcial.md) ────────
 
-  /// Abre el `.db` elegido como base secundaria de SOLO LECTURA y compara,
-  /// fila por fila (por `id`), cada tabla del [group] contra la base actual.
-  /// No escribe nada — solo devuelve el diagnóstico para que la pantalla arme
-  /// la lista de conflictos que el usuario debe decidir. Lanza si el grupo no
-  /// es restaurable o el archivo no abre como SQLite.
+  /// Abre el `.db` en SOLO LECTURA y compara fila por fila (por `id`) el
+  /// [group] contra la base actual; no escribe nada. Lanza si el grupo no es
+  /// restaurable. `docs/restauracion-parcial.md` §Comparación.
   Future<List<RestoreRowDiff>> previewGroupRestore({
     required String backupPath,
     required String group,
@@ -490,26 +442,10 @@ class BackupService {
     }
   }
 
-  /// Aplica la restauración parcial del [group] desde [backupPath].
-  ///
-  /// - [replace] = true (**Reemplazar**): borra las filas actuales del grupo y
-  ///   mete las del respaldo. Todo dentro de una transacción: si alguna fila
-  ///   que se borra sigue referenciada desde fuera del grupo (ej. una venta
-  ///   que usa un producto), la BD lanza y la transacción revierte COMPLETA —
-  ///   la base queda igual que antes. [decisions] se ignora en este modo.
-  /// - [replace] = false (**Agregar / fusionar**): no borra nada. Cada fila
-  ///   del respaldo que no exista (por `id`) se agrega; si existe idéntica, se
-  ///   mantiene; si existe distinta, se aplica [decisions] (`'tabla:id'` →
-  ///   [RestoreDecision]; sin entrada = mantener la actual).
-  ///
-  /// [resolvedRows] (solo en modo Agregar) resuelve los conflictos de filas
-  /// "diferente": mapea `'tabla:id'` → la fila FINAL de valores a escribir,
-  /// ya mezclada como la quiere el usuario (puede tomar unas columnas de la
-  /// base actual y otras del respaldo — fusión a nivel columna). Cada mapa
-  /// debe traer TODAS las columnas de la tabla, incluida `id`. Un conflicto
-  /// que no aparezca aquí se mantiene tal cual está (no se toca).
-  ///
-  /// Devuelve el conteo de lo que pasó, para el resumen final.
+  /// Aplica la restauración del [group]. [replace]=true borra e inserta (con
+  /// rollback por FK); [replace]=false fusiona usando [resolvedRows]
+  /// (`'tabla:id'` → fila final ya mezclada columna por columna, con TODAS sus
+  /// columnas). Devuelve el conteo. `docs/restauracion-parcial.md` §Aplicar.
   Future<RestoreApplyResult> applyGroupRestore({
     required String backupPath,
     required String group,
@@ -577,9 +513,8 @@ class BackupService {
     }
   }
 
-  /// Lee todas las filas de [table] del `.db` de respaldo como mapas alineados
-  /// a las [currentCols] de la base actual — si el respaldo no trae alguna
-  /// columna (versión más vieja), queda como null en vez de reventar.
+  /// Filas de [table] del respaldo alineadas a [currentCols] (una columna que
+  /// el respaldo no traiga queda null, no revienta).
   List<Map<String, Object?>> _readBackupRows(
       sq.Database backup, String table, List<String> currentCols) {
     final result = backup.select('SELECT * FROM $table');

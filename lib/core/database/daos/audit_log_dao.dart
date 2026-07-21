@@ -3,9 +3,9 @@ import '../database.dart';
 
 part 'audit_log_dao.g.dart';
 
-/// Append-only access to [AuditLog]. Kept intentionally generic (recent /
-/// by-action / by-employee / by-date-range) since Fase 2 parte B will build
-/// reporting screens (antifraude, cortes X/Z, etc) on top of these queries.
+/// Acceso append-only a [AuditLog], con consultas genéricas (reciente / por
+/// acción / por empleado / por rango) para los reportes.
+/// `docs/permisos-y-auditoria.md`.
 @DriftAccessor(tables: [AuditLog])
 class AuditLogDao extends DatabaseAccessor<AppDatabase>
     with _$AuditLogDaoMixin {

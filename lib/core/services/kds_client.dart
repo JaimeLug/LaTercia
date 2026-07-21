@@ -7,13 +7,10 @@ import '../utils/app_logger.dart';
 import 'kds_button_service.dart' show KdsButton, parseKdsButton;
 import 'kds_link.dart';
 
-/// FASE 5.1 — Cliente WebSocket que corre en la ventana KDS separada. Se conecta
-/// al servidor del proceso POS (leyendo el endpoint file), recibe los pedidos
-/// empujados y manda comandos de vuelta. Reconecta con backoff (1→2→4→10 s).
-///
-/// Mientras está conectado, el `OrdersNotifier` del KDS deja de leer la BD y su
-/// estado lo dicta [onSnapshot]. Si la conexión cae, [onConnectionChanged]
-/// avisa y el notifier vuelve al polling de BD (fallback).
+/// Cliente WebSocket de la ventana KDS separada: se conecta al POS, recibe los
+/// pedidos y manda comandos; reconecta con backoff. Mientras está conectado el
+/// KDS no lee la BD (su estado lo dicta [onSnapshot]); al caer, vuelve al
+/// polling. `docs/kds-conexion.md`.
 class KdsClient {
   WebSocket? _ws;
   bool _connected = false;
@@ -24,8 +21,7 @@ class KdsClient {
   void Function(List<OrderWithItems> orders, bool canRecall)? onSnapshot;
   void Function(bool connected)? onConnectionChanged;
 
-  /// Botones de la botonera física reenviados por el POS (dueño real del
-  /// socket del ESP32) — así la ventana KDS separada también los recibe.
+  /// Botones físicos retransmitidos por el POS. `docs/kds-conexion.md`.
   final _botonController = StreamController<KdsButton>.broadcast();
   Stream<KdsButton> get botonPresionado => _botonController.stream;
 

@@ -3,13 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../database/database.dart';
 import 'database_provider.dart';
 
-/// The single system-wide open shift (or null), watched anywhere the UI
-/// needs to react to a shift opening/closing — the POS shift gate, the top
-/// nav shift button, etc.
-///
-/// Call `ref.read(currentShiftProvider.notifier).refresh()` after any action
-/// that opens, closes, or otherwise mutates the current shift so watchers
-/// pick up the change.
+/// El único turno abierto del sistema (o null). Llamar `refresh()` tras abrir/
+/// cerrar/mutar el turno para que los watchers reaccionen.
+/// `docs/ventas-cobro-turnos.md` §Turnos.
 class CurrentShiftNotifier extends AsyncNotifier<Shift?> {
   @override
   Future<Shift?> build() async {

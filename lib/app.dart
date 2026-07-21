@@ -50,10 +50,8 @@ class _MainLayout extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Identify once (any employee) before entering the app. AutoLockWrapper
-    // sits inside the PIN gate so it can watch/clear the session once one
-    // exists; it never mounts in the KDS process (kds_app.dart has no
-    // PinGate).
+    // Identificación con PIN antes de entrar (cualquier empleado). El
+    // AutoLockWrapper va dentro del gate; no se monta en el proceso KDS.
     return const PinGate(
       adminOnly: false,
       child: AutoLockWrapper(child: _Root()),
@@ -61,8 +59,8 @@ class _MainLayout extends StatelessWidget {
   }
 }
 
-/// Manages the flow after login: Welcome landing → chosen module (with the
-/// persistent top navigation bar). The top-bar logo returns to Welcome.
+/// Flujo tras el login: Welcome → módulo elegido (con la barra superior fija).
+/// El logo de la barra regresa a Welcome.
 class _Root extends ConsumerStatefulWidget {
   const _Root();
 
@@ -79,8 +77,8 @@ class _RootState extends ConsumerState<_Root> {
   @override
   void initState() {
     super.initState();
-    // Backup diario best-effort al entrar al POS (5.2). Solo el proceso POS
-    // llega aquí; el KDS usa kds_app.dart y no monta _Root.
+    // Backup diario best-effort al entrar al POS (solo el proceso POS llega
+    // aquí). docs/backups.md.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(backupServiceProvider).autoBackupIfDue();
     });
@@ -94,9 +92,8 @@ class _RootState extends ConsumerState<_Root> {
     super.dispose();
   }
 
-  /// FASE 5.1 — Arranca el servidor WS (dueño de la BD) y empuja los pedidos
-  /// activos a las ventanas KDS conectadas. Los comandos que estas mandan se
-  /// ejecutan contra el OrdersNotifier local (que escribe la BD).
+  /// Arranca el servidor WS del POS y conecta sus comandos al OrdersNotifier.
+  /// docs/kds-conexion.md.
   void _startKdsServer() {
     final server = ref.read(kdsServerProvider);
     final notifier = ref.read(ordersProvider.notifier);
@@ -106,16 +103,14 @@ class _RootState extends ConsumerState<_Root> {
       await notifier.recallLastReady();
     };
     server.start();
-    // Cada cambio del estado local (incluye el poll de 2s) se retransmite.
-    // Guardamos la suscripción para cerrarla en dispose (M2).
+    // Retransmite cada cambio del estado local (incluye el poll de 2s).
     _ordersSub = ref.listenManual(
       ordersProvider,
       (prev, next) => server.broadcast(next, notifier.canRecall),
       fireImmediately: true,
     );
-    // Reenvía cada botón de la botonera física (que solo este proceso puede
-    // recibir del ESP32, dueño del puerto 8080) a cualquier ventana KDS
-    // separada conectada — sin esto, esa ventana se queda sorda a la botonera.
+    // Retransmite cada botón físico a las ventanas KDS separadas (solo este
+    // proceso lo recibe del ESP32). docs/kds-conexion.md.
     _botonForwardSub = ref
         .read(kdsButtonServiceProvider)
         .botonPresionado

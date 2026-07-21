@@ -5,12 +5,8 @@ import '../database/database.dart';
 import '../providers/database_provider.dart';
 import 'audit_service.dart';
 
-/// FASE 4.4 — Reembolsos post-pago.
-///
-/// Un reembolso NUNCA edita la venta original: registra un contra-movimiento
-/// inmutable en `refunds`. Siempre pasa por supervisor (el caller ya obtuvo el
-/// PIN y pasa [supervisorId]). Opcionalmente devuelve el stock. Queda ligado al
-/// turno abierto para que el corte Z lo reste, y se audita.
+/// Reembolsos post-pago: contra-movimiento inmutable en `refunds`, nunca edita
+/// la venta original. `docs/ventas-cobro-turnos.md` §Reembolsos.
 class RefundService {
   RefundService(this._db);
 
@@ -38,8 +34,8 @@ class RefundService {
         throw StateError('El monto a reembolsar debe ser mayor que 0.');
       }
 
-      // Tope (A2): no se puede devolver más de lo pagado menos lo ya
-      // reembolsado. Validado en el servicio —no solo en la UI— por ser dinero.
+      // Tope: no más de lo pagado menos lo ya reembolsado (validado aquí, no
+      // solo en la UI, por ser dinero). docs/ventas-cobro-turnos.md §Reembolsos.
       final previous = await _db.refundsDao.getRefundsForOrder(orderId);
       final alreadyRefunded = previous.fold(0.0, (a, r) => a + r.amount);
       final refundable = order.total - alreadyRefunded;

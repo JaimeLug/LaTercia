@@ -13,10 +13,8 @@ class OrdersDao extends DatabaseAccessor<AppDatabase> with _$OrdersDaoMixin {
         ..orderBy([(o) => OrderingTerm.asc(o.createdAt)]))
       .get();
 
-  /// Same set of orders as [getActiveOrders], but with their items loaded in
-  /// a single JOIN query instead of one `getItemsForOrder` query per order
-  /// (the previous N+1 pattern used by `OrdersNotifier.loadActiveOrders`,
-  /// which polls every 2 seconds).
+  /// Como [getActiveOrders] pero con los items cargados en un solo JOIN (evita
+  /// el N+1 del polling de 2 s de `OrdersNotifier.loadActiveOrders`).
   Future<List<OrderWithItems>> getActiveOrdersWithItems() async {
     final query = select(orders).join([
       leftOuterJoin(orderItems, orderItems.orderId.equalsExp(orders.id)),
@@ -74,9 +72,8 @@ class OrdersDao extends DatabaseAccessor<AppDatabase> with _$OrdersDaoMixin {
         ),
       );
 
-  /// Marks an order as delivered (fully done). This is the only place that
-  /// sets [completedAt]: an order is "completed" when it leaves the kitchen
-  /// and is handed to the customer, not merely when it is paid.
+  /// Marca la orden como entregada (único lugar que sella [completedAt]).
+  /// `docs/ordenes-y-cocina.md` §"Marcar listo".
   Future<void> markDelivered(int orderId) =>
       (update(orders)..where((o) => o.id.equals(orderId))).write(
         OrdersCompanion(
@@ -86,9 +83,8 @@ class OrdersDao extends DatabaseAccessor<AppDatabase> with _$OrdersDaoMixin {
         ),
       );
 
-  /// Reverts an order back to an active [status] (undoing a "listo"/delivery),
-  /// clearing [completedAt] so a recalled order is no longer treated as done.
-  /// Used by the KDS recall (undo last "listo").
+  /// Regresa la orden a un [status] activo y limpia [completedAt] (recall del
+  /// KDS). `docs/ordenes-y-cocina.md` §Recall.
   Future<void> recallOrder(int orderId, String status) =>
       (update(orders)..where((o) => o.id.equals(orderId))).write(
         OrdersCompanion(
@@ -146,8 +142,8 @@ class OrdersDao extends DatabaseAccessor<AppDatabase> with _$OrdersDaoMixin {
   Future<List<Order>> getOrdersByShift(int shiftId) =>
       (select(orders)..where((o) => o.shiftId.equals(shiftId))).get();
 
-  /// Sets the human-readable order number. Called right after insert so the
-  /// number can be derived from the (guaranteed-unique) autoincrement id.
+  /// Fija el número legible de la orden (derivado del id tras insertar).
+  /// `docs/ordenes-y-cocina.md` §"Número de orden".
   Future<void> updateOrderNumber(int orderId, String orderNumber) =>
       (update(orders)..where((o) => o.id.equals(orderId)))
           .write(OrdersCompanion(orderNumber: Value(orderNumber)));

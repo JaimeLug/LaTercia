@@ -10,11 +10,11 @@ import '../services/kds_client.dart';
 import '../utils/formatters.dart';
 import 'database_provider.dart';
 
+/// Lista de órdenes activas y su ciclo de vida (enviar/listo/recall/cobrar/
+/// cancelar), con sync POS↔KDS. `docs/ordenes-y-cocina.md`.
 class OrdersNotifier extends StateNotifier<List<OrderWithItems>> {
-  /// [kdsClient] solo se pasa en el proceso de la ventana KDS separada (5.1):
-  /// mientras esté conectado, el estado lo dictan los snapshots del servidor y
-  /// los comandos (listo/recall/estado) viajan por WS al POS —dueño de la BD—
-  /// en vez de escribir la BD aquí. Si cae la conexión, se vuelve al polling.
+  /// [kdsClient] solo en la ventana KDS separada: mientras esté conectado, el
+  /// estado lo dicta el servidor y los comandos van por WS. `docs/kds-conexion.md`.
   OrdersNotifier(this._db, {KdsClient? kdsClient})
       : _kdsClient = kdsClient,
         super([]) {
@@ -25,17 +25,14 @@ class OrdersNotifier extends StateNotifier<List<OrderWithItems>> {
         if (mounted) state = orders;
       };
       client.onConnectionChanged = (connected) {
-        // Al reconectar, el servidor manda snapshot; al desconectar, retomamos
-        // la lectura de BD (fallback) de inmediato.
+        // Al desconectar, retomamos el polling de BD de inmediato.
         if (!connected) loadActiveOrders();
       };
       client.start();
     }
     loadActiveOrders();
-    // Poll the database so the POS and KDS (separate processes sharing the
-    // same SQLite file) stay in sync — Drift streams only fire for writes
-    // made by the same process. En modo cliente WS conectado, loadActiveOrders
-    // hace no-op (el estado lo empuja el servidor).
+    // Poll cada 2s para sincronizar POS y KDS (procesos separados; los streams
+    // de drift solo disparan para el mismo proceso). docs/ordenes-y-cocina.md.
     _pollTimer =
         Timer.periodic(const Duration(seconds: 2), (_) => loadActiveOrders());
   }
@@ -50,15 +47,14 @@ class OrdersNotifier extends StateNotifier<List<OrderWithItems>> {
 
   bool get _wsConnected => _kdsClient?.isConnected == true;
 
-  /// How long after marking an order "listo" the kitchen can still undo it.
+  /// Ventana para deshacer un "listo". `docs/ordenes-y-cocina.md` §Recall.
   static const recallWindow = Duration(seconds: 60);
 
-  /// The last order marked ready from this process's KDS, kept in memory so it
-  /// can be recalled (undone) within [recallWindow]. Local to the process that
-  /// did the marking — only that KDS can recall its own action.
+  /// Último "listo" de este proceso, en memoria para poder deshacerlo dentro de
+  /// [recallWindow]. Local al proceso que lo marcó. `docs/ordenes-y-cocina.md`.
   _RecallInfo? _lastReady;
 
-  /// Whether there is a still-recallable "listo" action (within the window).
+  /// Si hay un "listo" aún deshacible (dentro de la ventana).
   bool get canRecall {
     if (_wsConnected) return _remoteCanRecall;
     final r = _lastReady;
@@ -73,8 +69,8 @@ class OrdersNotifier extends StateNotifier<List<OrderWithItems>> {
   }
 
   Future<void> loadActiveOrders() async {
-    // En modo cliente WS conectado, el estado lo empuja el servidor: no leemos
-    // la BD (evita polling y clobber del snapshot remoto).
+    // En modo cliente WS conectado, el estado lo empuja el servidor (no leemos
+    // la BD). docs/ordenes-y-cocina.md.
     if (_wsConnected) return;
     final result = await _db.ordersDao.getActiveOrdersWithItems();
     if (!mounted) return;
@@ -98,15 +94,11 @@ class OrdersNotifier extends StateNotifier<List<OrderWithItems>> {
     double deliveryFee = 0,
     double total = 0,
   }) async {
-    // The whole operation (order + items + inventory) must be all-or-nothing:
-    // a failure halfway through used to leave orders without items, or stock
-    // decremented for an order that was never created.
+    // Orden + items + inventario, all-or-nothing en una transacción.
+    // docs/ordenes-y-cocina.md §"Enviar a cocina".
     final orderId = await _db.transaction(() async {
-      // Insert with a temporary unique placeholder, then derive the real,
-      // human-readable order number from the autoincrement id. SQLite
-      // guarantees that id is unique, which avoids the previous max(id)+1
-      // race that could produce duplicate order numbers under concurrency
-      // (POS + KDS share the same database file).
+      // Placeholder temporal → número legible derivado del id (evita la carrera
+      // max(id)+1). docs/ordenes-y-cocina.md §"Número de orden".
       final tempNumber = 'tmp-${const Uuid().v4()}';
       final id = await _db.ordersDao.insertOrder(
         OrdersCompanion.insert(
@@ -131,12 +123,12 @@ class OrdersNotifier extends StateNotifier<List<OrderWithItems>> {
       );
       await _db.ordersDao.updateOrderNumber(id, formatOrderNumber(id));
 
-      // Mark table as occupied
+      // Marca la mesa como ocupada.
       if (tableId != null) {
         await _db.tablesDao.updateTableStatus(tableId, 'occupied');
       }
 
-      // Insert order items
+      // Inserta los items de la orden.
       final itemCompanions = cartItems.map((ci) {
         final modJson = jsonEncode(
           ci.modifiers
@@ -160,7 +152,7 @@ class OrdersNotifier extends StateNotifier<List<OrderWithItems>> {
 
       await _db.orderItemsDao.insertOrderItems(itemCompanions);
 
-      // Decrement inventory
+      // Descuenta inventario.
       for (final ci in cartItems) {
         await _db.inventoryDao
             .decrementForSale(ci.product.id, ci.quantity, orderId: id);
@@ -182,12 +174,8 @@ class OrdersNotifier extends StateNotifier<List<OrderWithItems>> {
     await loadActiveOrders();
   }
 
-  /// Called from the KDS when the kitchen finishes an order.
-  ///
-  /// An order is fully done (delivered) only when it is both ready AND paid.
-  /// If the order is already paid, finishing it in the kitchen completes it
-  /// and frees its table; otherwise it stays at 'listo' so the cashier can
-  /// still charge it (pay-at-the-end / mesa flow).
+  /// La cocina termina una orden. Entregada solo si está lista Y pagada; si no,
+  /// se queda en 'listo' para cobrarla. `docs/ordenes-y-cocina.md` §"Marcar listo".
   Future<void> markReady(int orderId) async {
     if (_wsConnected) {
       _kdsClient!.send('markReady', orderId: orderId);
@@ -206,8 +194,7 @@ class OrdersNotifier extends StateNotifier<List<OrderWithItems>> {
       await _db.ordersDao.updateOrderStatus(orderId, 'listo');
     }
 
-    // Remember this so the kitchen can undo it within [recallWindow]. Store the
-    // status it had *before* being marked ready so recall restores it exactly.
+    // Guarda el estado previo para poder deshacer dentro de [recallWindow].
     _lastReady = _RecallInfo(
       orderId: orderId,
       previousStatus: order.status,
@@ -219,12 +206,8 @@ class OrdersNotifier extends StateNotifier<List<OrderWithItems>> {
     await loadActiveOrders();
   }
 
-  /// Undoes the most recent [markReady] if it happened within [recallWindow].
-  ///
-  /// Reverts the order to the active status it had before, clearing the
-  /// completion timestamp, and — if marking it ready had delivered it and
-  /// freed a table — re-occupies that table. Returns true if something was
-  /// actually recalled.
+  /// Deshace el [markReady] más reciente si fue dentro de [recallWindow].
+  /// `docs/ordenes-y-cocina.md` §Recall.
   Future<bool> recallLastReady() async {
     if (_wsConnected) {
       _kdsClient!.send('recall');
@@ -244,13 +227,8 @@ class OrdersNotifier extends StateNotifier<List<OrderWithItems>> {
     return true;
   }
 
-  /// Records that an order has been paid.
-  ///
-  /// Paying no longer forces the order to 'entregado' — that would hide it
-  /// from the kitchen (KDS) when the cashier charges before the food is made.
-  /// The order is only delivered here if the kitchen has already finished it
-  /// (status == 'listo'); otherwise it stays visible on the KDS until the
-  /// kitchen marks it ready (see [markReady]).
+  /// Marca una orden como pagada. Pagar no la entrega por sí solo (solo si ya
+  /// está 'listo'). `docs/ordenes-y-cocina.md` §Cobrar.
   Future<void> markPaid(int orderId, int? tableId) async {
     await _db.ordersDao.updateOrderPaymentStatus(orderId, 'pagado');
 
@@ -269,9 +247,8 @@ class OrdersNotifier extends StateNotifier<List<OrderWithItems>> {
     final order = await _db.ordersDao.getOrderById(orderId);
     if (order == null || order.status == 'cancelado') return;
 
-    // Return the reserved stock for every tracked item back to inventory.
-    // Stock was decremented when the order was sent to the kitchen, so a
-    // cancellation must put it back or inventory drifts permanently.
+    // Devuelve a inventario el stock reservado de cada item (se descontó al
+    // enviar a cocina). docs/ordenes-y-cocina.md §"Cancelar orden".
     final items = await _db.orderItemsDao.getItemsForOrder(orderId);
     for (final item in items) {
       await _db.inventoryDao.incrementForSale(
@@ -293,14 +270,8 @@ class OrdersNotifier extends StateNotifier<List<OrderWithItems>> {
     await loadActiveOrders();
   }
 
-  /// Anula UNA línea de una orden aún NO pagada (4.3): marca el item como
-  /// cancelado, devuelve su stock y reduce los montos de la orden. El cobro
-  /// posterior será por lo restante. (Anular una línea ya pagada es un
-  /// reembolso — ver 4.4 — no esto.)
-  ///
-  /// Los montos se reescalan proporcionalmente al subtotal restante: exacto
-  /// para descuentos porcentuales e impuestos (ambos lineales en el subtotal);
-  /// aproximado si hubo un descuento fijo, caso poco común en una cafetería.
+  /// Anula UNA línea de una orden NO pagada: cancela el item, devuelve su stock
+  /// y reescala los montos. `docs/ordenes-y-cocina.md` §"Anular una línea".
   Future<void> voidOrderItem({
     required int orderId,
     required OrderItem item,
@@ -354,7 +325,7 @@ class OrdersNotifier extends StateNotifier<List<OrderWithItems>> {
   }
 }
 
-/// In-memory snapshot of the last "listo" action, enough to undo it.
+/// Snapshot en memoria del último "listo", suficiente para deshacerlo.
 class _RecallInfo {
   final int orderId;
   final String previousStatus;

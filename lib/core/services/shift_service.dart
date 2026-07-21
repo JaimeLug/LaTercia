@@ -5,45 +5,36 @@ import '../database/database.dart';
 import '../providers/database_provider.dart';
 import 'audit_service.dart';
 
-/// Arqueo (cash-count) breakdown for a shift, used by both Corte X
-/// (read-only, shift still open) and Corte Z (the result of closing it).
-///
-/// Nothing here is persisted beyond what [Shift] already stores — the whole
-/// breakdown is derivable on demand from `Payments`/`CashMovements`/`Orders`,
-/// per the "no la persistas en una columna nueva" rule.
+/// Arqueo de un turno, para Corte X (solo lectura) y Corte Z (al cerrar). Se
+/// deriva a demanda, no se persiste. `docs/ventas-cobro-turnos.md` §Arqueo.
 class ShiftSummary {
   final Shift shift;
 
-  /// Cash sales only (`Payments.method == 'efectivo'`), net of change given.
+  /// Ventas en efectivo, neto del cambio dado.
   final double cashSales;
   final double deposits;
   final double withdrawals;
 
-  /// `startingCash + cashSales + deposits - withdrawals`.
+  /// `startingCash + cashSales + deposits - withdrawals - refundsTotal`.
   final double expectedCash;
 
-  /// Only set once the shift has been (or is being) closed with a counted
-  /// amount — null for a Corte X on a still-open shift.
+  /// Solo al cerrar con un monto contado; null en un Corte X.
   final double? countedCash;
 
-  /// `countedCash - expectedCash`, null when [countedCash] is null.
+  /// `countedCash - expectedCash`, null si [countedCash] es null.
   final double? difference;
 
-  /// Sum of `Payments.amountTendered - changeGiven`, grouped by method.
+  /// `Payments.amountTendered - changeGiven`, agrupado por método.
   final Map<String, double> paymentsByMethod;
 
   final double discountsTotal;
   final int cancelledCount;
   final double cancelledAmount;
 
-  /// Suma de `Payments.tipAmount` del turno (4.1). Va como línea aparte: no es
-  /// venta. El efectivo de la propina sí está físicamente en la gaveta, por eso
-  /// [cashSales]/[expectedCash] ya lo incluyen —esto es solo para saber cuánto
-  /// de lo cobrado corresponde a propina.
+  /// Propinas del turno (línea aparte, no venta). `docs/ventas-cobro-turnos.md`.
   final double tipsTotal;
 
-  /// Suma de reembolsos del turno (4.4). Se resta de [expectedCash] porque el
-  /// efectivo devuelto sale físicamente de la gaveta.
+  /// Reembolsos del turno; se restan de [expectedCash].
   final double refundsTotal;
 
   const ShiftSummary({
@@ -63,21 +54,15 @@ class ShiftSummary {
   });
 }
 
-/// Everything needed to open/close a shift and compute its arqueo — the
-/// server-side counterpart of the Turnos/Cortes UI.
-///
-/// One shift open at a time, system-wide (see `ShiftsDao.getCurrentOpenShift`
-/// docs). All money math (deposits, withdrawals, cash sales, expected vs.
-/// counted) lives here so the X-cut (read-only, mid-shift) and Z-cut (result
-/// of closing) share one implementation instead of drifting apart.
+/// Abrir/cerrar turno y calcular el arqueo. Un solo turno abierto a la vez;
+/// todo el cálculo de dinero vive aquí. `docs/ventas-cobro-turnos.md` §Turnos.
 class ShiftService {
   ShiftService(this._db);
 
   final AppDatabase _db;
 
-  /// Opens a new shift. Throws a [StateError] if one is already open — the
-  /// caller (UI) should have already checked via `getCurrentOpenShift`, but
-  /// this is the actual invariant guard since UI checks can race.
+  /// Abre un turno; lanza si ya hay uno abierto (guarda real del invariante).
+  /// `docs/ventas-cobro-turnos.md` §"Abrir / cerrar".
   Future<Shift> openShift({
     required int employeeId,
     required double startingCash,
@@ -105,9 +90,8 @@ class ShiftService {
     });
   }
 
-  /// Records a deposit/withdrawal against [shiftId]. Permission gating
-  /// (`PermissionAction.movimientoCaja`) happens at the call site via
-  /// `SupervisorPinDialog.ensure` before this is called.
+  /// Registra un depósito/retiro. El permiso (`movimientoCaja`) se valida en el
+  /// punto de llamada. `docs/ventas-cobro-turnos.md`.
   Future<void> addCashMovement({
     required int shiftId,
     required int employeeId,
@@ -133,8 +117,8 @@ class ShiftService {
     );
   }
 
-  /// Corte X (open shift) or the basis for Corte Z (about to be closed).
-  /// [countedCash] is only known when actually closing.
+  /// Corte X (turno abierto) o la base del Corte Z. [countedCash] solo se
+  /// conoce al cerrar. `docs/ventas-cobro-turnos.md` §Arqueo.
   Future<ShiftSummary> computeSummary(int shiftId,
       {double? countedCash}) async {
     final shift = await _db.shiftsDao.getShiftById(shiftId);
@@ -186,10 +170,9 @@ class ShiftService {
     );
   }
 
-  /// Closes [shiftId] with the counted cash, assigning the next consecutive
-  /// `zNumber` and stamping `endingCash`/`totalSales`, all inside one
-  /// transaction. Permission gating (`PermissionAction.corteZ`) happens at
-  /// the call site before this is invoked.
+  /// Cierra [shiftId] con el efectivo contado, asigna el `zNumber` y sella
+  /// `endingCash`/`totalSales`, en una transacción. El permiso (`corteZ`) se
+  /// valida en el punto de llamada. `docs/ventas-cobro-turnos.md`.
   Future<ShiftSummary> closeShift({
     required int shiftId,
     required int employeeId,

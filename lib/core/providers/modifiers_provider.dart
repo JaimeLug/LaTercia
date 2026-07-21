@@ -7,9 +7,8 @@ final modifiersProvider = StreamProvider<List<Modifier>>((ref) {
   return db.modifiersDao.watchAllModifiers();
 });
 
-/// Whether any modifier applies to [categoryName], mirroring
-/// [ModifiersDao.getModifiersForCategoryName]'s scoping rule: an empty scope
-/// applies to every category, otherwise it must match by name.
+/// Si algún modificador aplica a [categoryName]: scope vacío aplica a todas,
+/// si no debe coincidir por nombre (igual que `getModifiersForCategoryName`).
 bool categoryHasModifiers(List<Modifier> all, String? categoryName) {
   final cat = categoryName?.trim().toLowerCase();
   return all.any((m) {

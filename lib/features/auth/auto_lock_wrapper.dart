@@ -7,16 +7,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/providers/session_provider.dart';
 import '../../core/providers/settings_provider.dart';
 
-/// Re-locks the session (sets `sessionProvider` to null, which makes
-/// `PinGate` ask for a PIN again) after `auto_lock_min` minutes of
-/// inactivity. `'0'` disables it.
-///
-/// Activity is detected globally via a [Listener] (pointer down/move/signal)
-/// *and* keyboard events (`HardwareKeyboard`), so typing an amount without
-/// moving the mouse doesn't expire the session mid-entry.
-///
-/// Does not touch the KDS process (`kds_app.dart` has no `PinGate`/session —
-/// this widget is never mounted there).
+/// Re-bloquea la sesión (vuelve a pedir PIN) tras `auto_lock_min` minutos de
+/// inactividad (`'0'` lo desactiva). Detecta actividad de puntero **y** teclado
+/// (para no expirar mientras se teclea un monto). No aplica en el proceso KDS.
 class AutoLockWrapper extends ConsumerStatefulWidget {
   final Widget child;
   const AutoLockWrapper({super.key, required this.child});
@@ -54,7 +47,7 @@ class _AutoLockWrapperState extends ConsumerState<AutoLockWrapper> {
     final settings = ref.read(settingsProvider).valueOrNull ?? {};
     final minutes = int.tryParse(settings['auto_lock_min'] ?? '5') ?? 5;
     if (minutes <= 0) return;
-    // Only arm the timer if there's an active session to expire.
+    // Solo arma el timer si hay una sesión activa que expirar.
     if (ref.read(sessionProvider) == null) return;
     _timer = Timer(Duration(minutes: minutes), _lock);
   }
@@ -67,8 +60,8 @@ class _AutoLockWrapperState extends ConsumerState<AutoLockWrapper> {
 
   @override
   Widget build(BuildContext context) {
-    // Re-arm whenever settings or the session change (e.g. login just
-    // happened, or auto_lock_min was edited in Settings).
+    // Re-arma el timer cuando cambian settings o sesión (login, o edición de
+    // auto_lock_min).
     ref.listen(settingsProvider, (_, __) => _resetTimer());
     ref.listen(sessionProvider, (_, next) {
       if (next != null) _resetTimer();

@@ -17,8 +17,8 @@ class ElapsedTimer extends StatefulWidget {
     this.fontSize = 20,
   });
 
-  /// The status color for a given elapsed duration, shared with any UI that
-  /// needs to mirror the KDS timer's color coding (e.g. the POS order queue).
+  /// Color de estado según el tiempo transcurrido, compartido con la UI que
+  /// replica el código de color del KDS (ej. la cola del POS).
   static Color colorFor(Duration elapsed, int warnYellow, int warnRed) {
     final minutes = elapsed.inMinutes;
     if (minutes >= warnRed) return LaTerciaColors.timerLate;

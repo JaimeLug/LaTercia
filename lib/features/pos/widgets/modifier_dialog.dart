@@ -12,8 +12,8 @@ typedef ModifierSelection = ({List<Modifier> modifiers, Set<int> includedIds});
 class ModifierDialog extends ConsumerStatefulWidget {
   final Product product;
 
-  /// Modifiers already filtered to the ones that apply to this product
-  /// (see ModifiersDao.getModifiersForCategoryName).
+  /// Modificadores ya filtrados a los que aplican a este producto
+  /// (ver ModifiersDao.getModifiersForCategoryName).
   final List<Modifier> modifiers;
 
   const ModifierDialog({

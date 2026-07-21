@@ -13,7 +13,7 @@ import '../../core/utils/formatters.dart';
 import '../auth/supervisor_pin_dialog.dart';
 import 'shift/shift_screen.dart';
 
-/// The top navigation bar used across POS / KDS / Admin, per the redesign.
+/// Barra de navegación superior de POS / KDS / Admin.
 class TopNavBar extends ConsumerWidget {
   final int currentTab; // 0 = POS, 1 = KDS (embedded), 2 = Admin
   final VoidCallback onLogo;
@@ -284,10 +284,8 @@ class _ClockState extends State<_Clock> {
   }
 }
 
-/// Abre la gaveta de dinero sin una venta (FASE 3.2). Gated por
-/// [PermissionAction.abrirGavetaSinVenta] (un cajero necesita PIN de
-/// supervisor) y cada apertura se audita como `abrir_gaveta_sin_venta` — lo
-/// que puebla el reporte antifraude. Solo aparece si `gaveta_activa` está ON.
+/// Abre la gaveta sin venta (gated por `abrirGavetaSinVenta`, se audita). Solo
+/// aparece si `gaveta_activa`. docs/permisos-y-auditoria.md, docs/impresion.md.
 class _DrawerButton extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -307,10 +305,9 @@ class _DrawerButton extends ConsumerWidget {
       return;
     }
 
-    // ¿El actor ya tiene el permiso? Si es admin/gerente, `ensure` no muestra
-    // diálogo ni audita, así que registramos nosotros exactamente una fila.
-    // Si es cajero, `ensure` audita `abrir_gaveta_sin_venta` con el supervisor
-    // aprobador y no volvemos a registrar (evita duplicar el conteo).
+    // Si el actor ya tiene permiso (admin/gerente), `ensure` no audita, así que
+    // registramos nosotros una fila; si es cajero, `ensure` ya auditó (no
+    // duplicar). docs/permisos-y-auditoria.md.
     final hadPermission = ref
         .read(permissionServiceProvider)
         .hasPermission(actor, PermissionAction.abrirGavetaSinVenta);
@@ -344,8 +341,8 @@ class _DrawerButton extends ConsumerWidget {
   }
 }
 
-/// Opens [ShiftScreen] (Turno de caja: abrir/cerrar, retiros/depósitos,
-/// Corte X). Badge dot shows whether a shift is currently open.
+/// Abre [ShiftScreen] (turno de caja). El punto del badge indica si hay un
+/// turno abierto.
 class _ShiftButton extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {

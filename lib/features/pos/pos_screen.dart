@@ -49,11 +49,10 @@ class _PosScreenState extends ConsumerState<PosScreen> {
   final List<CartItem> _cart = [];
   String _orderType = 'mesa';
   int? _selectedTableId;
-  // FASE 8 — zona de envío obligatoria cuando _orderType == 'delivery'.
+  // Zona de envío obligatoria cuando _orderType == 'delivery'.
   int? _selectedZoneId;
   String? _customerName;
-  // Ticket de delivery (2026-07-20): solo se capturan/usan cuando
-  // _orderType == 'delivery'.
+  // Datos de reparto: solo se usan cuando _orderType == 'delivery'.
   String? _customerPhone;
   String? _customerAddress;
   String? _orderNote;
@@ -185,10 +184,8 @@ class _PosScreenState extends ConsumerState<PosScreen> {
     setState(() => _cart[index].note = note);
   }
 
-  // Applying a discount is `descuento_manual` in the permission matrix: a
-  // cashier needs a supervisor PIN, admin/gerente go through with no dialog.
-  // Clearing the discount (picking "Sin desc.") isn't gated — it's the safe
-  // direction.
+  // Aplicar descuento es `descuento_manual` (pide PIN de supervisor al cajero);
+  // quitarlo no está restringido. docs/permisos-y-auditoria.md.
   Future<void> _selectDiscount(Discount discount) async {
     final actor = ref.read(sessionProvider);
     if (actor != null) {
@@ -327,10 +324,8 @@ class _PosScreenState extends ConsumerState<PosScreen> {
     );
   }
 
-  // Creates the order and charges it in a single atomic transaction via
-  // CheckoutService (order + items + inventory + payment + customer visit),
-  // then refreshes the shared orders state so the KDS/queue panel see it.
-  // Called when the cashier confirms payment in the payment modal.
+  // Crea y cobra la orden en una transacción atómica (CheckoutService) y
+  // refresca el estado compartido. docs/ventas-cobro-turnos.md.
   Future<OrderWithItems?> _checkout({
     required List<PaymentDraft> payments,
   }) async {
@@ -686,16 +681,14 @@ class _PosScreenState extends ConsumerState<PosScreen> {
   Widget _buildOrderSidebar(String symbol, Map<String, String> settings) {
     final discountsAsync = ref.watch(discountsProvider);
     final now = DateTime.now();
-    // Only offer discounts that are active, within their validity window, and
-    // whose minimum-order requirement the current subtotal already meets.
-    // These rules were configured in admin but never enforced at checkout.
+    // Solo descuentos elegibles (activos, vigentes, mínimo alcanzado).
+    // docs/precios-e-iva.md §"¿Cuándo se puede aplicar un descuento?".
     final activeDiscounts = discountsAsync.valueOrNull
             ?.where((d) => isDiscountEligible(d, _subtotal, now))
             .toList() ??
         [];
 
-    // If the selected discount stopped qualifying (e.g. items were removed and
-    // the subtotal fell below its minimum), drop it.
+    // Si el descuento elegido dejó de calificar (bajó el subtotal), se quita.
     if (_selectedDiscount != null &&
         !activeDiscounts.any((d) => d.id == _selectedDiscount!.id)) {
       WidgetsBinding.instance.addPostFrameCallback((_) {

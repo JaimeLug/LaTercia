@@ -2,16 +2,8 @@ import 'dart:io';
 
 import 'app_logger.dart';
 
-/// FASE 6 — Apagar/reiniciar el equipo desde la app. Necesario en modo kiosko:
-/// como no hay escritorio ni menú del sistema a la vista, el apagado/reinicio
-/// se hace desde Configuración.
-///
-/// Estrategia por plataforma:
-/// - Windows: `shutdown /s|/r /t 0` (spooler estándar del SO).
-/// - Linux: `systemctl poweroff|reboot` (una sesión local activa suele estar
-///   autorizada por polkit sin contraseña); si falla, intenta `shutdown`.
-///
-/// Best-effort: devuelve `true` si el comando arrancó con éxito; nunca lanza.
+/// Apagar/reiniciar el equipo o solo la app desde el modo kiosko. Best-effort
+/// (nunca lanza). `docs/kiosko.md`.
 class PowerService {
   const PowerService();
 
@@ -27,10 +19,7 @@ class PowerService {
         linuxFallback: ['shutdown', '-r', 'now'],
       );
 
-  /// Reinicia SOLO la app (no el equipo): relanza un proceso nuevo, detached
-  /// para que sobreviva a este cerrando, y termina el actual. Útil tras
-  /// cambios de configuración o si la app se ve rara, sin esperar un reinicio
-  /// completo del sistema. Nunca retorna (el proceso actual termina).
+  /// Reinicia SOLO la app (no el equipo). `docs/kiosko.md`. Nunca retorna.
   Future<void> restartApp() async {
     try {
       await Process.start(

@@ -20,52 +20,26 @@ import '../utils/formatters.dart';
 import '../utils/pricing.dart';
 import 'shift_service.dart' show ShiftSummary;
 
-/// FASE 3.1/3.2 — Servicio de impresión térmica ESC/POS + gaveta de dinero.
-///
-/// Todo el hardware vive detrás de flags (`impresion_activa`, `gaveta_activa`)
-/// y es genérico/multimarca (ESC/POS estándar, sin nada atado a un modelo).
-/// La generación de documentos se prueba a nivel de bytes; el envío real por
-/// socket (red) o spooler (USB) no se puede verificar sin hardware.
+// Servicio de impresión ESC/POS térmica + PDF + gaveta. `docs/impresion.md`.
 
-// ─── El pulso estándar de apertura de gaveta ────────────────────────────────
-
-/// Pulso ESC/POS estándar `ESC p 0 25 250` → pin 0, on-time 25, off-time 250.
-///
-/// Estos son los bytes exactos que casi todas las gavetas conectadas a la
-/// impresora esperan. NO usamos `Generator.drawer()` de esc_pos_utils_plus:
-/// ese emite `ESC p '0' '3' '0'` (dígitos ASCII 0x30/0x33/0x30), que no es el
-/// pulso canónico que pide el plan.
+/// Pulso ESC/POS estándar de apertura de gaveta (no `Generator.drawer()`).
+/// `docs/impresion.md` §Gaveta.
 const List<int> kDrawerKickBytes = [0x1B, 0x70, 0x00, 0x19, 0xFA];
 
-/// Comando alterno `DLE DC4 0 1 0` que algunas gavetas usan en su lugar.
+/// Comando alterno `DLE DC4 0 1 0` que algunas gavetas usan. `docs/impresion.md`.
 const List<int> kDrawerKickAltBytes = [0x10, 0x14, 0x00, 0x01, 0x00];
 
-// ─── Abstracción de transporte ───────────────────────────────────────────────
+// ─── Transportes (docs/impresion.md §Transportes) ────────────────────────────
 
-/// Un canal por el que se envían bytes crudos ESC/POS a la impresora.
-///
-/// Lanza si el envío falla; la [PrintQueue] captura la excepción, reintenta y,
-/// tras agotar los reintentos, la reporta sin romper la venta.
+/// Canal que envía bytes crudos ESC/POS. Lanza si falla; la [PrintQueue]
+/// reintenta y reporta sin romper la venta. `docs/impresion.md`.
 abstract class PrinterTransport {
   Future<void> send(List<int> bytes);
 }
 
-/// Impresora de red (Ethernet/WiFi) escuchando en el puerto RAW 9100.
-///
-/// Abre el socket, escribe los bytes, hace flush y **cierra grácilmente**. Un
-/// [timeout] razonable evita colgar la cola si la impresora está apagada o
-/// inalcanzable.
-///
-/// Auditoría 2026-07-18 (instalación en sitio): el ticket de venta —el más
-/// grande, y el primero de la pareja venta+comanda— no salía, mientras la
-/// comanda sí. Causa: `socket.destroy()` es un cierre **abrupto** que puede
-/// descartar bytes todavía en vuelo antes de que el otro extremo (una
-/// impresora lenta, o el puente `socat`→`/dev/usb/lp0` del kiosko) los drene.
-/// El documento grande enviado primero es la víctima; los chicos (comanda,
-/// ticket de prueba) alcanzan a salir. Fix: `close()` (grácil) espera a que
-/// todos los bytes en buffer se envíen antes de soltar el socket; el
-/// `destroy()` queda solo como red de seguridad en `finally` si `close()`
-/// excede el timeout.
+/// Impresora de red (socket RAW 9100): escribe, flush y **cierra grácilmente**
+/// (`destroy()` solo como red de seguridad). `docs/impresion.md` §Red — ahí
+/// está el bug del cierre abrupto que se comía el ticket de venta.
 class NetworkPrinterTransport implements PrinterTransport {
   NetworkPrinterTransport(
     this.host, {
@@ -83,8 +57,8 @@ class NetworkPrinterTransport implements PrinterTransport {
     try {
       socket.add(bytes);
       await socket.flush();
-      // Cierre grácil: garantiza la entrega completa (a diferencia de
-      // destroy()). Con timeout para no colgar la cola si el peer no drena.
+      // Cierre grácil (entrega completa, a diferencia de destroy()), con
+      // timeout para no colgar la cola. docs/impresion.md §Red.
       await socket.close().timeout(timeout);
     } finally {
       socket.destroy();
@@ -92,16 +66,8 @@ class NetworkPrinterTransport implements PrinterTransport {
   }
 }
 
-/// Impresora del sistema Windows (típicamente USB) vía el spooler.
-///
-/// Envía bytes RAW con la secuencia estándar del API de impresión de Windows:
-/// `OpenPrinter` → `StartDocPrinter` (DOC_INFO_1 con `pDatatype = 'RAW'`, que
-/// hace que el spooler entregue los bytes sin procesarlos) → `StartPagePrinter`
-/// → `WritePrinter` → `EndPagePrinter` → `EndDocPrinter` → `ClosePrinter`.
-///
-/// Es la forma genérica de hablar con cualquier impresora instalada en Windows.
-/// No se puede probar sin una impresora real instalada; todos los handles y la
-/// memoria nativa se liberan en `finally`.
+/// Impresora de Windows (USB) vía spooler, bytes RAW. `docs/impresion.md`
+/// §Windows.
 class WindowsRawPrinterTransport implements PrinterTransport {
   WindowsRawPrinterTransport(this.printerName);
 
@@ -173,15 +139,8 @@ class WindowsRawPrinterTransport implements PrinterTransport {
   }
 }
 
-/// FASE 6.1 — Impresora USB/local en Linux. Dos modos según [target]:
-/// - Empieza con `/dev/` (p.ej. `/dev/usb/lp0`): escribe los bytes RAW directo
-///   al archivo de dispositivo (requiere permisos, típicamente el grupo `lp`).
-/// - Cualquier otra cosa: se trata como una cola de CUPS y se manda con
-///   `lp -d <cola> -o raw` por stdin (la forma estándar y portable en Linux).
-///
-/// No verificable sin una impresora/Linux reales; se prueba a nivel de bytes en
-/// los builders. La impresora de RED (socket 9100) ya es cross-platform y no
-/// necesita esto.
+/// Impresora USB/local en Linux: `/dev/...` (RAW directo) o cola CUPS
+/// (`lp -o raw`). `docs/impresion.md` §Linux.
 class LinuxPrinterTransport implements PrinterTransport {
   LinuxPrinterTransport(this.target,
       {this.timeout = const Duration(seconds: 8)});
@@ -197,10 +156,8 @@ class LinuxPrinterTransport implements PrinterTransport {
     }
 
     if (target.startsWith('/dev/')) {
-      // Escritura RAW directa al dispositivo. Auditoría 2026-07-17: sin
-      // [timeout] esto dependía por completo de que el kernel reportara el
-      // error rápido si el USB se desconecta a media escritura — ahora
-      // acotado explícitamente, igual que NetworkPrinterTransport.
+      // Escritura RAW directa al dispositivo, con timeout (por si el USB se
+      // desconecta a media escritura). docs/impresion.md §Linux.
       final raf = await File(target).open(mode: FileMode.writeOnlyAppend);
       try {
         await raf.writeFrom(bytes).timeout(timeout);
@@ -211,10 +168,8 @@ class LinuxPrinterTransport implements PrinterTransport {
       return;
     }
 
-    // Cola CUPS vía `lp -o raw`, alimentando los bytes por stdin. `lp`
-    // normalmente devuelve 0 en cuanto encola el trabajo (no espera a que se
-    // imprima físicamente) — un código 0 no garantiza impresión real, solo
-    // que CUPS aceptó el trabajo; documentado, no solucionable desde aquí.
+    // Cola CUPS vía `lp -o raw` por stdin. `lp` devuelve 0 al encolar, no al
+    // imprimir: un 0 no garantiza impresión real. docs/impresion.md §Linux.
     final process = await Process.start('lp', ['-d', target, '-o', 'raw']);
     process.stdin.add(bytes);
     await process.stdin.flush();
@@ -234,13 +189,8 @@ class LinuxPrinterTransport implements PrinterTransport {
   }
 }
 
-/// Enumera las impresoras instaladas en Windows (locales + conexiones de red
-/// del sistema) para poblar el desplegable de Configuración, en vez de que el
-/// usuario teclee el nombre exacto a mano.
-///
-/// Usa `EnumPrinters` (nivel 4, que solo trae nombres y es rápido) con el
-/// patrón estándar de dos llamadas: la primera pide el tamaño de buffer, la
-/// segunda lo llena. Devuelve lista vacía fuera de Windows o si algo falla.
+/// Enumera las impresoras instaladas en Windows (`EnumPrinters`) para el
+/// desplegable de Configuración. Vacía fuera de Windows. `docs/impresion.md`.
 List<String> listWindowsPrinters() {
   if (!Platform.isWindows) return const [];
 
@@ -284,9 +234,8 @@ List<String> listWindowsPrinters() {
   }
 }
 
-/// Nombres de impresoras virtuales de Windows que NO son térmicas: no
-/// entienden bytes ESC/POS crudos (esperan gráficos GDI), así que enviarles un
-/// ticket produce basura o un archivo inválido. Se usa para avisar en la UI.
+/// Impresoras virtuales (PDF/XPS/OneNote/Fax) que no entienden ESC/POS crudo,
+/// para avisar en la UI. `docs/impresion.md` §Utilidades.
 bool isVirtualPrinter(String name) {
   final n = name.toLowerCase();
   return n.contains('pdf') ||
@@ -296,16 +245,12 @@ bool isVirtualPrinter(String name) {
       n.contains('microsoft print to');
 }
 
-/// Número de columnas de caracteres del papel: 32 para 58 mm, 48 para 80 mm.
-/// Es el ancho real de una línea en la impresora térmica.
+/// Columnas del papel: 32 a 58 mm, 48 a 80 mm. `docs/impresion.md` §Utilidades.
 int paperColumns(Map<String, String> settings) =>
     settings['printer_width'] == '58' ? 32 : 48;
 
-/// Sanea texto para impresión: las fuentes estándar (latin1 en ESC/POS,
-/// Helvetica en el PDF) no soportan toda la puntuación Unicode (la raya larga
-/// "—", comillas tipográficas, etc.). Sustituye esos glyphs por equivalentes
-/// ASCII y descarta cualquier code unit fuera de 0..255 para no romper nunca la
-/// generación de bytes ni el layout del PDF.
+/// Sanea texto para impresión (Unicode → ASCII, descarta >0xFF), para no romper
+/// los bytes ni el PDF. `docs/impresion.md` §Utilidades.
 String sanitizeTicketText(String s) {
   final replaced = s
       .replaceAll('—', '-')
@@ -328,10 +273,8 @@ String _centerLine(String s, int width) {
   return '${' ' * pad}$s';
 }
 
-/// Líneas de texto plano del ticket de prueba, formateadas al ancho real del
-/// papel (32/48 columnas). Sirven para una **vista previa en pantalla** — que
-/// el usuario valide tamaño y contenido sin necesidad de una impresora física
-/// (y sin caer en la trampa de "imprimir" a un PDF, que no entiende ESC/POS).
+/// Texto plano del ticket de prueba al ancho real, para vista previa en
+/// pantalla sin impresora. `docs/impresion.md` §Utilidades.
 List<String> testTicketPreviewLines(Map<String, String> settings) {
   final w = paperColumns(settings);
   final businessName = settings['business_name'] ?? 'La Tercia';
@@ -352,13 +295,8 @@ List<String> testTicketPreviewLines(Map<String, String> settings) {
   ];
 }
 
-/// Elige el transporte a partir de los settings de configuración.
-///
-/// `printer_transport` = 'red' → [NetworkPrinterTransport] (host, o `host:puerto`).
-/// `printer_transport` = 'usb' → impresora local: en Windows el spooler
-/// ([WindowsRawPrinterTransport], nombre de impresora); en Linux CUPS o
-/// `/dev/usb/lp0` ([LinuxPrinterTransport]). Devuelve `null` si no hay dirección
-/// configurada, para que la cola avise "impresora no configurada" sin fallar.
+/// Elige el transporte según los settings (red/usb, por plataforma); null si no
+/// hay dirección configurada. `docs/impresion.md` §Transportes.
 PrinterTransport? printerTransportFromSettings(Map<String, String> settings) {
   final transport = settings['printer_transport'] ?? 'red';
   final address = (settings['printer_address'] ?? '').trim();
@@ -414,12 +352,8 @@ const Map<String, String> _orderTypeLabels = {
   'delivery': 'DELIVERY',
 };
 
-/// Construye las líneas de texto de la comanda de cocina como una lista pura de
-/// `String`, sin ESC/POS. Aislada del builder de bytes para poder verificar en
-/// tests que aparecen nombres de producto y modificadores parseados sin tener
-/// que rastrear dentro del documento binario.
-///
-/// Sin precios: la comanda es para cocina.
+/// Líneas de texto de la comanda de cocina (sin ESC/POS, sin precios), aislada
+/// para poder testearla. `docs/impresion.md` §Documentos.
 List<String> kitchenTicketLines(Order order, List<OrderItem> items) {
   final lines = <String>[];
 
@@ -451,12 +385,8 @@ List<String> kitchenTicketLines(Order order, List<OrderItem> items) {
 
 // ─── Cola de impresión con reintento ─────────────────────────────────────────
 
-/// Encola trabajos de impresión y los envía por el transporte con reintento y
-/// backoff. Si tras los reintentos sigue fallando, registra un WARN y marca
-/// [lastJobFailed] para que la UI pueda avisar ("la impresora no responde").
-///
-/// NUNCA lanza hacia el caller: la impresión es best-effort y jamás debe
-/// romper ni bloquear la venta (se dispara después del commit de la BD).
+/// Cola FIFO de impresión con reintento + backoff. Nunca lanza hacia el caller
+/// (best-effort: no rompe la venta). `docs/impresion.md` §Cola.
 class PrintQueue {
   PrintQueue({
     this.maxRetries = 3,
@@ -564,10 +494,7 @@ class PrintService {
   PrinterTransport? transportFor(Map<String, String> settings) =>
       printerTransportFromSettings(settings);
 
-  /// latin1 (el codec por defecto del Generator) no puede codificar caracteres
-  /// como la raya larga "—" (U+2014) y lanzaría. Sustituimos la puntuación
-  /// unicode común por equivalentes latin1 y descartamos cualquier code unit
-  /// fuera de 0..255 para no romper nunca la generación de bytes.
+  /// Sanea texto (latin1 no codifica "—" y lanzaría). `docs/impresion.md`.
   static String _san(String s) => sanitizeTicketText(s);
 
   // ─── Pulso de gaveta ───────────────────────────────────────────────────────
@@ -603,9 +530,7 @@ class PrintService {
     final bytes = <int>[];
     bytes.addAll(g.reset());
 
-    // Encabezado: logo arriba (2026-07-20 — rediseño; antes el ticket
-    // arrancaba directo en texto). Best-effort: si no carga ningún logo,
-    // el ticket sigue con el nombre del negocio como antes.
+    // Encabezado: logo arriba (best-effort; si no carga, sigue el nombre).
     final logo = await _resolveThermalLogo(settings);
     if (logo != null) {
       bytes.addAll(g.image(logo, align: PosAlign.center));
@@ -678,10 +603,8 @@ class PrintService {
       bytes.addAll(_kv(g, label, money(order.deliveryFee)));
     }
 
-    // TOTAL en video invertido (2026-07-20 — rediseño): `reverse` es una
-    // capacidad NATIVA de la impresora (texto blanco sobre franja negra), no
-    // una imagen — se ve como una "caja" resaltada sin costar tiempo extra
-    // de impresión ni depender de ningún archivo.
+    // TOTAL en video invertido (`reverse`, capacidad nativa de la impresora,
+    // no imagen). docs/impresion.md §Documentos.
     bytes.addAll(g.row([
       PosColumn(
         text: 'TOTAL',
@@ -724,17 +647,8 @@ class PrintService {
     return bytes;
   }
 
-  /// Separador de marca para el ticket de venta (rediseño 2026-07-20): un
-  /// patrón repetido en vez de la línea plana `g.hr()`, para que el ticket
-  /// se sienta más de la casa sin depender de una imagen (más rápido de
-  /// imprimir, y no se puede ver "corrupto" en ninguna impresora).
-  ///
-  /// A propósito usa SOLO caracteres ASCII (0-127): las tablas de códigos de
-  /// las térmicas varían por marca/modelo en el rango 128-255 (ahí es donde
-  /// van los acentos, y por eso el resto del ticket sí los usa vía
-  /// [sanitizeTicketText] con la tabla ya validada en sitio), pero el rango
-  /// ASCII es idéntico en todas — cero riesgo de que salga un símbolo
-  /// distinto al elegido en una impresora que no se ha podido probar aún.
+  /// Separador de marca (patrón ASCII repetido, no imagen; ASCII para que se
+  /// vea igual en cualquier impresora). `docs/impresion.md` §Documentos.
   List<int> _brandDivider(Generator g, Map<String, String> settings) {
     const unit = '*  ';
     final width = paperColumns(settings);
@@ -821,14 +735,8 @@ class PrintService {
 
   // ─── Comanda de reparto (delivery) ──────────────────────────────────────
 
-  /// Documento ESC/POS de la comanda de REPARTO: datos del cliente (nombre,
-  /// teléfono, dirección, zona) + lista corta de items, para que el
-  /// repartidor sepa a dónde ir y qué lleva. Se imprime aparte de la comanda
-  /// de cocina (2026-07-20 — antes no existía; la cocina solo veía qué
-  /// preparar, nunca a dónde iba el pedido).
-  ///
-  /// Si la orden aún no está pagada, marca "COBRAR AL ENTREGAR" con el
-  /// total — es el caso típico de delivery pagado contra entrega.
+  /// Comanda de REPARTO: datos del cliente + items; marca "COBRAR AL ENTREGAR"
+  /// si no está pagada. `docs/impresion.md` §Documentos.
   Future<List<int>> buildDeliveryTicket({
     required Order order,
     required List<OrderItem> items,
@@ -910,10 +818,8 @@ class PrintService {
 
   // ─── Corte X/Z ────────────────────────────────────────────────────────────
 
-  /// Documento ESC/POS del corte X (turno abierto) o Z (turno cerrado) —
-  /// mismo contenido que muestra `CutTicket` en pantalla. Auditoría
-  /// 2026-07-17: antes el corte solo existía en pantalla + CSV, sin tickét
-  /// físico.
+  /// Documento ESC/POS del corte X (abierto) o Z (cerrado). `docs/impresion.md`
+  /// §Documentos.
   Future<List<int>> buildCutTicket({
     required ShiftSummary summary,
     required Map<String, String> settings,
@@ -1027,14 +933,11 @@ class PrintService {
         child: pw.Divider(height: 1, thickness: 0.5),
       );
 
-  /// Divisor de marca para la vista previa PDF — mismo patrón ASCII que
-  /// [_brandDivider] (ver ese comentario), para que la vista previa refleje
-  /// lo que realmente sale de la térmica.
+  /// Divisor de marca del PDF (mismo patrón que [_brandDivider]).
   pw.Widget _brandDividerPdf() => _center('*  ' * 14, _mono);
 
-  /// TOTAL en "caja" (fondo negro, texto blanco) — el PDF sí puede pintar un
-  /// fondo real (a diferencia de la térmica, que usa `reverse` nativo para
-  /// el mismo efecto visual). Ver comentario de `reverse` en [buildSalesTicket].
+  /// TOTAL en caja negra (el PDF pinta fondo real; la térmica usa `reverse`).
+  /// `docs/impresion.md` §Documentos.
   pw.Widget _boxedTotalPdf(String label, String value) => pw.Container(
         color: PdfColors.black,
         padding: const pw.EdgeInsets.symmetric(horizontal: 4, vertical: 3),
@@ -1062,16 +965,8 @@ class PrintService {
     );
   }
 
-  /// Logo para el encabezado del ticket TÉRMICO (ESC/POS): el personalizado
-  /// si el negocio subió uno en Configuración → Negocio, o el de La Tercia
-  /// por defecto (`assets/images/8.png` — negro puro sobre blanco, mejor
-  /// contraste que el logo a color al convertirse a 1-bit) si no.
-  ///
-  /// Se reescala a un ancho fijo ANTES de mandarlo al generador ESC/POS: el
-  /// archivo puede venir en resolución muy alta (el default trae 3780×3780
-  /// px) y mandarlo tal cual sería lentísimo y ocuparía rollo de más.
-  /// Best-effort (2026-07-20): si nada carga, el ticket se sigue imprimiendo
-  /// sin logo — nunca rompe la venta.
+  /// Logo del ticket TÉRMICO (personalizado o default `8.png`), reescalado a
+  /// ~300 px antes del ESC/POS. Best-effort. `docs/impresion.md` §Logo.
   Future<img.Image?> _resolveThermalLogo(Map<String, String> settings) async {
     const logoWidth = 300;
     img.Image? decoded;
@@ -1108,10 +1003,8 @@ class PrintService {
     return img.copyResize(decoded, width: logoWidth);
   }
 
-  /// Logo para el encabezado del ticket PDF: el personalizado si el negocio
-  /// subió uno en Configuración → Negocio, o el de La Tercia por defecto
-  /// (`assets/images/logo-color.png`) si no. Best-effort: si ninguno carga,
-  /// el ticket sigue imprimiéndose sin logo (nunca rompe la venta).
+  /// Logo del ticket PDF (el personalizado o el default). Best-effort.
+  /// `docs/impresion.md` §Logo.
   Future<pw.ImageProvider?> _resolveLogo(Map<String, String> settings) async {
     final path = (settings['logo_path'] ?? '').trim();
     if (path.isNotEmpty) {
@@ -1437,12 +1330,8 @@ class PrintService {
         marginBottom: 8,
       );
 
-  /// Envía un PDF a una impresora de Windows por su nombre (modo 'grafica').
-  ///
-  /// Busca la [Printer] cuyo `name` coincida (case-insensitive/trim) en
-  /// `Printing.listPrinters()`. Si no la encuentra, registra un WARN y devuelve
-  /// `false`. Best-effort: nunca lanza (todo envuelto en try/catch → WARN +
-  /// false). No pasa por la [PrintQueue] de bytes ESC/POS: es una ruta paralela.
+  /// Envía un PDF a una impresora de Windows por nombre (modo 'grafica').
+  /// Best-effort, nunca lanza. `docs/impresion.md` §"Dos modos".
   Future<bool> printPdfToWindows(
     String printerName,
     Uint8List pdfBytes,
@@ -1483,13 +1372,9 @@ class PrintService {
 
   // ─── Wiring de alto nivel (best-effort, tras el commit de la BD) ─────────
 
-  /// Imprime el ticket de venta y, opcionalmente, la comanda de cocina al
-  /// cobrar. No-op si el flag `impresion_activa` está OFF. Nunca lanza.
-  ///
-  /// [includeKitchen] va en `false` para el cobro diferido (pagar-al-final):
-  /// la comanda ya se imprimió al enviar la orden a cocina, no hay que
-  /// duplicarla. [reprint] fuerza la marca "— REIMPRESIÓN —" y nunca imprime
-  /// comanda.
+  /// Imprime el ticket de venta y (opcional) la comanda al cobrar. No-op si
+  /// `impresion_activa` OFF; nunca lanza. [includeKitchen]=false en cobro
+  /// diferido; [reprint] marca "REIMPRESIÓN" y no imprime comanda.
   Future<void> printSaleAndKitchen({
     required Order order,
     required List<OrderItem> items,

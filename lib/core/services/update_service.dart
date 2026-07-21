@@ -9,8 +9,8 @@ import '../utils/app_version.dart';
 /// Nombre del archivo de manifiesto dentro de un paquete de actualización.
 const kUpdateManifestFileName = 'update_manifest.json';
 
-/// Manifiesto de un paquete de actualización: versión + checksum sha256 de
-/// cada archivo, para poder verificar integridad ANTES de aplicar nada.
+/// Manifiesto de un paquete: versión + sha256 de cada archivo, para verificar
+/// integridad antes de aplicar. `docs/actualizaciones.md` §"El paquete".
 class UpdateManifest {
   const UpdateManifest({required this.version, required this.fileChecksums});
 
@@ -50,21 +50,14 @@ class UpdateApplyResult {
   final String? backupPath;
 }
 
-/// Motor de actualizaciones (2026-07-20) — ver
-/// `PLAN_ACTUALIZACION_GRANDE_2026-07.md` §7 para el diseño completo.
-/// Empieza por actualización vía USB; OTA por red queda para cuando haya
-/// varias sucursales.
-///
-/// Es manipulación de archivos pura, sin nada de Flutter/UI — por eso se
-/// puede probar de punta a punta con directorios temporales, sin necesitar
-/// una instalación real ni estar en Linux.
+/// Motor de actualización por USB (verificar, swap atómico, rollback). Dart
+/// puro, sin Flutter. `docs/actualizaciones.md` §"Motor de actualización".
 class UpdateService {
   UpdateService._();
 
-  /// Recorre [packageDir] y calcula el sha256 de cada archivo, para producir
-  /// el manifiesto que viaja junto al bundle en el USB. Se corre UNA vez, al
-  /// preparar el paquete (ver `tool/generate_update_manifest.dart`) — nunca
-  /// en la máquina que recibe la actualización.
+  /// Calcula el sha256 de cada archivo de [packageDir]. Se corre una vez al
+  /// preparar el paquete, no en la máquina que lo recibe.
+  /// `docs/actualizaciones.md`.
   static Future<UpdateManifest> generateManifest({
     required Directory packageDir,
     required String version,
@@ -74,8 +67,7 @@ class UpdateService {
         in packageDir.list(recursive: true, followLinks: false)) {
       if (entity is! File) continue;
       final rel = p.relative(entity.path, from: packageDir.path);
-      // Normaliza separadores: el manifiesto debe ser idéntico sin importar
-      // si se generó en Windows (VM/dev) o en Linux (donde se aplica).
+      // Separadores a '/' para que el manifiesto sea igual en Windows y Linux.
       final relPortable = p.split(rel).join('/');
       if (relPortable == kUpdateManifestFileName) continue;
       final bytes = await entity.readAsBytes();
@@ -112,10 +104,9 @@ class UpdateService {
     return UpdateManifest.fromJson(decoded);
   }
 
-  /// Verifica que cada archivo listado en el manifiesto de [packageDir]
-  /// coincida con su checksum (y que no falte ninguno). Devuelve la lista de
-  /// rutas relativas que NO coinciden o faltan — vacía si el paquete está
-  /// íntegro. Nunca toca nada fuera de [packageDir]; es solo lectura.
+  /// Verifica los checksums de [packageDir]; devuelve las rutas que no
+  /// coinciden o faltan (vacío = íntegro). Solo lectura.
+  /// `docs/actualizaciones.md`.
   static Future<List<String>> verifyPackage(Directory packageDir) async {
     final manifest = await readManifest(packageDir);
     final mismatches = <String>[];
@@ -146,21 +137,9 @@ class UpdateService {
     return UpdateAvailability.same;
   }
 
-  /// Aplica la actualización de [packageDir] sobre [installDir]:
-  ///
-  /// 1. Verifica integridad (checksum de CADA archivo) — si algo no cuadra,
-  ///    aborta sin tocar `installDir`.
-  /// 2. Copia el paquete a una carpeta de staging en el MISMO volumen que
-  ///    `installDir` (el paquete puede venir de un USB en otro volumen —
-  ///    copiar ahí no es atómico, pero todavía no toca la instalación viva).
-  /// 3. Verifica la copia otra vez (defensa en profundidad).
-  /// 4. Respalda `installDir` (rename — atómico, mismo volumen) a
-  ///    `<installDir>.backup-<timestamp>`.
-  /// 5. Renombra el staging a `installDir` (rename — atómico).
-  /// 6. Si el paso 5 falla, restaura el backup automáticamente — nunca deja
-  ///    la PC sin una app funcional.
-  ///
-  /// Si algo falla ANTES del paso 4, `installDir` no se toca en absoluto.
+  /// Aplica la actualización de [packageDir] sobre [installDir] con swap
+  /// atómico y rollback automático. Si algo falla antes de respaldar, no toca
+  /// nada. `docs/actualizaciones.md` §"Aplicar (swap atómico con rollback)".
   static Future<UpdateApplyResult> applyUpdate({
     required Directory packageDir,
     required Directory installDir,
@@ -188,10 +167,8 @@ class UpdateService {
     }
 
     final parent = installDir.parent;
-    // El timestamp identifica el backup y decide el orden para [rollback];
-    // se incrementa hasta que no choque con uno existente — dos
-    // actualizaciones seguidas y rápidas podrían caer en el mismo
-    // milisegundo si no se hiciera esto.
+    // El timestamp identifica el backup y ordena el rollback; se incrementa
+    // hasta no chocar con uno existente. docs/actualizaciones.md.
     var stamp = DateTime.now().millisecondsSinceEpoch;
     var backupDir = Directory('${installDir.path}.backup-$stamp');
     while (await backupDir.exists()) {
@@ -208,8 +185,7 @@ class UpdateService {
           success: false, error: 'No se pudo copiar el paquete: $e');
     }
 
-    // Verificación extra tras la copia: confirma que la copia a
-    // `stagingDir` también quedó íntegra antes de tocar `installDir`.
+    // Defensa en profundidad: reverifica el staging antes de tocar installDir.
     final stagedMismatches = await verifyPackage(stagingDir);
     if (stagedMismatches.isNotEmpty) {
       await _tryDelete(stagingDir);
@@ -234,10 +210,7 @@ class UpdateService {
       await stagingDir.rename(installDir.path);
     } catch (e) {
       // Rollback automático: restaura el backup para no dejar la PC sin app.
-      // (El detalle del error queda en UpdateApplyResult.error — sin
-      // appLogger aquí a propósito: este servicio es Dart puro, sin nada de
-      // Flutter, para poder correr también fuera de la app como script vía
-      // `dart run tool/generate_update_manifest.dart`.)
+      // (Sin appLogger a propósito: este servicio es Dart puro.)
       try {
         await backupDir.rename(installDir.path);
       } catch (_) {
@@ -259,9 +232,8 @@ class UpdateService {
     return UpdateApplyResult(success: true, backupPath: backupDir.path);
   }
 
-  /// Revierte manualmente [installDir] al respaldo más reciente que exista
-  /// junto a él (`<installDir>.backup-<timestamp>`). Para deshacer una
-  /// actualización problemática después del hecho.
+  /// Revierte [installDir] al respaldo más reciente que exista junto a él.
+  /// `docs/actualizaciones.md` §Revertir.
   static Future<UpdateApplyResult> rollback(Directory installDir) async {
     final parent = installDir.parent;
     if (!await parent.exists()) {

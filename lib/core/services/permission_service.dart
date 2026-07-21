@@ -2,11 +2,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../database/database.dart';
 
-/// The sensitive actions gated by the supervisor-PIN mechanism.
-///
-/// [key] is the stable string stored in `audit_log.action` / matched against
-/// in tests — keep it snake_case and don't rename it once shipped, or old
-/// audit rows stop matching new queries.
+/// Acciones sensibles que exigen PIN de supervisor. `key` es el string estable
+/// guardado en `audit_log.action`: no renombrar. `docs/permisos-y-auditoria.md`.
 enum PermissionAction {
   anular('anular'),
   descuentoManual('descuento_manual'),
@@ -21,22 +18,21 @@ enum PermissionAction {
   const PermissionAction(this.key);
 }
 
-/// Reasons a supervisor-PIN entry can fail validation, so the UI can show a
-/// specific message instead of a generic "incorrect PIN".
+/// Motivos por los que un PIN de supervisor puede fallar (para un mensaje
+/// específico en la UI). `docs/permisos-y-auditoria.md`.
 enum SupervisorPinError {
-  /// No active employee has this PIN.
+  /// Ningún empleado activo tiene ese PIN.
   invalidPin,
 
-  /// The PIN belongs to an employee, but they're not `admin`/`gerente`.
+  /// El PIN es de un empleado, pero no es `admin`/`gerente`.
   notSupervisor,
 
-  /// The PIN belongs to the same employee who is asking for authorization —
-  /// a supervisor can't approve their own action this way.
+  /// El PIN es del mismo empleado que pide autorización.
   sameEmployee,
 }
 
-/// Result of [PermissionService.validateSupervisorPin]: either the approving
-/// [Employee] on success, or a [SupervisorPinError] on failure.
+/// Resultado de [PermissionService.validateSupervisorPin]: el [Employee] que
+/// aprueba, o un [SupervisorPinError].
 class SupervisorPinResult {
   final Employee? supervisor;
   final SupervisorPinError? error;
@@ -48,11 +44,9 @@ class SupervisorPinResult {
   bool get isSuccess => supervisor != null;
 }
 
-/// Role-based permission matrix for the 7 sensitive actions.
-///
-/// `admin`/`gerente` always have every permission. Everyone else (in
-/// practice: `cashier`) needs a supervisor (a *different* `admin`/`gerente`
-/// employee) to approve via PIN — see [SupervisorPinDialog].
+/// Matriz de permisos por rol: `admin`/`gerente` pueden todo; los demás
+/// necesitan un supervisor distinto que apruebe con PIN.
+/// `docs/permisos-y-auditoria.md`.
 class PermissionService {
   const PermissionService();
 
@@ -61,9 +55,8 @@ class PermissionService {
   bool hasPermission(Employee actor, PermissionAction action) =>
       _supervisorRoles.contains(actor.role);
 
-  /// Looks up [pin] and checks it belongs to a supervisor (`admin`/`gerente`)
-  /// other than [actor]. Pure lookup + validation, kept separate from any
-  /// widget so it's directly testable.
+  /// Busca [pin] y verifica que sea de un supervisor distinto de [actor].
+  /// `docs/permisos-y-auditoria.md` §"Validación del PIN de supervisor".
   Future<SupervisorPinResult> validateSupervisorPin(
     AppDatabase db, {
     required String pin,

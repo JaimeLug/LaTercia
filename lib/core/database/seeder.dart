@@ -30,9 +30,7 @@ class SeederService {
       'secondary_color': '#F1AA3F',
       'currency_symbol': r'$',
       'tax_rate': '0',
-      // FASE 4.5 — Modo de IVA por defecto para productos sin override propio.
-      // 'true' = el precio del catálogo YA incluye IVA (se desglosa hacia atrás
-      // en el ticket); 'false' = el IVA se añade encima al cobrar.
+      // Modo de IVA por defecto (docs/precios-e-iva.md). 'true' = incluido.
       'tax_included': 'true',
       'receipt_footer': '¡Gracias por su visita!',
       'default_order_type': 'mesa',
@@ -118,7 +116,7 @@ class SeederService {
   }
 
   Future<void> _seedProducts() async {
-    // Get category IDs — assume they were inserted in order 1-5
+    // IDs de categoría (se insertaron en orden 1-5).
     final cats = await db.categoriesDao.getAllCategories();
     final catMap = {for (final c in cats) c.name: c.id};
 
@@ -206,9 +204,9 @@ class SeederService {
     );
   }
 
-  /// Applies the redesign brand defaults to installs seeded before it.
-  /// Only overwrites values still at the pre-redesign factory defaults, so any
-  /// customization the user already made is preserved.
+  /// Aplica los defaults de marca del rediseño a instalaciones viejas, solo
+  /// donde el valor siga en el default anterior (respeta lo que el usuario
+  /// haya personalizado).
   Future<void> syncBrandDefaults() async {
     Future<void> bump(String key, String oldDefault, String newValue) async {
       final current = await db.settingsDao.getValue(key);
@@ -222,7 +220,7 @@ class SeederService {
     await bump('primary_color', '#6F4E37', '#C1560F');
     await bump('secondary_color', '#D4A574', '#F1AA3F');
 
-    // Refresh category accent colors that are still at their old defaults.
+    // Refresca los colores de categoría que sigan en su default viejo.
     const catColors = {
       'Bebidas Calientes': ('#8B4513', '#E0912A'),
       'Bebidas Frías': ('#4A90D9', '#5F89A6'),

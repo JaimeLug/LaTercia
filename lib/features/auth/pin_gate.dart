@@ -62,8 +62,8 @@ class _PinGateState extends ConsumerState<PinGate>
     if (employee == null) {
       _consecutiveFailedAttempts++;
       if (_consecutiveFailedAttempts >= 3) {
-        // Never log the PIN itself — only that N consecutive attempts
-        // failed. employeeId is null: a failed PIN doesn't identify anyone.
+        // Nunca loguear el PIN, solo que hubo N intentos fallidos (employeeId
+        // null: un PIN fallido no identifica a nadie). docs/seguridad.md.
         await ref.read(auditServiceProvider).log(
           employeeId: null,
           action: 'login_pin_fallido',

@@ -6,23 +6,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../utils/app_logger.dart';
 import 'kds_server.dart' show kdsServerProvider;
 
-/// FASE 3.5 — Botonera física de cocina (ESP32 por WiFi/WebSocket).
-///
-/// El ESP32 es **cliente**: se conecta él solo a este servidor (protocolo de
-/// texto plano, sin token — así quedó grabado el firmware ya probado en
-/// hardware real) y manda un string por cada botón presionado. Puerto fijo
-/// 8080 para que coincida con el firmware sin tener que reflashearlo.
-///
-/// Deliberadamente un servidor **aparte** del WebSocket POS↔KDS de la Fase 5.1
-/// (ese usa JSON+token en un puerto efímero para sincronizar el estado de la
-/// BD entre procesos) — la botonera es solo un mando de una vía, sin relación
-/// con ese protocolo.
-///
-/// Solo el primer proceso que llegue a bindear el puerto recibe los eventos —
-/// si el KDS está embebido en el POS Y además hay una ventana KDS separada
-/// abierta, la segunda simplemente no logra bindear y esta clase lo absorbe
-/// como best-effort (log, sin crashear): el hardware siempre le habla a una
-/// única "cocina" a la vez, que es justo el comportamiento esperado.
+// Botonera física de cocina (ESP32 por WiFi/WebSocket, puerto 8080, texto
+// plano). Servidor aparte del enlace POS↔KDS. `docs/kds-conexion.md` §Botonera.
 enum KdsButton { anterior, siguiente, prep, listo, recall, tiempo }
 
 /// El literal exacto que manda el firmware por cada botón — mismo orden que
@@ -47,16 +32,9 @@ String kdsButtonLabel(KdsButton b) => switch (b) {
       KdsButton.tiempo => 'TIEMPO',
     };
 
-/// Parsea el string plano que manda el firmware a un [KdsButton] — público
-/// para reusarse tanto en el KDS real como en el panel de prueba de
-/// Configuración, sin duplicar la lista de nombres válidos en dos lugares.
-///
-/// Mapeo literal (string == nombre del botón). Hubo un intento de "corregir"
-/// un supuesto intercambio LISTO/TIEMMPO en el cableado, pero causó una
-/// regresión (TIEMPO y la navegación dejaron de funcionar) — se revirtió.
-/// Si el cableado real tiene algo cruzado, hay que confirmarlo con el panel
-/// de prueba (Admin → Botonera: qué casilla se ilumina al presionar cada
-/// botón físico) antes de volver a tocar este mapeo.
+/// Parsea el string plano del firmware a un [KdsButton] (mapeo literal). No
+/// tocar el mapeo sin confirmar el cableado con Admin → Botonera.
+/// `docs/kds-conexion.md` §"Mapeo de botones".
 KdsButton? parseKdsButton(String raw) {
   final upper = raw.trim().toUpperCase();
   for (final b in kdsButtonOrder) {
@@ -90,18 +68,14 @@ class KdsButtonService {
   bool get conectado => _clientSocket != null;
   bool get isRunning => _server != null;
 
-  // Auditoría 2026-07-17 — rebote mecánico: un botón físico puede mandar
-  // varios mensajes idénticos en milisegundos. Sin esto, cada rebote
-  // disparaba sonido/toast/escritura a BD por separado, y —desde el reenvío
-  // cross-proceso (3.5)— se reenviaba duplicado a la ventana KDS separada.
+  // Anti-rebote mecánico (ventana de 180 ms). docs/kds-conexion.md §Botonera.
   KdsButton? _lastButton;
   DateTime? _lastButtonAt;
   static const _debounceWindow = Duration(milliseconds: 180);
 
-  /// Best-effort: si el puerto ya está tomado (otra ventana KDS ya lo tiene),
-  /// queda en silencio sin recibir eventos — nunca lanza hacia el caller.
-  /// [port] es configurable desde Configuración (default 8080, el que trae
-  /// grabado el firmware); cambiarlo aquí exige reflashear el ESP32 también.
+  /// Best-effort: si el puerto ya está tomado, queda en silencio sin lanzar.
+  /// [port] configurable (default 8080; cambiarlo exige reflashear el ESP32).
+  /// `docs/kds-conexion.md`.
   Future<void> start({int port = 8080}) async {
     if (_server != null) return;
     this.port = port;
@@ -145,9 +119,8 @@ class KdsButtonService {
       socket.listen(
         (message) {
           if (message is String) {
-            // El stream crudo SIEMPRE recibe todo, rebote incluido — es el
-            // diagnóstico de hardware (Admin → Botonera) y no debe ocultar
-            // nada de lo que realmente llegó del ESP32.
+            // El stream crudo recibe TODO (rebote incluido): es el diagnóstico
+            // de hardware de Admin → Botonera. docs/kds-conexion.md.
             _rawController.add(message);
             final boton = parseKdsButton(message);
             if (boton == null) return;
@@ -191,23 +164,11 @@ final kdsButtonServiceProvider = Provider<KdsButtonService>((ref) {
   return service;
 });
 
-/// El stream de botones que el KDS realmente escucha — indirección para que
-/// funcione igual en las dos formas de mostrar la Cocina:
-/// - **KDS embebido** (misma pestaña del proceso POS): el ESP32 solo puede
-///   hablarle a UN proceso (single-writer natural del puerto 8080, siempre
-///   gana el POS porque arranca primero) — aquí el default apunta al
-///   [kdsButtonServiceProvider] local, que sí tiene el socket real, PERO se
-///   silencia mientras haya una ventana KDS separada conectada
-///   ([KdsServer.hasClients]): si no, el mismo botón físico se procesaba DOS
-///   veces (una vez aquí, invisible, y otra reenviado a la ventana externa),
-///   lo que rompía RECALL — el segundo `markReady` volvía a leer el pedido ya
-///   en 'listo' y sobre-escribía el estado previo guardado para deshacer, así
-///   que recall terminaba revirtiendo 'listo' → 'listo' (nada visible).
-/// - **Ventana KDS separada** (otro proceso del SO): su propio
-///   [KdsButtonService] JAMÁS logra bindear el puerto (ya lo tiene el POS), así
-///   que sin esto se queda sordo. `main.dart` sobreescribe este provider con
-///   el stream reenviado por [KdsClient] sobre el WS de sincronización de la
-///   Fase 5.1 — el POS retransmite cada botón que le llega del ESP32 real.
+/// Stream de botones que el KDS realmente escucha. En el KDS embebido apunta al
+/// servicio local pero se **silencia** si hay una ventana KDS separada conectada
+/// (evita el doble proceso que rompía RECALL); en la ventana separada, `main.dart`
+/// lo sobreescribe con el stream que [KdsClient] recibe retransmitido del POS.
+/// `docs/kds-conexion.md` §"El bug de RECALL".
 final kdsButtonStreamProvider = Provider<Stream<KdsButton>>((ref) {
   final service = ref.watch(kdsButtonServiceProvider);
   final server = ref.watch(kdsServerProvider);

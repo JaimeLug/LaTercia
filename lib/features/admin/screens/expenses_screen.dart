@@ -48,7 +48,7 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
       appBar: AppBar(title: const Text('Gastos')),
       body: Column(
         children: [
-          // Add form
+          // Formulario de alta
           Card(
             margin: const EdgeInsets.all(12),
             child: Padding(
