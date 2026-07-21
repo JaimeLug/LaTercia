@@ -102,6 +102,26 @@ Si el IVA es **añadido** (no incluido), el `unitPrice` ya es la base y el IVA s
 suma. La lógica de separación reutiliza `Products.taxIncluded` + `taxRate` (ver
 `docs/precios-e-iva.md`).
 
+### Prorrateo del descuento y reconciliación
+
+Los conceptos fiscales deben **cuadrar exacto** con los totales que la orden ya
+guardó (subtotal/descuento/IVA/total, calculados por `computeTaxedTotals`). Para
+lograrlo, el congelado replica la misma matemática por línea:
+
+- `factor = (subtotalBruto − descuento) / subtotalBruto` (proporción que queda
+  tras el descuento; `1.0` si no hay descuento).
+- Por concepto, con `net` = importe de la línea **sin IVA**:
+  - `Importe` (sin IVA, antes de descuento) = `net`.
+  - `ValorUnitario` = `net / cantidad`.
+  - `Descuento` = `net × (1 − factor)`.
+  - `Base` (gravable) = `net × factor` = `Importe − Descuento`.
+  - `TasaOCuota` = `tasa/100` (fracción; ej. `0.16`).
+  - `ImporteImpuesto` (IVA del concepto) = `Base × tasa/100`.
+
+Así `Σ Base = base gravable de la orden`, `Σ ImporteImpuesto = order.taxAmount`, y
+`Σ (Base + IVA) = order.total`. La función que lo calcula es **pura** (sin BD ni
+UI) para poder probar la reconciliación con tests.
+
 ## Catálogos SAT (asset local + buscador)
 
 Los datos salen de los **catálogos oficiales del SAT** (CSV publicados, ya en el

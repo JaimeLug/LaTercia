@@ -10,6 +10,9 @@ class ProductsDao extends DatabaseAccessor<AppDatabase>
 
   Future<List<Product>> getAllProducts() => select(products).get();
 
+  Future<Product?> getProductById(int id) =>
+      (select(products)..where((p) => p.id.equals(id))).getSingleOrNull();
+
   Future<List<Product>> getAvailableProducts() =>
       (select(products)..where((p) => p.available.equals(true))).get();
 
@@ -38,9 +41,8 @@ class ProductsDao extends DatabaseAccessor<AppDatabase>
       (update(products)..where((p) => p.id.equals(id)))
           .write(ProductsCompanion(available: Value(available)));
 
-  /// FASE 7 — Toggle rápido de "Rastrear inventario" desde la lista de
-  /// Productos, sin abrir el formulario. El caller debe garantizar que el
-  /// producto no use receta (mutuamente excluyente — ver `usesRecipe`).
+  /// Toggle rápido de "Rastrear inventario" (el caller garantiza que el
+  /// producto no use receta — ver `usesRecipe`). docs/inventario.md.
   Future<void> toggleTrackInventory(int id, bool trackInventory) =>
       (update(products)..where((p) => p.id.equals(id)))
           .write(ProductsCompanion(trackInventory: Value(trackInventory)));
