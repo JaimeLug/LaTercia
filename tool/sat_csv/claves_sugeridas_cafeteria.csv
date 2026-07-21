@@ -1,0 +1,24 @@
+id,texto,uso_sugerido
+90101501,Restaurantes,Venta de alimentos preparados / servicio en mesa
+90101700,Servicios de cafetería,Venta general en cafetería / mostrador
+95121503,Cafetería,Alternativa para negocio tipo cafetería
+91111603,Servicios de cocina o preparación de comidas,Servicio de preparación de alimentos
+50201700,Café y té,Café/té como producto genérico
+50201710,Té de hoja,Té en hoja
+50201711,Té instantáneo,Té instantáneo
+50201712,Bebidas de té,Bebidas de té preparadas
+50201713,Bolsas de té,Té en bolsitas
+50201715,Té de frutas,Té de frutas
+50202305,Jugo fresco,Jugos naturales
+50202306,Refrescos,Refrescos embotellados/de lata
+50181900,"Pan, galletas y pastelitos dulces",Panadería en general
+50181901,Pan fresco,Pan fresco del día
+50181903,Galletas sencillas de sal,Galletas saladas
+50181905,Galletas de dulce,Galletas dulces
+50182001,"Ponqués, pasteles o biscochos frescos",Pastelería/repostería
+50192500,Sándwiches y panecillos con relleno,Sándwiches
+50192501,Emparedados frescos,Emparedados/tortas
+50192800,Empanadas y quiches y pasteles,Empanadas/pays
+50131700,Productos de leche y mantequilla,Lácteos usados como insumo
+50192303,"Helado de sabor, o helado, o postre de helado o yogurt congelado",Postres fríos
+01010101,No existe en el catálogo,SOLO como último recurso — el SAT desaconseja usarla de forma sistemática

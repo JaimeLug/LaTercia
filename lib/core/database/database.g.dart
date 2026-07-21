@@ -642,6 +642,24 @@ class $ProductsTable extends Products with TableInfo<$ProductsTable, Product> {
       defaultConstraints:
           GeneratedColumn.constraintIsAlways('CHECK ("uses_recipe" IN (0, 1))'),
       defaultValue: const Constant(false));
+  static const VerificationMeta _claveProdServMeta =
+      const VerificationMeta('claveProdServ');
+  @override
+  late final GeneratedColumn<String> claveProdServ = GeneratedColumn<String>(
+      'clave_prod_serv', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _claveUnidadMeta =
+      const VerificationMeta('claveUnidad');
+  @override
+  late final GeneratedColumn<String> claveUnidad = GeneratedColumn<String>(
+      'clave_unidad', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _objetoImpMeta =
+      const VerificationMeta('objetoImp');
+  @override
+  late final GeneratedColumn<String> objetoImp = GeneratedColumn<String>(
+      'objeto_imp', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
   static const VerificationMeta _createdAtMeta =
       const VerificationMeta('createdAt');
   @override
@@ -675,6 +693,9 @@ class $ProductsTable extends Products with TableInfo<$ProductsTable, Product> {
         taxRate,
         taxIncluded,
         usesRecipe,
+        claveProdServ,
+        claveUnidad,
+        objetoImp,
         createdAt,
         updatedAt
       ];
@@ -765,6 +786,22 @@ class $ProductsTable extends Products with TableInfo<$ProductsTable, Product> {
           usesRecipe.isAcceptableOrUnknown(
               data['uses_recipe']!, _usesRecipeMeta));
     }
+    if (data.containsKey('clave_prod_serv')) {
+      context.handle(
+          _claveProdServMeta,
+          claveProdServ.isAcceptableOrUnknown(
+              data['clave_prod_serv']!, _claveProdServMeta));
+    }
+    if (data.containsKey('clave_unidad')) {
+      context.handle(
+          _claveUnidadMeta,
+          claveUnidad.isAcceptableOrUnknown(
+              data['clave_unidad']!, _claveUnidadMeta));
+    }
+    if (data.containsKey('objeto_imp')) {
+      context.handle(_objetoImpMeta,
+          objetoImp.isAcceptableOrUnknown(data['objeto_imp']!, _objetoImpMeta));
+    }
     if (data.containsKey('created_at')) {
       context.handle(_createdAtMeta,
           createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta));
@@ -812,6 +849,12 @@ class $ProductsTable extends Products with TableInfo<$ProductsTable, Product> {
           .read(DriftSqlType.bool, data['${effectivePrefix}tax_included']),
       usesRecipe: attachedDatabase.typeMapping
           .read(DriftSqlType.bool, data['${effectivePrefix}uses_recipe'])!,
+      claveProdServ: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}clave_prod_serv']),
+      claveUnidad: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}clave_unidad']),
+      objetoImp: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}objeto_imp']),
       createdAt: attachedDatabase.typeMapping
           .read(DriftSqlType.dateTime, data['${effectivePrefix}created_at'])!,
       updatedAt: attachedDatabase.typeMapping
@@ -841,6 +884,9 @@ class Product extends DataClass implements Insertable<Product> {
   final double? taxRate;
   final bool? taxIncluded;
   final bool usesRecipe;
+  final String? claveProdServ;
+  final String? claveUnidad;
+  final String? objetoImp;
   final DateTime createdAt;
   final DateTime updatedAt;
   const Product(
@@ -859,6 +905,9 @@ class Product extends DataClass implements Insertable<Product> {
       this.taxRate,
       this.taxIncluded,
       required this.usesRecipe,
+      this.claveProdServ,
+      this.claveUnidad,
+      this.objetoImp,
       required this.createdAt,
       required this.updatedAt});
   @override
@@ -889,6 +938,15 @@ class Product extends DataClass implements Insertable<Product> {
       map['tax_included'] = Variable<bool>(taxIncluded);
     }
     map['uses_recipe'] = Variable<bool>(usesRecipe);
+    if (!nullToAbsent || claveProdServ != null) {
+      map['clave_prod_serv'] = Variable<String>(claveProdServ);
+    }
+    if (!nullToAbsent || claveUnidad != null) {
+      map['clave_unidad'] = Variable<String>(claveUnidad);
+    }
+    if (!nullToAbsent || objetoImp != null) {
+      map['objeto_imp'] = Variable<String>(objetoImp);
+    }
     map['created_at'] = Variable<DateTime>(createdAt);
     map['updated_at'] = Variable<DateTime>(updatedAt);
     return map;
@@ -919,6 +977,15 @@ class Product extends DataClass implements Insertable<Product> {
           ? const Value.absent()
           : Value(taxIncluded),
       usesRecipe: Value(usesRecipe),
+      claveProdServ: claveProdServ == null && nullToAbsent
+          ? const Value.absent()
+          : Value(claveProdServ),
+      claveUnidad: claveUnidad == null && nullToAbsent
+          ? const Value.absent()
+          : Value(claveUnidad),
+      objetoImp: objetoImp == null && nullToAbsent
+          ? const Value.absent()
+          : Value(objetoImp),
       createdAt: Value(createdAt),
       updatedAt: Value(updatedAt),
     );
@@ -943,6 +1010,9 @@ class Product extends DataClass implements Insertable<Product> {
       taxRate: serializer.fromJson<double?>(json['taxRate']),
       taxIncluded: serializer.fromJson<bool?>(json['taxIncluded']),
       usesRecipe: serializer.fromJson<bool>(json['usesRecipe']),
+      claveProdServ: serializer.fromJson<String?>(json['claveProdServ']),
+      claveUnidad: serializer.fromJson<String?>(json['claveUnidad']),
+      objetoImp: serializer.fromJson<String?>(json['objetoImp']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
       updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
     );
@@ -966,6 +1036,9 @@ class Product extends DataClass implements Insertable<Product> {
       'taxRate': serializer.toJson<double?>(taxRate),
       'taxIncluded': serializer.toJson<bool?>(taxIncluded),
       'usesRecipe': serializer.toJson<bool>(usesRecipe),
+      'claveProdServ': serializer.toJson<String?>(claveProdServ),
+      'claveUnidad': serializer.toJson<String?>(claveUnidad),
+      'objetoImp': serializer.toJson<String?>(objetoImp),
       'createdAt': serializer.toJson<DateTime>(createdAt),
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
     };
@@ -987,6 +1060,9 @@ class Product extends DataClass implements Insertable<Product> {
           Value<double?> taxRate = const Value.absent(),
           Value<bool?> taxIncluded = const Value.absent(),
           bool? usesRecipe,
+          Value<String?> claveProdServ = const Value.absent(),
+          Value<String?> claveUnidad = const Value.absent(),
+          Value<String?> objetoImp = const Value.absent(),
           DateTime? createdAt,
           DateTime? updatedAt}) =>
       Product(
@@ -1005,6 +1081,10 @@ class Product extends DataClass implements Insertable<Product> {
         taxRate: taxRate.present ? taxRate.value : this.taxRate,
         taxIncluded: taxIncluded.present ? taxIncluded.value : this.taxIncluded,
         usesRecipe: usesRecipe ?? this.usesRecipe,
+        claveProdServ:
+            claveProdServ.present ? claveProdServ.value : this.claveProdServ,
+        claveUnidad: claveUnidad.present ? claveUnidad.value : this.claveUnidad,
+        objetoImp: objetoImp.present ? objetoImp.value : this.objetoImp,
         createdAt: createdAt ?? this.createdAt,
         updatedAt: updatedAt ?? this.updatedAt,
       );
@@ -1033,6 +1113,12 @@ class Product extends DataClass implements Insertable<Product> {
           data.taxIncluded.present ? data.taxIncluded.value : this.taxIncluded,
       usesRecipe:
           data.usesRecipe.present ? data.usesRecipe.value : this.usesRecipe,
+      claveProdServ: data.claveProdServ.present
+          ? data.claveProdServ.value
+          : this.claveProdServ,
+      claveUnidad:
+          data.claveUnidad.present ? data.claveUnidad.value : this.claveUnidad,
+      objetoImp: data.objetoImp.present ? data.objetoImp.value : this.objetoImp,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
     );
@@ -1056,6 +1142,9 @@ class Product extends DataClass implements Insertable<Product> {
           ..write('taxRate: $taxRate, ')
           ..write('taxIncluded: $taxIncluded, ')
           ..write('usesRecipe: $usesRecipe, ')
+          ..write('claveProdServ: $claveProdServ, ')
+          ..write('claveUnidad: $claveUnidad, ')
+          ..write('objetoImp: $objetoImp, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt')
           ..write(')'))
@@ -1079,6 +1168,9 @@ class Product extends DataClass implements Insertable<Product> {
       taxRate,
       taxIncluded,
       usesRecipe,
+      claveProdServ,
+      claveUnidad,
+      objetoImp,
       createdAt,
       updatedAt);
   @override
@@ -1100,6 +1192,9 @@ class Product extends DataClass implements Insertable<Product> {
           other.taxRate == this.taxRate &&
           other.taxIncluded == this.taxIncluded &&
           other.usesRecipe == this.usesRecipe &&
+          other.claveProdServ == this.claveProdServ &&
+          other.claveUnidad == this.claveUnidad &&
+          other.objetoImp == this.objetoImp &&
           other.createdAt == this.createdAt &&
           other.updatedAt == this.updatedAt);
 }
@@ -1120,6 +1215,9 @@ class ProductsCompanion extends UpdateCompanion<Product> {
   final Value<double?> taxRate;
   final Value<bool?> taxIncluded;
   final Value<bool> usesRecipe;
+  final Value<String?> claveProdServ;
+  final Value<String?> claveUnidad;
+  final Value<String?> objetoImp;
   final Value<DateTime> createdAt;
   final Value<DateTime> updatedAt;
   const ProductsCompanion({
@@ -1138,6 +1236,9 @@ class ProductsCompanion extends UpdateCompanion<Product> {
     this.taxRate = const Value.absent(),
     this.taxIncluded = const Value.absent(),
     this.usesRecipe = const Value.absent(),
+    this.claveProdServ = const Value.absent(),
+    this.claveUnidad = const Value.absent(),
+    this.objetoImp = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
   });
@@ -1157,6 +1258,9 @@ class ProductsCompanion extends UpdateCompanion<Product> {
     this.taxRate = const Value.absent(),
     this.taxIncluded = const Value.absent(),
     this.usesRecipe = const Value.absent(),
+    this.claveProdServ = const Value.absent(),
+    this.claveUnidad = const Value.absent(),
+    this.objetoImp = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
   })  : name = Value(name),
@@ -1178,6 +1282,9 @@ class ProductsCompanion extends UpdateCompanion<Product> {
     Expression<double>? taxRate,
     Expression<bool>? taxIncluded,
     Expression<bool>? usesRecipe,
+    Expression<String>? claveProdServ,
+    Expression<String>? claveUnidad,
+    Expression<String>? objetoImp,
     Expression<DateTime>? createdAt,
     Expression<DateTime>? updatedAt,
   }) {
@@ -1197,6 +1304,9 @@ class ProductsCompanion extends UpdateCompanion<Product> {
       if (taxRate != null) 'tax_rate': taxRate,
       if (taxIncluded != null) 'tax_included': taxIncluded,
       if (usesRecipe != null) 'uses_recipe': usesRecipe,
+      if (claveProdServ != null) 'clave_prod_serv': claveProdServ,
+      if (claveUnidad != null) 'clave_unidad': claveUnidad,
+      if (objetoImp != null) 'objeto_imp': objetoImp,
       if (createdAt != null) 'created_at': createdAt,
       if (updatedAt != null) 'updated_at': updatedAt,
     });
@@ -1218,6 +1328,9 @@ class ProductsCompanion extends UpdateCompanion<Product> {
       Value<double?>? taxRate,
       Value<bool?>? taxIncluded,
       Value<bool>? usesRecipe,
+      Value<String?>? claveProdServ,
+      Value<String?>? claveUnidad,
+      Value<String?>? objetoImp,
       Value<DateTime>? createdAt,
       Value<DateTime>? updatedAt}) {
     return ProductsCompanion(
@@ -1236,6 +1349,9 @@ class ProductsCompanion extends UpdateCompanion<Product> {
       taxRate: taxRate ?? this.taxRate,
       taxIncluded: taxIncluded ?? this.taxIncluded,
       usesRecipe: usesRecipe ?? this.usesRecipe,
+      claveProdServ: claveProdServ ?? this.claveProdServ,
+      claveUnidad: claveUnidad ?? this.claveUnidad,
+      objetoImp: objetoImp ?? this.objetoImp,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
     );
@@ -1289,6 +1405,15 @@ class ProductsCompanion extends UpdateCompanion<Product> {
     if (usesRecipe.present) {
       map['uses_recipe'] = Variable<bool>(usesRecipe.value);
     }
+    if (claveProdServ.present) {
+      map['clave_prod_serv'] = Variable<String>(claveProdServ.value);
+    }
+    if (claveUnidad.present) {
+      map['clave_unidad'] = Variable<String>(claveUnidad.value);
+    }
+    if (objetoImp.present) {
+      map['objeto_imp'] = Variable<String>(objetoImp.value);
+    }
     if (createdAt.present) {
       map['created_at'] = Variable<DateTime>(createdAt.value);
     }
@@ -1316,6 +1441,9 @@ class ProductsCompanion extends UpdateCompanion<Product> {
           ..write('taxRate: $taxRate, ')
           ..write('taxIncluded: $taxIncluded, ')
           ..write('usesRecipe: $usesRecipe, ')
+          ..write('claveProdServ: $claveProdServ, ')
+          ..write('claveUnidad: $claveUnidad, ')
+          ..write('objetoImp: $objetoImp, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt')
           ..write(')'))
@@ -2434,6 +2562,35 @@ class $CustomersTable extends Customers
   late final GeneratedColumn<String> notes = GeneratedColumn<String>(
       'notes', aliasedName, true,
       type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _rfcMeta = const VerificationMeta('rfc');
+  @override
+  late final GeneratedColumn<String> rfc = GeneratedColumn<String>(
+      'rfc', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _razonSocialMeta =
+      const VerificationMeta('razonSocial');
+  @override
+  late final GeneratedColumn<String> razonSocial = GeneratedColumn<String>(
+      'razon_social', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _cpFiscalMeta =
+      const VerificationMeta('cpFiscal');
+  @override
+  late final GeneratedColumn<String> cpFiscal = GeneratedColumn<String>(
+      'cp_fiscal', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _regimenFiscalMeta =
+      const VerificationMeta('regimenFiscal');
+  @override
+  late final GeneratedColumn<String> regimenFiscal = GeneratedColumn<String>(
+      'regimen_fiscal', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _usoCfdiPreferidoMeta =
+      const VerificationMeta('usoCfdiPreferido');
+  @override
+  late final GeneratedColumn<String> usoCfdiPreferido = GeneratedColumn<String>(
+      'uso_cfdi_preferido', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
   static const VerificationMeta _createdAtMeta =
       const VerificationMeta('createdAt');
   @override
@@ -2443,8 +2600,21 @@ class $CustomersTable extends Customers
       requiredDuringInsert: false,
       defaultValue: currentDateAndTime);
   @override
-  List<GeneratedColumn> get $columns =>
-      [id, name, phone, email, visits, totalSpent, notes, createdAt];
+  List<GeneratedColumn> get $columns => [
+        id,
+        name,
+        phone,
+        email,
+        visits,
+        totalSpent,
+        notes,
+        rfc,
+        razonSocial,
+        cpFiscal,
+        regimenFiscal,
+        usoCfdiPreferido,
+        createdAt
+      ];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
@@ -2486,6 +2656,32 @@ class $CustomersTable extends Customers
       context.handle(
           _notesMeta, notes.isAcceptableOrUnknown(data['notes']!, _notesMeta));
     }
+    if (data.containsKey('rfc')) {
+      context.handle(
+          _rfcMeta, rfc.isAcceptableOrUnknown(data['rfc']!, _rfcMeta));
+    }
+    if (data.containsKey('razon_social')) {
+      context.handle(
+          _razonSocialMeta,
+          razonSocial.isAcceptableOrUnknown(
+              data['razon_social']!, _razonSocialMeta));
+    }
+    if (data.containsKey('cp_fiscal')) {
+      context.handle(_cpFiscalMeta,
+          cpFiscal.isAcceptableOrUnknown(data['cp_fiscal']!, _cpFiscalMeta));
+    }
+    if (data.containsKey('regimen_fiscal')) {
+      context.handle(
+          _regimenFiscalMeta,
+          regimenFiscal.isAcceptableOrUnknown(
+              data['regimen_fiscal']!, _regimenFiscalMeta));
+    }
+    if (data.containsKey('uso_cfdi_preferido')) {
+      context.handle(
+          _usoCfdiPreferidoMeta,
+          usoCfdiPreferido.isAcceptableOrUnknown(
+              data['uso_cfdi_preferido']!, _usoCfdiPreferidoMeta));
+    }
     if (data.containsKey('created_at')) {
       context.handle(_createdAtMeta,
           createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta));
@@ -2513,6 +2709,16 @@ class $CustomersTable extends Customers
           .read(DriftSqlType.double, data['${effectivePrefix}total_spent'])!,
       notes: attachedDatabase.typeMapping
           .read(DriftSqlType.string, data['${effectivePrefix}notes']),
+      rfc: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}rfc']),
+      razonSocial: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}razon_social']),
+      cpFiscal: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}cp_fiscal']),
+      regimenFiscal: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}regimen_fiscal']),
+      usoCfdiPreferido: attachedDatabase.typeMapping.read(
+          DriftSqlType.string, data['${effectivePrefix}uso_cfdi_preferido']),
       createdAt: attachedDatabase.typeMapping
           .read(DriftSqlType.dateTime, data['${effectivePrefix}created_at'])!,
     );
@@ -2532,6 +2738,11 @@ class Customer extends DataClass implements Insertable<Customer> {
   final int visits;
   final double totalSpent;
   final String? notes;
+  final String? rfc;
+  final String? razonSocial;
+  final String? cpFiscal;
+  final String? regimenFiscal;
+  final String? usoCfdiPreferido;
   final DateTime createdAt;
   const Customer(
       {required this.id,
@@ -2541,6 +2752,11 @@ class Customer extends DataClass implements Insertable<Customer> {
       required this.visits,
       required this.totalSpent,
       this.notes,
+      this.rfc,
+      this.razonSocial,
+      this.cpFiscal,
+      this.regimenFiscal,
+      this.usoCfdiPreferido,
       required this.createdAt});
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -2558,6 +2774,21 @@ class Customer extends DataClass implements Insertable<Customer> {
     if (!nullToAbsent || notes != null) {
       map['notes'] = Variable<String>(notes);
     }
+    if (!nullToAbsent || rfc != null) {
+      map['rfc'] = Variable<String>(rfc);
+    }
+    if (!nullToAbsent || razonSocial != null) {
+      map['razon_social'] = Variable<String>(razonSocial);
+    }
+    if (!nullToAbsent || cpFiscal != null) {
+      map['cp_fiscal'] = Variable<String>(cpFiscal);
+    }
+    if (!nullToAbsent || regimenFiscal != null) {
+      map['regimen_fiscal'] = Variable<String>(regimenFiscal);
+    }
+    if (!nullToAbsent || usoCfdiPreferido != null) {
+      map['uso_cfdi_preferido'] = Variable<String>(usoCfdiPreferido);
+    }
     map['created_at'] = Variable<DateTime>(createdAt);
     return map;
   }
@@ -2574,6 +2805,19 @@ class Customer extends DataClass implements Insertable<Customer> {
       totalSpent: Value(totalSpent),
       notes:
           notes == null && nullToAbsent ? const Value.absent() : Value(notes),
+      rfc: rfc == null && nullToAbsent ? const Value.absent() : Value(rfc),
+      razonSocial: razonSocial == null && nullToAbsent
+          ? const Value.absent()
+          : Value(razonSocial),
+      cpFiscal: cpFiscal == null && nullToAbsent
+          ? const Value.absent()
+          : Value(cpFiscal),
+      regimenFiscal: regimenFiscal == null && nullToAbsent
+          ? const Value.absent()
+          : Value(regimenFiscal),
+      usoCfdiPreferido: usoCfdiPreferido == null && nullToAbsent
+          ? const Value.absent()
+          : Value(usoCfdiPreferido),
       createdAt: Value(createdAt),
     );
   }
@@ -2589,6 +2833,11 @@ class Customer extends DataClass implements Insertable<Customer> {
       visits: serializer.fromJson<int>(json['visits']),
       totalSpent: serializer.fromJson<double>(json['totalSpent']),
       notes: serializer.fromJson<String?>(json['notes']),
+      rfc: serializer.fromJson<String?>(json['rfc']),
+      razonSocial: serializer.fromJson<String?>(json['razonSocial']),
+      cpFiscal: serializer.fromJson<String?>(json['cpFiscal']),
+      regimenFiscal: serializer.fromJson<String?>(json['regimenFiscal']),
+      usoCfdiPreferido: serializer.fromJson<String?>(json['usoCfdiPreferido']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
     );
   }
@@ -2603,6 +2852,11 @@ class Customer extends DataClass implements Insertable<Customer> {
       'visits': serializer.toJson<int>(visits),
       'totalSpent': serializer.toJson<double>(totalSpent),
       'notes': serializer.toJson<String?>(notes),
+      'rfc': serializer.toJson<String?>(rfc),
+      'razonSocial': serializer.toJson<String?>(razonSocial),
+      'cpFiscal': serializer.toJson<String?>(cpFiscal),
+      'regimenFiscal': serializer.toJson<String?>(regimenFiscal),
+      'usoCfdiPreferido': serializer.toJson<String?>(usoCfdiPreferido),
       'createdAt': serializer.toJson<DateTime>(createdAt),
     };
   }
@@ -2615,6 +2869,11 @@ class Customer extends DataClass implements Insertable<Customer> {
           int? visits,
           double? totalSpent,
           Value<String?> notes = const Value.absent(),
+          Value<String?> rfc = const Value.absent(),
+          Value<String?> razonSocial = const Value.absent(),
+          Value<String?> cpFiscal = const Value.absent(),
+          Value<String?> regimenFiscal = const Value.absent(),
+          Value<String?> usoCfdiPreferido = const Value.absent(),
           DateTime? createdAt}) =>
       Customer(
         id: id ?? this.id,
@@ -2624,6 +2883,14 @@ class Customer extends DataClass implements Insertable<Customer> {
         visits: visits ?? this.visits,
         totalSpent: totalSpent ?? this.totalSpent,
         notes: notes.present ? notes.value : this.notes,
+        rfc: rfc.present ? rfc.value : this.rfc,
+        razonSocial: razonSocial.present ? razonSocial.value : this.razonSocial,
+        cpFiscal: cpFiscal.present ? cpFiscal.value : this.cpFiscal,
+        regimenFiscal:
+            regimenFiscal.present ? regimenFiscal.value : this.regimenFiscal,
+        usoCfdiPreferido: usoCfdiPreferido.present
+            ? usoCfdiPreferido.value
+            : this.usoCfdiPreferido,
         createdAt: createdAt ?? this.createdAt,
       );
   Customer copyWithCompanion(CustomersCompanion data) {
@@ -2636,6 +2903,16 @@ class Customer extends DataClass implements Insertable<Customer> {
       totalSpent:
           data.totalSpent.present ? data.totalSpent.value : this.totalSpent,
       notes: data.notes.present ? data.notes.value : this.notes,
+      rfc: data.rfc.present ? data.rfc.value : this.rfc,
+      razonSocial:
+          data.razonSocial.present ? data.razonSocial.value : this.razonSocial,
+      cpFiscal: data.cpFiscal.present ? data.cpFiscal.value : this.cpFiscal,
+      regimenFiscal: data.regimenFiscal.present
+          ? data.regimenFiscal.value
+          : this.regimenFiscal,
+      usoCfdiPreferido: data.usoCfdiPreferido.present
+          ? data.usoCfdiPreferido.value
+          : this.usoCfdiPreferido,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
     );
   }
@@ -2650,14 +2927,31 @@ class Customer extends DataClass implements Insertable<Customer> {
           ..write('visits: $visits, ')
           ..write('totalSpent: $totalSpent, ')
           ..write('notes: $notes, ')
+          ..write('rfc: $rfc, ')
+          ..write('razonSocial: $razonSocial, ')
+          ..write('cpFiscal: $cpFiscal, ')
+          ..write('regimenFiscal: $regimenFiscal, ')
+          ..write('usoCfdiPreferido: $usoCfdiPreferido, ')
           ..write('createdAt: $createdAt')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode =>
-      Object.hash(id, name, phone, email, visits, totalSpent, notes, createdAt);
+  int get hashCode => Object.hash(
+      id,
+      name,
+      phone,
+      email,
+      visits,
+      totalSpent,
+      notes,
+      rfc,
+      razonSocial,
+      cpFiscal,
+      regimenFiscal,
+      usoCfdiPreferido,
+      createdAt);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -2669,6 +2963,11 @@ class Customer extends DataClass implements Insertable<Customer> {
           other.visits == this.visits &&
           other.totalSpent == this.totalSpent &&
           other.notes == this.notes &&
+          other.rfc == this.rfc &&
+          other.razonSocial == this.razonSocial &&
+          other.cpFiscal == this.cpFiscal &&
+          other.regimenFiscal == this.regimenFiscal &&
+          other.usoCfdiPreferido == this.usoCfdiPreferido &&
           other.createdAt == this.createdAt);
 }
 
@@ -2680,6 +2979,11 @@ class CustomersCompanion extends UpdateCompanion<Customer> {
   final Value<int> visits;
   final Value<double> totalSpent;
   final Value<String?> notes;
+  final Value<String?> rfc;
+  final Value<String?> razonSocial;
+  final Value<String?> cpFiscal;
+  final Value<String?> regimenFiscal;
+  final Value<String?> usoCfdiPreferido;
   final Value<DateTime> createdAt;
   const CustomersCompanion({
     this.id = const Value.absent(),
@@ -2689,6 +2993,11 @@ class CustomersCompanion extends UpdateCompanion<Customer> {
     this.visits = const Value.absent(),
     this.totalSpent = const Value.absent(),
     this.notes = const Value.absent(),
+    this.rfc = const Value.absent(),
+    this.razonSocial = const Value.absent(),
+    this.cpFiscal = const Value.absent(),
+    this.regimenFiscal = const Value.absent(),
+    this.usoCfdiPreferido = const Value.absent(),
     this.createdAt = const Value.absent(),
   });
   CustomersCompanion.insert({
@@ -2699,6 +3008,11 @@ class CustomersCompanion extends UpdateCompanion<Customer> {
     this.visits = const Value.absent(),
     this.totalSpent = const Value.absent(),
     this.notes = const Value.absent(),
+    this.rfc = const Value.absent(),
+    this.razonSocial = const Value.absent(),
+    this.cpFiscal = const Value.absent(),
+    this.regimenFiscal = const Value.absent(),
+    this.usoCfdiPreferido = const Value.absent(),
     this.createdAt = const Value.absent(),
   }) : name = Value(name);
   static Insertable<Customer> custom({
@@ -2709,6 +3023,11 @@ class CustomersCompanion extends UpdateCompanion<Customer> {
     Expression<int>? visits,
     Expression<double>? totalSpent,
     Expression<String>? notes,
+    Expression<String>? rfc,
+    Expression<String>? razonSocial,
+    Expression<String>? cpFiscal,
+    Expression<String>? regimenFiscal,
+    Expression<String>? usoCfdiPreferido,
     Expression<DateTime>? createdAt,
   }) {
     return RawValuesInsertable({
@@ -2719,6 +3038,11 @@ class CustomersCompanion extends UpdateCompanion<Customer> {
       if (visits != null) 'visits': visits,
       if (totalSpent != null) 'total_spent': totalSpent,
       if (notes != null) 'notes': notes,
+      if (rfc != null) 'rfc': rfc,
+      if (razonSocial != null) 'razon_social': razonSocial,
+      if (cpFiscal != null) 'cp_fiscal': cpFiscal,
+      if (regimenFiscal != null) 'regimen_fiscal': regimenFiscal,
+      if (usoCfdiPreferido != null) 'uso_cfdi_preferido': usoCfdiPreferido,
       if (createdAt != null) 'created_at': createdAt,
     });
   }
@@ -2731,6 +3055,11 @@ class CustomersCompanion extends UpdateCompanion<Customer> {
       Value<int>? visits,
       Value<double>? totalSpent,
       Value<String?>? notes,
+      Value<String?>? rfc,
+      Value<String?>? razonSocial,
+      Value<String?>? cpFiscal,
+      Value<String?>? regimenFiscal,
+      Value<String?>? usoCfdiPreferido,
       Value<DateTime>? createdAt}) {
     return CustomersCompanion(
       id: id ?? this.id,
@@ -2740,6 +3069,11 @@ class CustomersCompanion extends UpdateCompanion<Customer> {
       visits: visits ?? this.visits,
       totalSpent: totalSpent ?? this.totalSpent,
       notes: notes ?? this.notes,
+      rfc: rfc ?? this.rfc,
+      razonSocial: razonSocial ?? this.razonSocial,
+      cpFiscal: cpFiscal ?? this.cpFiscal,
+      regimenFiscal: regimenFiscal ?? this.regimenFiscal,
+      usoCfdiPreferido: usoCfdiPreferido ?? this.usoCfdiPreferido,
       createdAt: createdAt ?? this.createdAt,
     );
   }
@@ -2768,6 +3102,21 @@ class CustomersCompanion extends UpdateCompanion<Customer> {
     if (notes.present) {
       map['notes'] = Variable<String>(notes.value);
     }
+    if (rfc.present) {
+      map['rfc'] = Variable<String>(rfc.value);
+    }
+    if (razonSocial.present) {
+      map['razon_social'] = Variable<String>(razonSocial.value);
+    }
+    if (cpFiscal.present) {
+      map['cp_fiscal'] = Variable<String>(cpFiscal.value);
+    }
+    if (regimenFiscal.present) {
+      map['regimen_fiscal'] = Variable<String>(regimenFiscal.value);
+    }
+    if (usoCfdiPreferido.present) {
+      map['uso_cfdi_preferido'] = Variable<String>(usoCfdiPreferido.value);
+    }
     if (createdAt.present) {
       map['created_at'] = Variable<DateTime>(createdAt.value);
     }
@@ -2784,6 +3133,11 @@ class CustomersCompanion extends UpdateCompanion<Customer> {
           ..write('visits: $visits, ')
           ..write('totalSpent: $totalSpent, ')
           ..write('notes: $notes, ')
+          ..write('rfc: $rfc, ')
+          ..write('razonSocial: $razonSocial, ')
+          ..write('cpFiscal: $cpFiscal, ')
+          ..write('regimenFiscal: $regimenFiscal, ')
+          ..write('usoCfdiPreferido: $usoCfdiPreferido, ')
           ..write('createdAt: $createdAt')
           ..write(')'))
         .toString();
@@ -10049,6 +10403,1313 @@ class DeliveryZonesCompanion extends UpdateCompanion<DeliveryZone> {
   }
 }
 
+class $FiscalDocsTable extends FiscalDocs
+    with TableInfo<$FiscalDocsTable, FiscalDoc> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $FiscalDocsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+      'id', aliasedName, false,
+      hasAutoIncrement: true,
+      type: DriftSqlType.int,
+      requiredDuringInsert: false,
+      defaultConstraints:
+          GeneratedColumn.constraintIsAlways('PRIMARY KEY AUTOINCREMENT'));
+  static const VerificationMeta _orderIdMeta =
+      const VerificationMeta('orderId');
+  @override
+  late final GeneratedColumn<int> orderId = GeneratedColumn<int>(
+      'order_id', aliasedName, true,
+      type: DriftSqlType.int,
+      requiredDuringInsert: false,
+      defaultConstraints:
+          GeneratedColumn.constraintIsAlways('REFERENCES orders (id)'));
+  static const VerificationMeta _receptorRfcMeta =
+      const VerificationMeta('receptorRfc');
+  @override
+  late final GeneratedColumn<String> receptorRfc = GeneratedColumn<String>(
+      'receptor_rfc', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _receptorRazonSocialMeta =
+      const VerificationMeta('receptorRazonSocial');
+  @override
+  late final GeneratedColumn<String> receptorRazonSocial =
+      GeneratedColumn<String>('receptor_razon_social', aliasedName, true,
+          type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _receptorCpFiscalMeta =
+      const VerificationMeta('receptorCpFiscal');
+  @override
+  late final GeneratedColumn<String> receptorCpFiscal = GeneratedColumn<String>(
+      'receptor_cp_fiscal', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _receptorRegimenMeta =
+      const VerificationMeta('receptorRegimen');
+  @override
+  late final GeneratedColumn<String> receptorRegimen = GeneratedColumn<String>(
+      'receptor_regimen', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _receptorUsoCfdiMeta =
+      const VerificationMeta('receptorUsoCfdi');
+  @override
+  late final GeneratedColumn<String> receptorUsoCfdi = GeneratedColumn<String>(
+      'receptor_uso_cfdi', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _tipoMeta = const VerificationMeta('tipo');
+  @override
+  late final GeneratedColumn<String> tipo = GeneratedColumn<String>(
+      'tipo', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _estadoMeta = const VerificationMeta('estado');
+  @override
+  late final GeneratedColumn<String> estado = GeneratedColumn<String>(
+      'estado', aliasedName, false,
+      type: DriftSqlType.string,
+      requiredDuringInsert: false,
+      defaultValue: const Constant('pendiente'));
+  static const VerificationMeta _periodoRefMeta =
+      const VerificationMeta('periodoRef');
+  @override
+  late final GeneratedColumn<String> periodoRef = GeneratedColumn<String>(
+      'periodo_ref', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _exportedAtMeta =
+      const VerificationMeta('exportedAt');
+  @override
+  late final GeneratedColumn<DateTime> exportedAt = GeneratedColumn<DateTime>(
+      'exported_at', aliasedName, true,
+      type: DriftSqlType.dateTime, requiredDuringInsert: false);
+  static const VerificationMeta _createdAtMeta =
+      const VerificationMeta('createdAt');
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+      'created_at', aliasedName, false,
+      type: DriftSqlType.dateTime,
+      requiredDuringInsert: false,
+      defaultValue: currentDateAndTime);
+  static const VerificationMeta _updatedAtMeta =
+      const VerificationMeta('updatedAt');
+  @override
+  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
+      'updated_at', aliasedName, false,
+      type: DriftSqlType.dateTime,
+      requiredDuringInsert: false,
+      defaultValue: currentDateAndTime);
+  @override
+  List<GeneratedColumn> get $columns => [
+        id,
+        orderId,
+        receptorRfc,
+        receptorRazonSocial,
+        receptorCpFiscal,
+        receptorRegimen,
+        receptorUsoCfdi,
+        tipo,
+        estado,
+        periodoRef,
+        exportedAt,
+        createdAt,
+        updatedAt
+      ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'fiscal_docs';
+  @override
+  VerificationContext validateIntegrity(Insertable<FiscalDoc> instance,
+      {bool isInserting = false}) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('order_id')) {
+      context.handle(_orderIdMeta,
+          orderId.isAcceptableOrUnknown(data['order_id']!, _orderIdMeta));
+    }
+    if (data.containsKey('receptor_rfc')) {
+      context.handle(
+          _receptorRfcMeta,
+          receptorRfc.isAcceptableOrUnknown(
+              data['receptor_rfc']!, _receptorRfcMeta));
+    }
+    if (data.containsKey('receptor_razon_social')) {
+      context.handle(
+          _receptorRazonSocialMeta,
+          receptorRazonSocial.isAcceptableOrUnknown(
+              data['receptor_razon_social']!, _receptorRazonSocialMeta));
+    }
+    if (data.containsKey('receptor_cp_fiscal')) {
+      context.handle(
+          _receptorCpFiscalMeta,
+          receptorCpFiscal.isAcceptableOrUnknown(
+              data['receptor_cp_fiscal']!, _receptorCpFiscalMeta));
+    }
+    if (data.containsKey('receptor_regimen')) {
+      context.handle(
+          _receptorRegimenMeta,
+          receptorRegimen.isAcceptableOrUnknown(
+              data['receptor_regimen']!, _receptorRegimenMeta));
+    }
+    if (data.containsKey('receptor_uso_cfdi')) {
+      context.handle(
+          _receptorUsoCfdiMeta,
+          receptorUsoCfdi.isAcceptableOrUnknown(
+              data['receptor_uso_cfdi']!, _receptorUsoCfdiMeta));
+    }
+    if (data.containsKey('tipo')) {
+      context.handle(
+          _tipoMeta, tipo.isAcceptableOrUnknown(data['tipo']!, _tipoMeta));
+    } else if (isInserting) {
+      context.missing(_tipoMeta);
+    }
+    if (data.containsKey('estado')) {
+      context.handle(_estadoMeta,
+          estado.isAcceptableOrUnknown(data['estado']!, _estadoMeta));
+    }
+    if (data.containsKey('periodo_ref')) {
+      context.handle(
+          _periodoRefMeta,
+          periodoRef.isAcceptableOrUnknown(
+              data['periodo_ref']!, _periodoRefMeta));
+    }
+    if (data.containsKey('exported_at')) {
+      context.handle(
+          _exportedAtMeta,
+          exportedAt.isAcceptableOrUnknown(
+              data['exported_at']!, _exportedAtMeta));
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(_createdAtMeta,
+          createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta));
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(_updatedAtMeta,
+          updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta));
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  FiscalDoc map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return FiscalDoc(
+      id: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}id'])!,
+      orderId: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}order_id']),
+      receptorRfc: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}receptor_rfc']),
+      receptorRazonSocial: attachedDatabase.typeMapping.read(
+          DriftSqlType.string, data['${effectivePrefix}receptor_razon_social']),
+      receptorCpFiscal: attachedDatabase.typeMapping.read(
+          DriftSqlType.string, data['${effectivePrefix}receptor_cp_fiscal']),
+      receptorRegimen: attachedDatabase.typeMapping.read(
+          DriftSqlType.string, data['${effectivePrefix}receptor_regimen']),
+      receptorUsoCfdi: attachedDatabase.typeMapping.read(
+          DriftSqlType.string, data['${effectivePrefix}receptor_uso_cfdi']),
+      tipo: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}tipo'])!,
+      estado: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}estado'])!,
+      periodoRef: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}periodo_ref']),
+      exportedAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.dateTime, data['${effectivePrefix}exported_at']),
+      createdAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.dateTime, data['${effectivePrefix}created_at'])!,
+      updatedAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.dateTime, data['${effectivePrefix}updated_at'])!,
+    );
+  }
+
+  @override
+  $FiscalDocsTable createAlias(String alias) {
+    return $FiscalDocsTable(attachedDatabase, alias);
+  }
+}
+
+class FiscalDoc extends DataClass implements Insertable<FiscalDoc> {
+  final int id;
+  final int? orderId;
+  final String? receptorRfc;
+  final String? receptorRazonSocial;
+  final String? receptorCpFiscal;
+  final String? receptorRegimen;
+  final String? receptorUsoCfdi;
+  final String tipo;
+  final String estado;
+  final String? periodoRef;
+  final DateTime? exportedAt;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+  const FiscalDoc(
+      {required this.id,
+      this.orderId,
+      this.receptorRfc,
+      this.receptorRazonSocial,
+      this.receptorCpFiscal,
+      this.receptorRegimen,
+      this.receptorUsoCfdi,
+      required this.tipo,
+      required this.estado,
+      this.periodoRef,
+      this.exportedAt,
+      required this.createdAt,
+      required this.updatedAt});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    if (!nullToAbsent || orderId != null) {
+      map['order_id'] = Variable<int>(orderId);
+    }
+    if (!nullToAbsent || receptorRfc != null) {
+      map['receptor_rfc'] = Variable<String>(receptorRfc);
+    }
+    if (!nullToAbsent || receptorRazonSocial != null) {
+      map['receptor_razon_social'] = Variable<String>(receptorRazonSocial);
+    }
+    if (!nullToAbsent || receptorCpFiscal != null) {
+      map['receptor_cp_fiscal'] = Variable<String>(receptorCpFiscal);
+    }
+    if (!nullToAbsent || receptorRegimen != null) {
+      map['receptor_regimen'] = Variable<String>(receptorRegimen);
+    }
+    if (!nullToAbsent || receptorUsoCfdi != null) {
+      map['receptor_uso_cfdi'] = Variable<String>(receptorUsoCfdi);
+    }
+    map['tipo'] = Variable<String>(tipo);
+    map['estado'] = Variable<String>(estado);
+    if (!nullToAbsent || periodoRef != null) {
+      map['periodo_ref'] = Variable<String>(periodoRef);
+    }
+    if (!nullToAbsent || exportedAt != null) {
+      map['exported_at'] = Variable<DateTime>(exportedAt);
+    }
+    map['created_at'] = Variable<DateTime>(createdAt);
+    map['updated_at'] = Variable<DateTime>(updatedAt);
+    return map;
+  }
+
+  FiscalDocsCompanion toCompanion(bool nullToAbsent) {
+    return FiscalDocsCompanion(
+      id: Value(id),
+      orderId: orderId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(orderId),
+      receptorRfc: receptorRfc == null && nullToAbsent
+          ? const Value.absent()
+          : Value(receptorRfc),
+      receptorRazonSocial: receptorRazonSocial == null && nullToAbsent
+          ? const Value.absent()
+          : Value(receptorRazonSocial),
+      receptorCpFiscal: receptorCpFiscal == null && nullToAbsent
+          ? const Value.absent()
+          : Value(receptorCpFiscal),
+      receptorRegimen: receptorRegimen == null && nullToAbsent
+          ? const Value.absent()
+          : Value(receptorRegimen),
+      receptorUsoCfdi: receptorUsoCfdi == null && nullToAbsent
+          ? const Value.absent()
+          : Value(receptorUsoCfdi),
+      tipo: Value(tipo),
+      estado: Value(estado),
+      periodoRef: periodoRef == null && nullToAbsent
+          ? const Value.absent()
+          : Value(periodoRef),
+      exportedAt: exportedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(exportedAt),
+      createdAt: Value(createdAt),
+      updatedAt: Value(updatedAt),
+    );
+  }
+
+  factory FiscalDoc.fromJson(Map<String, dynamic> json,
+      {ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return FiscalDoc(
+      id: serializer.fromJson<int>(json['id']),
+      orderId: serializer.fromJson<int?>(json['orderId']),
+      receptorRfc: serializer.fromJson<String?>(json['receptorRfc']),
+      receptorRazonSocial:
+          serializer.fromJson<String?>(json['receptorRazonSocial']),
+      receptorCpFiscal: serializer.fromJson<String?>(json['receptorCpFiscal']),
+      receptorRegimen: serializer.fromJson<String?>(json['receptorRegimen']),
+      receptorUsoCfdi: serializer.fromJson<String?>(json['receptorUsoCfdi']),
+      tipo: serializer.fromJson<String>(json['tipo']),
+      estado: serializer.fromJson<String>(json['estado']),
+      periodoRef: serializer.fromJson<String?>(json['periodoRef']),
+      exportedAt: serializer.fromJson<DateTime?>(json['exportedAt']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'orderId': serializer.toJson<int?>(orderId),
+      'receptorRfc': serializer.toJson<String?>(receptorRfc),
+      'receptorRazonSocial': serializer.toJson<String?>(receptorRazonSocial),
+      'receptorCpFiscal': serializer.toJson<String?>(receptorCpFiscal),
+      'receptorRegimen': serializer.toJson<String?>(receptorRegimen),
+      'receptorUsoCfdi': serializer.toJson<String?>(receptorUsoCfdi),
+      'tipo': serializer.toJson<String>(tipo),
+      'estado': serializer.toJson<String>(estado),
+      'periodoRef': serializer.toJson<String?>(periodoRef),
+      'exportedAt': serializer.toJson<DateTime?>(exportedAt),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+      'updatedAt': serializer.toJson<DateTime>(updatedAt),
+    };
+  }
+
+  FiscalDoc copyWith(
+          {int? id,
+          Value<int?> orderId = const Value.absent(),
+          Value<String?> receptorRfc = const Value.absent(),
+          Value<String?> receptorRazonSocial = const Value.absent(),
+          Value<String?> receptorCpFiscal = const Value.absent(),
+          Value<String?> receptorRegimen = const Value.absent(),
+          Value<String?> receptorUsoCfdi = const Value.absent(),
+          String? tipo,
+          String? estado,
+          Value<String?> periodoRef = const Value.absent(),
+          Value<DateTime?> exportedAt = const Value.absent(),
+          DateTime? createdAt,
+          DateTime? updatedAt}) =>
+      FiscalDoc(
+        id: id ?? this.id,
+        orderId: orderId.present ? orderId.value : this.orderId,
+        receptorRfc: receptorRfc.present ? receptorRfc.value : this.receptorRfc,
+        receptorRazonSocial: receptorRazonSocial.present
+            ? receptorRazonSocial.value
+            : this.receptorRazonSocial,
+        receptorCpFiscal: receptorCpFiscal.present
+            ? receptorCpFiscal.value
+            : this.receptorCpFiscal,
+        receptorRegimen: receptorRegimen.present
+            ? receptorRegimen.value
+            : this.receptorRegimen,
+        receptorUsoCfdi: receptorUsoCfdi.present
+            ? receptorUsoCfdi.value
+            : this.receptorUsoCfdi,
+        tipo: tipo ?? this.tipo,
+        estado: estado ?? this.estado,
+        periodoRef: periodoRef.present ? periodoRef.value : this.periodoRef,
+        exportedAt: exportedAt.present ? exportedAt.value : this.exportedAt,
+        createdAt: createdAt ?? this.createdAt,
+        updatedAt: updatedAt ?? this.updatedAt,
+      );
+  FiscalDoc copyWithCompanion(FiscalDocsCompanion data) {
+    return FiscalDoc(
+      id: data.id.present ? data.id.value : this.id,
+      orderId: data.orderId.present ? data.orderId.value : this.orderId,
+      receptorRfc:
+          data.receptorRfc.present ? data.receptorRfc.value : this.receptorRfc,
+      receptorRazonSocial: data.receptorRazonSocial.present
+          ? data.receptorRazonSocial.value
+          : this.receptorRazonSocial,
+      receptorCpFiscal: data.receptorCpFiscal.present
+          ? data.receptorCpFiscal.value
+          : this.receptorCpFiscal,
+      receptorRegimen: data.receptorRegimen.present
+          ? data.receptorRegimen.value
+          : this.receptorRegimen,
+      receptorUsoCfdi: data.receptorUsoCfdi.present
+          ? data.receptorUsoCfdi.value
+          : this.receptorUsoCfdi,
+      tipo: data.tipo.present ? data.tipo.value : this.tipo,
+      estado: data.estado.present ? data.estado.value : this.estado,
+      periodoRef:
+          data.periodoRef.present ? data.periodoRef.value : this.periodoRef,
+      exportedAt:
+          data.exportedAt.present ? data.exportedAt.value : this.exportedAt,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('FiscalDoc(')
+          ..write('id: $id, ')
+          ..write('orderId: $orderId, ')
+          ..write('receptorRfc: $receptorRfc, ')
+          ..write('receptorRazonSocial: $receptorRazonSocial, ')
+          ..write('receptorCpFiscal: $receptorCpFiscal, ')
+          ..write('receptorRegimen: $receptorRegimen, ')
+          ..write('receptorUsoCfdi: $receptorUsoCfdi, ')
+          ..write('tipo: $tipo, ')
+          ..write('estado: $estado, ')
+          ..write('periodoRef: $periodoRef, ')
+          ..write('exportedAt: $exportedAt, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+      id,
+      orderId,
+      receptorRfc,
+      receptorRazonSocial,
+      receptorCpFiscal,
+      receptorRegimen,
+      receptorUsoCfdi,
+      tipo,
+      estado,
+      periodoRef,
+      exportedAt,
+      createdAt,
+      updatedAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is FiscalDoc &&
+          other.id == this.id &&
+          other.orderId == this.orderId &&
+          other.receptorRfc == this.receptorRfc &&
+          other.receptorRazonSocial == this.receptorRazonSocial &&
+          other.receptorCpFiscal == this.receptorCpFiscal &&
+          other.receptorRegimen == this.receptorRegimen &&
+          other.receptorUsoCfdi == this.receptorUsoCfdi &&
+          other.tipo == this.tipo &&
+          other.estado == this.estado &&
+          other.periodoRef == this.periodoRef &&
+          other.exportedAt == this.exportedAt &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt);
+}
+
+class FiscalDocsCompanion extends UpdateCompanion<FiscalDoc> {
+  final Value<int> id;
+  final Value<int?> orderId;
+  final Value<String?> receptorRfc;
+  final Value<String?> receptorRazonSocial;
+  final Value<String?> receptorCpFiscal;
+  final Value<String?> receptorRegimen;
+  final Value<String?> receptorUsoCfdi;
+  final Value<String> tipo;
+  final Value<String> estado;
+  final Value<String?> periodoRef;
+  final Value<DateTime?> exportedAt;
+  final Value<DateTime> createdAt;
+  final Value<DateTime> updatedAt;
+  const FiscalDocsCompanion({
+    this.id = const Value.absent(),
+    this.orderId = const Value.absent(),
+    this.receptorRfc = const Value.absent(),
+    this.receptorRazonSocial = const Value.absent(),
+    this.receptorCpFiscal = const Value.absent(),
+    this.receptorRegimen = const Value.absent(),
+    this.receptorUsoCfdi = const Value.absent(),
+    this.tipo = const Value.absent(),
+    this.estado = const Value.absent(),
+    this.periodoRef = const Value.absent(),
+    this.exportedAt = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+  });
+  FiscalDocsCompanion.insert({
+    this.id = const Value.absent(),
+    this.orderId = const Value.absent(),
+    this.receptorRfc = const Value.absent(),
+    this.receptorRazonSocial = const Value.absent(),
+    this.receptorCpFiscal = const Value.absent(),
+    this.receptorRegimen = const Value.absent(),
+    this.receptorUsoCfdi = const Value.absent(),
+    required String tipo,
+    this.estado = const Value.absent(),
+    this.periodoRef = const Value.absent(),
+    this.exportedAt = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+  }) : tipo = Value(tipo);
+  static Insertable<FiscalDoc> custom({
+    Expression<int>? id,
+    Expression<int>? orderId,
+    Expression<String>? receptorRfc,
+    Expression<String>? receptorRazonSocial,
+    Expression<String>? receptorCpFiscal,
+    Expression<String>? receptorRegimen,
+    Expression<String>? receptorUsoCfdi,
+    Expression<String>? tipo,
+    Expression<String>? estado,
+    Expression<String>? periodoRef,
+    Expression<DateTime>? exportedAt,
+    Expression<DateTime>? createdAt,
+    Expression<DateTime>? updatedAt,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (orderId != null) 'order_id': orderId,
+      if (receptorRfc != null) 'receptor_rfc': receptorRfc,
+      if (receptorRazonSocial != null)
+        'receptor_razon_social': receptorRazonSocial,
+      if (receptorCpFiscal != null) 'receptor_cp_fiscal': receptorCpFiscal,
+      if (receptorRegimen != null) 'receptor_regimen': receptorRegimen,
+      if (receptorUsoCfdi != null) 'receptor_uso_cfdi': receptorUsoCfdi,
+      if (tipo != null) 'tipo': tipo,
+      if (estado != null) 'estado': estado,
+      if (periodoRef != null) 'periodo_ref': periodoRef,
+      if (exportedAt != null) 'exported_at': exportedAt,
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+    });
+  }
+
+  FiscalDocsCompanion copyWith(
+      {Value<int>? id,
+      Value<int?>? orderId,
+      Value<String?>? receptorRfc,
+      Value<String?>? receptorRazonSocial,
+      Value<String?>? receptorCpFiscal,
+      Value<String?>? receptorRegimen,
+      Value<String?>? receptorUsoCfdi,
+      Value<String>? tipo,
+      Value<String>? estado,
+      Value<String?>? periodoRef,
+      Value<DateTime?>? exportedAt,
+      Value<DateTime>? createdAt,
+      Value<DateTime>? updatedAt}) {
+    return FiscalDocsCompanion(
+      id: id ?? this.id,
+      orderId: orderId ?? this.orderId,
+      receptorRfc: receptorRfc ?? this.receptorRfc,
+      receptorRazonSocial: receptorRazonSocial ?? this.receptorRazonSocial,
+      receptorCpFiscal: receptorCpFiscal ?? this.receptorCpFiscal,
+      receptorRegimen: receptorRegimen ?? this.receptorRegimen,
+      receptorUsoCfdi: receptorUsoCfdi ?? this.receptorUsoCfdi,
+      tipo: tipo ?? this.tipo,
+      estado: estado ?? this.estado,
+      periodoRef: periodoRef ?? this.periodoRef,
+      exportedAt: exportedAt ?? this.exportedAt,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (orderId.present) {
+      map['order_id'] = Variable<int>(orderId.value);
+    }
+    if (receptorRfc.present) {
+      map['receptor_rfc'] = Variable<String>(receptorRfc.value);
+    }
+    if (receptorRazonSocial.present) {
+      map['receptor_razon_social'] =
+          Variable<String>(receptorRazonSocial.value);
+    }
+    if (receptorCpFiscal.present) {
+      map['receptor_cp_fiscal'] = Variable<String>(receptorCpFiscal.value);
+    }
+    if (receptorRegimen.present) {
+      map['receptor_regimen'] = Variable<String>(receptorRegimen.value);
+    }
+    if (receptorUsoCfdi.present) {
+      map['receptor_uso_cfdi'] = Variable<String>(receptorUsoCfdi.value);
+    }
+    if (tipo.present) {
+      map['tipo'] = Variable<String>(tipo.value);
+    }
+    if (estado.present) {
+      map['estado'] = Variable<String>(estado.value);
+    }
+    if (periodoRef.present) {
+      map['periodo_ref'] = Variable<String>(periodoRef.value);
+    }
+    if (exportedAt.present) {
+      map['exported_at'] = Variable<DateTime>(exportedAt.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<DateTime>(updatedAt.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('FiscalDocsCompanion(')
+          ..write('id: $id, ')
+          ..write('orderId: $orderId, ')
+          ..write('receptorRfc: $receptorRfc, ')
+          ..write('receptorRazonSocial: $receptorRazonSocial, ')
+          ..write('receptorCpFiscal: $receptorCpFiscal, ')
+          ..write('receptorRegimen: $receptorRegimen, ')
+          ..write('receptorUsoCfdi: $receptorUsoCfdi, ')
+          ..write('tipo: $tipo, ')
+          ..write('estado: $estado, ')
+          ..write('periodoRef: $periodoRef, ')
+          ..write('exportedAt: $exportedAt, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $FiscalDocItemsTable extends FiscalDocItems
+    with TableInfo<$FiscalDocItemsTable, FiscalDocItem> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $FiscalDocItemsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+      'id', aliasedName, false,
+      hasAutoIncrement: true,
+      type: DriftSqlType.int,
+      requiredDuringInsert: false,
+      defaultConstraints:
+          GeneratedColumn.constraintIsAlways('PRIMARY KEY AUTOINCREMENT'));
+  static const VerificationMeta _fiscalDocIdMeta =
+      const VerificationMeta('fiscalDocId');
+  @override
+  late final GeneratedColumn<int> fiscalDocId = GeneratedColumn<int>(
+      'fiscal_doc_id', aliasedName, false,
+      type: DriftSqlType.int,
+      requiredDuringInsert: true,
+      defaultConstraints:
+          GeneratedColumn.constraintIsAlways('REFERENCES fiscal_docs (id)'));
+  static const VerificationMeta _claveProdServMeta =
+      const VerificationMeta('claveProdServ');
+  @override
+  late final GeneratedColumn<String> claveProdServ = GeneratedColumn<String>(
+      'clave_prod_serv', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _claveUnidadMeta =
+      const VerificationMeta('claveUnidad');
+  @override
+  late final GeneratedColumn<String> claveUnidad = GeneratedColumn<String>(
+      'clave_unidad', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _descripcionMeta =
+      const VerificationMeta('descripcion');
+  @override
+  late final GeneratedColumn<String> descripcion = GeneratedColumn<String>(
+      'descripcion', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _cantidadMeta =
+      const VerificationMeta('cantidad');
+  @override
+  late final GeneratedColumn<double> cantidad = GeneratedColumn<double>(
+      'cantidad', aliasedName, false,
+      type: DriftSqlType.double, requiredDuringInsert: true);
+  static const VerificationMeta _valorUnitarioMeta =
+      const VerificationMeta('valorUnitario');
+  @override
+  late final GeneratedColumn<double> valorUnitario = GeneratedColumn<double>(
+      'valor_unitario', aliasedName, false,
+      type: DriftSqlType.double, requiredDuringInsert: true);
+  static const VerificationMeta _importeMeta =
+      const VerificationMeta('importe');
+  @override
+  late final GeneratedColumn<double> importe = GeneratedColumn<double>(
+      'importe', aliasedName, false,
+      type: DriftSqlType.double, requiredDuringInsert: true);
+  static const VerificationMeta _descuentoMeta =
+      const VerificationMeta('descuento');
+  @override
+  late final GeneratedColumn<double> descuento = GeneratedColumn<double>(
+      'descuento', aliasedName, false,
+      type: DriftSqlType.double,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(0));
+  static const VerificationMeta _objetoImpMeta =
+      const VerificationMeta('objetoImp');
+  @override
+  late final GeneratedColumn<String> objetoImp = GeneratedColumn<String>(
+      'objeto_imp', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _baseMeta = const VerificationMeta('base');
+  @override
+  late final GeneratedColumn<double> base = GeneratedColumn<double>(
+      'base', aliasedName, false,
+      type: DriftSqlType.double, requiredDuringInsert: true);
+  static const VerificationMeta _tasaIvaMeta =
+      const VerificationMeta('tasaIva');
+  @override
+  late final GeneratedColumn<double> tasaIva = GeneratedColumn<double>(
+      'tasa_iva', aliasedName, false,
+      type: DriftSqlType.double,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(0));
+  static const VerificationMeta _importeIvaMeta =
+      const VerificationMeta('importeIva');
+  @override
+  late final GeneratedColumn<double> importeIva = GeneratedColumn<double>(
+      'importe_iva', aliasedName, false,
+      type: DriftSqlType.double,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(0));
+  @override
+  List<GeneratedColumn> get $columns => [
+        id,
+        fiscalDocId,
+        claveProdServ,
+        claveUnidad,
+        descripcion,
+        cantidad,
+        valorUnitario,
+        importe,
+        descuento,
+        objetoImp,
+        base,
+        tasaIva,
+        importeIva
+      ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'fiscal_doc_items';
+  @override
+  VerificationContext validateIntegrity(Insertable<FiscalDocItem> instance,
+      {bool isInserting = false}) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('fiscal_doc_id')) {
+      context.handle(
+          _fiscalDocIdMeta,
+          fiscalDocId.isAcceptableOrUnknown(
+              data['fiscal_doc_id']!, _fiscalDocIdMeta));
+    } else if (isInserting) {
+      context.missing(_fiscalDocIdMeta);
+    }
+    if (data.containsKey('clave_prod_serv')) {
+      context.handle(
+          _claveProdServMeta,
+          claveProdServ.isAcceptableOrUnknown(
+              data['clave_prod_serv']!, _claveProdServMeta));
+    }
+    if (data.containsKey('clave_unidad')) {
+      context.handle(
+          _claveUnidadMeta,
+          claveUnidad.isAcceptableOrUnknown(
+              data['clave_unidad']!, _claveUnidadMeta));
+    }
+    if (data.containsKey('descripcion')) {
+      context.handle(
+          _descripcionMeta,
+          descripcion.isAcceptableOrUnknown(
+              data['descripcion']!, _descripcionMeta));
+    } else if (isInserting) {
+      context.missing(_descripcionMeta);
+    }
+    if (data.containsKey('cantidad')) {
+      context.handle(_cantidadMeta,
+          cantidad.isAcceptableOrUnknown(data['cantidad']!, _cantidadMeta));
+    } else if (isInserting) {
+      context.missing(_cantidadMeta);
+    }
+    if (data.containsKey('valor_unitario')) {
+      context.handle(
+          _valorUnitarioMeta,
+          valorUnitario.isAcceptableOrUnknown(
+              data['valor_unitario']!, _valorUnitarioMeta));
+    } else if (isInserting) {
+      context.missing(_valorUnitarioMeta);
+    }
+    if (data.containsKey('importe')) {
+      context.handle(_importeMeta,
+          importe.isAcceptableOrUnknown(data['importe']!, _importeMeta));
+    } else if (isInserting) {
+      context.missing(_importeMeta);
+    }
+    if (data.containsKey('descuento')) {
+      context.handle(_descuentoMeta,
+          descuento.isAcceptableOrUnknown(data['descuento']!, _descuentoMeta));
+    }
+    if (data.containsKey('objeto_imp')) {
+      context.handle(_objetoImpMeta,
+          objetoImp.isAcceptableOrUnknown(data['objeto_imp']!, _objetoImpMeta));
+    }
+    if (data.containsKey('base')) {
+      context.handle(
+          _baseMeta, base.isAcceptableOrUnknown(data['base']!, _baseMeta));
+    } else if (isInserting) {
+      context.missing(_baseMeta);
+    }
+    if (data.containsKey('tasa_iva')) {
+      context.handle(_tasaIvaMeta,
+          tasaIva.isAcceptableOrUnknown(data['tasa_iva']!, _tasaIvaMeta));
+    }
+    if (data.containsKey('importe_iva')) {
+      context.handle(
+          _importeIvaMeta,
+          importeIva.isAcceptableOrUnknown(
+              data['importe_iva']!, _importeIvaMeta));
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  FiscalDocItem map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return FiscalDocItem(
+      id: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}id'])!,
+      fiscalDocId: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}fiscal_doc_id'])!,
+      claveProdServ: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}clave_prod_serv']),
+      claveUnidad: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}clave_unidad']),
+      descripcion: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}descripcion'])!,
+      cantidad: attachedDatabase.typeMapping
+          .read(DriftSqlType.double, data['${effectivePrefix}cantidad'])!,
+      valorUnitario: attachedDatabase.typeMapping
+          .read(DriftSqlType.double, data['${effectivePrefix}valor_unitario'])!,
+      importe: attachedDatabase.typeMapping
+          .read(DriftSqlType.double, data['${effectivePrefix}importe'])!,
+      descuento: attachedDatabase.typeMapping
+          .read(DriftSqlType.double, data['${effectivePrefix}descuento'])!,
+      objetoImp: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}objeto_imp']),
+      base: attachedDatabase.typeMapping
+          .read(DriftSqlType.double, data['${effectivePrefix}base'])!,
+      tasaIva: attachedDatabase.typeMapping
+          .read(DriftSqlType.double, data['${effectivePrefix}tasa_iva'])!,
+      importeIva: attachedDatabase.typeMapping
+          .read(DriftSqlType.double, data['${effectivePrefix}importe_iva'])!,
+    );
+  }
+
+  @override
+  $FiscalDocItemsTable createAlias(String alias) {
+    return $FiscalDocItemsTable(attachedDatabase, alias);
+  }
+}
+
+class FiscalDocItem extends DataClass implements Insertable<FiscalDocItem> {
+  final int id;
+  final int fiscalDocId;
+  final String? claveProdServ;
+  final String? claveUnidad;
+  final String descripcion;
+  final double cantidad;
+  final double valorUnitario;
+  final double importe;
+  final double descuento;
+  final String? objetoImp;
+  final double base;
+  final double tasaIva;
+  final double importeIva;
+  const FiscalDocItem(
+      {required this.id,
+      required this.fiscalDocId,
+      this.claveProdServ,
+      this.claveUnidad,
+      required this.descripcion,
+      required this.cantidad,
+      required this.valorUnitario,
+      required this.importe,
+      required this.descuento,
+      this.objetoImp,
+      required this.base,
+      required this.tasaIva,
+      required this.importeIva});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['fiscal_doc_id'] = Variable<int>(fiscalDocId);
+    if (!nullToAbsent || claveProdServ != null) {
+      map['clave_prod_serv'] = Variable<String>(claveProdServ);
+    }
+    if (!nullToAbsent || claveUnidad != null) {
+      map['clave_unidad'] = Variable<String>(claveUnidad);
+    }
+    map['descripcion'] = Variable<String>(descripcion);
+    map['cantidad'] = Variable<double>(cantidad);
+    map['valor_unitario'] = Variable<double>(valorUnitario);
+    map['importe'] = Variable<double>(importe);
+    map['descuento'] = Variable<double>(descuento);
+    if (!nullToAbsent || objetoImp != null) {
+      map['objeto_imp'] = Variable<String>(objetoImp);
+    }
+    map['base'] = Variable<double>(base);
+    map['tasa_iva'] = Variable<double>(tasaIva);
+    map['importe_iva'] = Variable<double>(importeIva);
+    return map;
+  }
+
+  FiscalDocItemsCompanion toCompanion(bool nullToAbsent) {
+    return FiscalDocItemsCompanion(
+      id: Value(id),
+      fiscalDocId: Value(fiscalDocId),
+      claveProdServ: claveProdServ == null && nullToAbsent
+          ? const Value.absent()
+          : Value(claveProdServ),
+      claveUnidad: claveUnidad == null && nullToAbsent
+          ? const Value.absent()
+          : Value(claveUnidad),
+      descripcion: Value(descripcion),
+      cantidad: Value(cantidad),
+      valorUnitario: Value(valorUnitario),
+      importe: Value(importe),
+      descuento: Value(descuento),
+      objetoImp: objetoImp == null && nullToAbsent
+          ? const Value.absent()
+          : Value(objetoImp),
+      base: Value(base),
+      tasaIva: Value(tasaIva),
+      importeIva: Value(importeIva),
+    );
+  }
+
+  factory FiscalDocItem.fromJson(Map<String, dynamic> json,
+      {ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return FiscalDocItem(
+      id: serializer.fromJson<int>(json['id']),
+      fiscalDocId: serializer.fromJson<int>(json['fiscalDocId']),
+      claveProdServ: serializer.fromJson<String?>(json['claveProdServ']),
+      claveUnidad: serializer.fromJson<String?>(json['claveUnidad']),
+      descripcion: serializer.fromJson<String>(json['descripcion']),
+      cantidad: serializer.fromJson<double>(json['cantidad']),
+      valorUnitario: serializer.fromJson<double>(json['valorUnitario']),
+      importe: serializer.fromJson<double>(json['importe']),
+      descuento: serializer.fromJson<double>(json['descuento']),
+      objetoImp: serializer.fromJson<String?>(json['objetoImp']),
+      base: serializer.fromJson<double>(json['base']),
+      tasaIva: serializer.fromJson<double>(json['tasaIva']),
+      importeIva: serializer.fromJson<double>(json['importeIva']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'fiscalDocId': serializer.toJson<int>(fiscalDocId),
+      'claveProdServ': serializer.toJson<String?>(claveProdServ),
+      'claveUnidad': serializer.toJson<String?>(claveUnidad),
+      'descripcion': serializer.toJson<String>(descripcion),
+      'cantidad': serializer.toJson<double>(cantidad),
+      'valorUnitario': serializer.toJson<double>(valorUnitario),
+      'importe': serializer.toJson<double>(importe),
+      'descuento': serializer.toJson<double>(descuento),
+      'objetoImp': serializer.toJson<String?>(objetoImp),
+      'base': serializer.toJson<double>(base),
+      'tasaIva': serializer.toJson<double>(tasaIva),
+      'importeIva': serializer.toJson<double>(importeIva),
+    };
+  }
+
+  FiscalDocItem copyWith(
+          {int? id,
+          int? fiscalDocId,
+          Value<String?> claveProdServ = const Value.absent(),
+          Value<String?> claveUnidad = const Value.absent(),
+          String? descripcion,
+          double? cantidad,
+          double? valorUnitario,
+          double? importe,
+          double? descuento,
+          Value<String?> objetoImp = const Value.absent(),
+          double? base,
+          double? tasaIva,
+          double? importeIva}) =>
+      FiscalDocItem(
+        id: id ?? this.id,
+        fiscalDocId: fiscalDocId ?? this.fiscalDocId,
+        claveProdServ:
+            claveProdServ.present ? claveProdServ.value : this.claveProdServ,
+        claveUnidad: claveUnidad.present ? claveUnidad.value : this.claveUnidad,
+        descripcion: descripcion ?? this.descripcion,
+        cantidad: cantidad ?? this.cantidad,
+        valorUnitario: valorUnitario ?? this.valorUnitario,
+        importe: importe ?? this.importe,
+        descuento: descuento ?? this.descuento,
+        objetoImp: objetoImp.present ? objetoImp.value : this.objetoImp,
+        base: base ?? this.base,
+        tasaIva: tasaIva ?? this.tasaIva,
+        importeIva: importeIva ?? this.importeIva,
+      );
+  FiscalDocItem copyWithCompanion(FiscalDocItemsCompanion data) {
+    return FiscalDocItem(
+      id: data.id.present ? data.id.value : this.id,
+      fiscalDocId:
+          data.fiscalDocId.present ? data.fiscalDocId.value : this.fiscalDocId,
+      claveProdServ: data.claveProdServ.present
+          ? data.claveProdServ.value
+          : this.claveProdServ,
+      claveUnidad:
+          data.claveUnidad.present ? data.claveUnidad.value : this.claveUnidad,
+      descripcion:
+          data.descripcion.present ? data.descripcion.value : this.descripcion,
+      cantidad: data.cantidad.present ? data.cantidad.value : this.cantidad,
+      valorUnitario: data.valorUnitario.present
+          ? data.valorUnitario.value
+          : this.valorUnitario,
+      importe: data.importe.present ? data.importe.value : this.importe,
+      descuento: data.descuento.present ? data.descuento.value : this.descuento,
+      objetoImp: data.objetoImp.present ? data.objetoImp.value : this.objetoImp,
+      base: data.base.present ? data.base.value : this.base,
+      tasaIva: data.tasaIva.present ? data.tasaIva.value : this.tasaIva,
+      importeIva:
+          data.importeIva.present ? data.importeIva.value : this.importeIva,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('FiscalDocItem(')
+          ..write('id: $id, ')
+          ..write('fiscalDocId: $fiscalDocId, ')
+          ..write('claveProdServ: $claveProdServ, ')
+          ..write('claveUnidad: $claveUnidad, ')
+          ..write('descripcion: $descripcion, ')
+          ..write('cantidad: $cantidad, ')
+          ..write('valorUnitario: $valorUnitario, ')
+          ..write('importe: $importe, ')
+          ..write('descuento: $descuento, ')
+          ..write('objetoImp: $objetoImp, ')
+          ..write('base: $base, ')
+          ..write('tasaIva: $tasaIva, ')
+          ..write('importeIva: $importeIva')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+      id,
+      fiscalDocId,
+      claveProdServ,
+      claveUnidad,
+      descripcion,
+      cantidad,
+      valorUnitario,
+      importe,
+      descuento,
+      objetoImp,
+      base,
+      tasaIva,
+      importeIva);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is FiscalDocItem &&
+          other.id == this.id &&
+          other.fiscalDocId == this.fiscalDocId &&
+          other.claveProdServ == this.claveProdServ &&
+          other.claveUnidad == this.claveUnidad &&
+          other.descripcion == this.descripcion &&
+          other.cantidad == this.cantidad &&
+          other.valorUnitario == this.valorUnitario &&
+          other.importe == this.importe &&
+          other.descuento == this.descuento &&
+          other.objetoImp == this.objetoImp &&
+          other.base == this.base &&
+          other.tasaIva == this.tasaIva &&
+          other.importeIva == this.importeIva);
+}
+
+class FiscalDocItemsCompanion extends UpdateCompanion<FiscalDocItem> {
+  final Value<int> id;
+  final Value<int> fiscalDocId;
+  final Value<String?> claveProdServ;
+  final Value<String?> claveUnidad;
+  final Value<String> descripcion;
+  final Value<double> cantidad;
+  final Value<double> valorUnitario;
+  final Value<double> importe;
+  final Value<double> descuento;
+  final Value<String?> objetoImp;
+  final Value<double> base;
+  final Value<double> tasaIva;
+  final Value<double> importeIva;
+  const FiscalDocItemsCompanion({
+    this.id = const Value.absent(),
+    this.fiscalDocId = const Value.absent(),
+    this.claveProdServ = const Value.absent(),
+    this.claveUnidad = const Value.absent(),
+    this.descripcion = const Value.absent(),
+    this.cantidad = const Value.absent(),
+    this.valorUnitario = const Value.absent(),
+    this.importe = const Value.absent(),
+    this.descuento = const Value.absent(),
+    this.objetoImp = const Value.absent(),
+    this.base = const Value.absent(),
+    this.tasaIva = const Value.absent(),
+    this.importeIva = const Value.absent(),
+  });
+  FiscalDocItemsCompanion.insert({
+    this.id = const Value.absent(),
+    required int fiscalDocId,
+    this.claveProdServ = const Value.absent(),
+    this.claveUnidad = const Value.absent(),
+    required String descripcion,
+    required double cantidad,
+    required double valorUnitario,
+    required double importe,
+    this.descuento = const Value.absent(),
+    this.objetoImp = const Value.absent(),
+    required double base,
+    this.tasaIva = const Value.absent(),
+    this.importeIva = const Value.absent(),
+  })  : fiscalDocId = Value(fiscalDocId),
+        descripcion = Value(descripcion),
+        cantidad = Value(cantidad),
+        valorUnitario = Value(valorUnitario),
+        importe = Value(importe),
+        base = Value(base);
+  static Insertable<FiscalDocItem> custom({
+    Expression<int>? id,
+    Expression<int>? fiscalDocId,
+    Expression<String>? claveProdServ,
+    Expression<String>? claveUnidad,
+    Expression<String>? descripcion,
+    Expression<double>? cantidad,
+    Expression<double>? valorUnitario,
+    Expression<double>? importe,
+    Expression<double>? descuento,
+    Expression<String>? objetoImp,
+    Expression<double>? base,
+    Expression<double>? tasaIva,
+    Expression<double>? importeIva,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (fiscalDocId != null) 'fiscal_doc_id': fiscalDocId,
+      if (claveProdServ != null) 'clave_prod_serv': claveProdServ,
+      if (claveUnidad != null) 'clave_unidad': claveUnidad,
+      if (descripcion != null) 'descripcion': descripcion,
+      if (cantidad != null) 'cantidad': cantidad,
+      if (valorUnitario != null) 'valor_unitario': valorUnitario,
+      if (importe != null) 'importe': importe,
+      if (descuento != null) 'descuento': descuento,
+      if (objetoImp != null) 'objeto_imp': objetoImp,
+      if (base != null) 'base': base,
+      if (tasaIva != null) 'tasa_iva': tasaIva,
+      if (importeIva != null) 'importe_iva': importeIva,
+    });
+  }
+
+  FiscalDocItemsCompanion copyWith(
+      {Value<int>? id,
+      Value<int>? fiscalDocId,
+      Value<String?>? claveProdServ,
+      Value<String?>? claveUnidad,
+      Value<String>? descripcion,
+      Value<double>? cantidad,
+      Value<double>? valorUnitario,
+      Value<double>? importe,
+      Value<double>? descuento,
+      Value<String?>? objetoImp,
+      Value<double>? base,
+      Value<double>? tasaIva,
+      Value<double>? importeIva}) {
+    return FiscalDocItemsCompanion(
+      id: id ?? this.id,
+      fiscalDocId: fiscalDocId ?? this.fiscalDocId,
+      claveProdServ: claveProdServ ?? this.claveProdServ,
+      claveUnidad: claveUnidad ?? this.claveUnidad,
+      descripcion: descripcion ?? this.descripcion,
+      cantidad: cantidad ?? this.cantidad,
+      valorUnitario: valorUnitario ?? this.valorUnitario,
+      importe: importe ?? this.importe,
+      descuento: descuento ?? this.descuento,
+      objetoImp: objetoImp ?? this.objetoImp,
+      base: base ?? this.base,
+      tasaIva: tasaIva ?? this.tasaIva,
+      importeIva: importeIva ?? this.importeIva,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (fiscalDocId.present) {
+      map['fiscal_doc_id'] = Variable<int>(fiscalDocId.value);
+    }
+    if (claveProdServ.present) {
+      map['clave_prod_serv'] = Variable<String>(claveProdServ.value);
+    }
+    if (claveUnidad.present) {
+      map['clave_unidad'] = Variable<String>(claveUnidad.value);
+    }
+    if (descripcion.present) {
+      map['descripcion'] = Variable<String>(descripcion.value);
+    }
+    if (cantidad.present) {
+      map['cantidad'] = Variable<double>(cantidad.value);
+    }
+    if (valorUnitario.present) {
+      map['valor_unitario'] = Variable<double>(valorUnitario.value);
+    }
+    if (importe.present) {
+      map['importe'] = Variable<double>(importe.value);
+    }
+    if (descuento.present) {
+      map['descuento'] = Variable<double>(descuento.value);
+    }
+    if (objetoImp.present) {
+      map['objeto_imp'] = Variable<String>(objetoImp.value);
+    }
+    if (base.present) {
+      map['base'] = Variable<double>(base.value);
+    }
+    if (tasaIva.present) {
+      map['tasa_iva'] = Variable<double>(tasaIva.value);
+    }
+    if (importeIva.present) {
+      map['importe_iva'] = Variable<double>(importeIva.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('FiscalDocItemsCompanion(')
+          ..write('id: $id, ')
+          ..write('fiscalDocId: $fiscalDocId, ')
+          ..write('claveProdServ: $claveProdServ, ')
+          ..write('claveUnidad: $claveUnidad, ')
+          ..write('descripcion: $descripcion, ')
+          ..write('cantidad: $cantidad, ')
+          ..write('valorUnitario: $valorUnitario, ')
+          ..write('importe: $importe, ')
+          ..write('descuento: $descuento, ')
+          ..write('objetoImp: $objetoImp, ')
+          ..write('base: $base, ')
+          ..write('tasaIva: $tasaIva, ')
+          ..write('importeIva: $importeIva')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -10080,6 +11741,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
       $IngredientPurchaseItemsTable(this);
   late final $RecipeItemsTable recipeItems = $RecipeItemsTable(this);
   late final $DeliveryZonesTable deliveryZones = $DeliveryZonesTable(this);
+  late final $FiscalDocsTable fiscalDocs = $FiscalDocsTable(this);
+  late final $FiscalDocItemsTable fiscalDocItems = $FiscalDocItemsTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -10108,7 +11771,9 @@ abstract class _$AppDatabase extends GeneratedDatabase {
         ingredientMovements,
         ingredientPurchaseItems,
         recipeItems,
-        deliveryZones
+        deliveryZones,
+        fiscalDocs,
+        fiscalDocItems
       ];
 }
 
@@ -10510,6 +12175,9 @@ typedef $$ProductsTableCreateCompanionBuilder = ProductsCompanion Function({
   Value<double?> taxRate,
   Value<bool?> taxIncluded,
   Value<bool> usesRecipe,
+  Value<String?> claveProdServ,
+  Value<String?> claveUnidad,
+  Value<String?> objetoImp,
   Value<DateTime> createdAt,
   Value<DateTime> updatedAt,
 });
@@ -10529,6 +12197,9 @@ typedef $$ProductsTableUpdateCompanionBuilder = ProductsCompanion Function({
   Value<double?> taxRate,
   Value<bool?> taxIncluded,
   Value<bool> usesRecipe,
+  Value<String?> claveProdServ,
+  Value<String?> claveUnidad,
+  Value<String?> objetoImp,
   Value<DateTime> createdAt,
   Value<DateTime> updatedAt,
 });
@@ -10651,6 +12322,15 @@ class $$ProductsTableFilterComposer
 
   ColumnFilters<bool> get usesRecipe => $composableBuilder(
       column: $table.usesRecipe, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get claveProdServ => $composableBuilder(
+      column: $table.claveProdServ, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get claveUnidad => $composableBuilder(
+      column: $table.claveUnidad, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get objetoImp => $composableBuilder(
+      column: $table.objetoImp, builder: (column) => ColumnFilters(column));
 
   ColumnFilters<DateTime> get createdAt => $composableBuilder(
       column: $table.createdAt, builder: (column) => ColumnFilters(column));
@@ -10795,6 +12475,16 @@ class $$ProductsTableOrderingComposer
   ColumnOrderings<bool> get usesRecipe => $composableBuilder(
       column: $table.usesRecipe, builder: (column) => ColumnOrderings(column));
 
+  ColumnOrderings<String> get claveProdServ => $composableBuilder(
+      column: $table.claveProdServ,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get claveUnidad => $composableBuilder(
+      column: $table.claveUnidad, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get objetoImp => $composableBuilder(
+      column: $table.objetoImp, builder: (column) => ColumnOrderings(column));
+
   ColumnOrderings<DateTime> get createdAt => $composableBuilder(
       column: $table.createdAt, builder: (column) => ColumnOrderings(column));
 
@@ -10872,6 +12562,15 @@ class $$ProductsTableAnnotationComposer
 
   GeneratedColumn<bool> get usesRecipe => $composableBuilder(
       column: $table.usesRecipe, builder: (column) => column);
+
+  GeneratedColumn<String> get claveProdServ => $composableBuilder(
+      column: $table.claveProdServ, builder: (column) => column);
+
+  GeneratedColumn<String> get claveUnidad => $composableBuilder(
+      column: $table.claveUnidad, builder: (column) => column);
+
+  GeneratedColumn<String> get objetoImp =>
+      $composableBuilder(column: $table.objetoImp, builder: (column) => column);
 
   GeneratedColumn<DateTime> get createdAt =>
       $composableBuilder(column: $table.createdAt, builder: (column) => column);
@@ -11006,6 +12705,9 @@ class $$ProductsTableTableManager extends RootTableManager<
             Value<double?> taxRate = const Value.absent(),
             Value<bool?> taxIncluded = const Value.absent(),
             Value<bool> usesRecipe = const Value.absent(),
+            Value<String?> claveProdServ = const Value.absent(),
+            Value<String?> claveUnidad = const Value.absent(),
+            Value<String?> objetoImp = const Value.absent(),
             Value<DateTime> createdAt = const Value.absent(),
             Value<DateTime> updatedAt = const Value.absent(),
           }) =>
@@ -11025,6 +12727,9 @@ class $$ProductsTableTableManager extends RootTableManager<
             taxRate: taxRate,
             taxIncluded: taxIncluded,
             usesRecipe: usesRecipe,
+            claveProdServ: claveProdServ,
+            claveUnidad: claveUnidad,
+            objetoImp: objetoImp,
             createdAt: createdAt,
             updatedAt: updatedAt,
           ),
@@ -11044,6 +12749,9 @@ class $$ProductsTableTableManager extends RootTableManager<
             Value<double?> taxRate = const Value.absent(),
             Value<bool?> taxIncluded = const Value.absent(),
             Value<bool> usesRecipe = const Value.absent(),
+            Value<String?> claveProdServ = const Value.absent(),
+            Value<String?> claveUnidad = const Value.absent(),
+            Value<String?> objetoImp = const Value.absent(),
             Value<DateTime> createdAt = const Value.absent(),
             Value<DateTime> updatedAt = const Value.absent(),
           }) =>
@@ -11063,6 +12771,9 @@ class $$ProductsTableTableManager extends RootTableManager<
             taxRate: taxRate,
             taxIncluded: taxIncluded,
             usesRecipe: usesRecipe,
+            claveProdServ: claveProdServ,
+            claveUnidad: claveUnidad,
+            objetoImp: objetoImp,
             createdAt: createdAt,
             updatedAt: updatedAt,
           ),
@@ -11810,6 +13521,11 @@ typedef $$CustomersTableCreateCompanionBuilder = CustomersCompanion Function({
   Value<int> visits,
   Value<double> totalSpent,
   Value<String?> notes,
+  Value<String?> rfc,
+  Value<String?> razonSocial,
+  Value<String?> cpFiscal,
+  Value<String?> regimenFiscal,
+  Value<String?> usoCfdiPreferido,
   Value<DateTime> createdAt,
 });
 typedef $$CustomersTableUpdateCompanionBuilder = CustomersCompanion Function({
@@ -11820,6 +13536,11 @@ typedef $$CustomersTableUpdateCompanionBuilder = CustomersCompanion Function({
   Value<int> visits,
   Value<double> totalSpent,
   Value<String?> notes,
+  Value<String?> rfc,
+  Value<String?> razonSocial,
+  Value<String?> cpFiscal,
+  Value<String?> regimenFiscal,
+  Value<String?> usoCfdiPreferido,
   Value<DateTime> createdAt,
 });
 
@@ -11872,6 +13593,22 @@ class $$CustomersTableFilterComposer
 
   ColumnFilters<String> get notes => $composableBuilder(
       column: $table.notes, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get rfc => $composableBuilder(
+      column: $table.rfc, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get razonSocial => $composableBuilder(
+      column: $table.razonSocial, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get cpFiscal => $composableBuilder(
+      column: $table.cpFiscal, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get regimenFiscal => $composableBuilder(
+      column: $table.regimenFiscal, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get usoCfdiPreferido => $composableBuilder(
+      column: $table.usoCfdiPreferido,
+      builder: (column) => ColumnFilters(column));
 
   ColumnFilters<DateTime> get createdAt => $composableBuilder(
       column: $table.createdAt, builder: (column) => ColumnFilters(column));
@@ -11928,6 +13665,23 @@ class $$CustomersTableOrderingComposer
   ColumnOrderings<String> get notes => $composableBuilder(
       column: $table.notes, builder: (column) => ColumnOrderings(column));
 
+  ColumnOrderings<String> get rfc => $composableBuilder(
+      column: $table.rfc, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get razonSocial => $composableBuilder(
+      column: $table.razonSocial, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get cpFiscal => $composableBuilder(
+      column: $table.cpFiscal, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get regimenFiscal => $composableBuilder(
+      column: $table.regimenFiscal,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get usoCfdiPreferido => $composableBuilder(
+      column: $table.usoCfdiPreferido,
+      builder: (column) => ColumnOrderings(column));
+
   ColumnOrderings<DateTime> get createdAt => $composableBuilder(
       column: $table.createdAt, builder: (column) => ColumnOrderings(column));
 }
@@ -11961,6 +13715,21 @@ class $$CustomersTableAnnotationComposer
 
   GeneratedColumn<String> get notes =>
       $composableBuilder(column: $table.notes, builder: (column) => column);
+
+  GeneratedColumn<String> get rfc =>
+      $composableBuilder(column: $table.rfc, builder: (column) => column);
+
+  GeneratedColumn<String> get razonSocial => $composableBuilder(
+      column: $table.razonSocial, builder: (column) => column);
+
+  GeneratedColumn<String> get cpFiscal =>
+      $composableBuilder(column: $table.cpFiscal, builder: (column) => column);
+
+  GeneratedColumn<String> get regimenFiscal => $composableBuilder(
+      column: $table.regimenFiscal, builder: (column) => column);
+
+  GeneratedColumn<String> get usoCfdiPreferido => $composableBuilder(
+      column: $table.usoCfdiPreferido, builder: (column) => column);
 
   GeneratedColumn<DateTime> get createdAt =>
       $composableBuilder(column: $table.createdAt, builder: (column) => column);
@@ -12017,6 +13786,11 @@ class $$CustomersTableTableManager extends RootTableManager<
             Value<int> visits = const Value.absent(),
             Value<double> totalSpent = const Value.absent(),
             Value<String?> notes = const Value.absent(),
+            Value<String?> rfc = const Value.absent(),
+            Value<String?> razonSocial = const Value.absent(),
+            Value<String?> cpFiscal = const Value.absent(),
+            Value<String?> regimenFiscal = const Value.absent(),
+            Value<String?> usoCfdiPreferido = const Value.absent(),
             Value<DateTime> createdAt = const Value.absent(),
           }) =>
               CustomersCompanion(
@@ -12027,6 +13801,11 @@ class $$CustomersTableTableManager extends RootTableManager<
             visits: visits,
             totalSpent: totalSpent,
             notes: notes,
+            rfc: rfc,
+            razonSocial: razonSocial,
+            cpFiscal: cpFiscal,
+            regimenFiscal: regimenFiscal,
+            usoCfdiPreferido: usoCfdiPreferido,
             createdAt: createdAt,
           ),
           createCompanionCallback: ({
@@ -12037,6 +13816,11 @@ class $$CustomersTableTableManager extends RootTableManager<
             Value<int> visits = const Value.absent(),
             Value<double> totalSpent = const Value.absent(),
             Value<String?> notes = const Value.absent(),
+            Value<String?> rfc = const Value.absent(),
+            Value<String?> razonSocial = const Value.absent(),
+            Value<String?> cpFiscal = const Value.absent(),
+            Value<String?> regimenFiscal = const Value.absent(),
+            Value<String?> usoCfdiPreferido = const Value.absent(),
             Value<DateTime> createdAt = const Value.absent(),
           }) =>
               CustomersCompanion.insert(
@@ -12047,6 +13831,11 @@ class $$CustomersTableTableManager extends RootTableManager<
             visits: visits,
             totalSpent: totalSpent,
             notes: notes,
+            rfc: rfc,
+            razonSocial: razonSocial,
+            cpFiscal: cpFiscal,
+            regimenFiscal: regimenFiscal,
+            usoCfdiPreferido: usoCfdiPreferido,
             createdAt: createdAt,
           ),
           withReferenceMapper: (p0) => p0
@@ -13685,6 +15474,20 @@ final class $$OrdersTableReferences
     return ProcessedTableManager(
         manager.$state.copyWith(prefetchedData: cache));
   }
+
+  static MultiTypedResultKey<$FiscalDocsTable, List<FiscalDoc>>
+      _fiscalDocsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+          db.fiscalDocs,
+          aliasName: $_aliasNameGenerator(db.orders.id, db.fiscalDocs.orderId));
+
+  $$FiscalDocsTableProcessedTableManager get fiscalDocsRefs {
+    final manager = $$FiscalDocsTableTableManager($_db, $_db.fiscalDocs)
+        .filter((f) => f.orderId.id.sqlEquals($_itemColumn<int>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_fiscalDocsRefsTable($_db));
+    return ProcessedTableManager(
+        manager.$state.copyWith(prefetchedData: cache));
+  }
 }
 
 class $$OrdersTableFilterComposer
@@ -13932,6 +15735,27 @@ class $$OrdersTableFilterComposer
             $$IngredientMovementsTableFilterComposer(
               $db: $db,
               $table: $db.ingredientMovements,
+              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+              joinBuilder: joinBuilder,
+              $removeJoinBuilderFromRootComposer:
+                  $removeJoinBuilderFromRootComposer,
+            ));
+    return f(composer);
+  }
+
+  Expression<bool> fiscalDocsRefs(
+      Expression<bool> Function($$FiscalDocsTableFilterComposer f) f) {
+    final $$FiscalDocsTableFilterComposer composer = $composerBuilder(
+        composer: this,
+        getCurrentColumn: (t) => t.id,
+        referencedTable: $db.fiscalDocs,
+        getReferencedColumn: (t) => t.orderId,
+        builder: (joinBuilder,
+                {$addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer}) =>
+            $$FiscalDocsTableFilterComposer(
+              $db: $db,
+              $table: $db.fiscalDocs,
               $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
               joinBuilder: joinBuilder,
               $removeJoinBuilderFromRootComposer:
@@ -14348,6 +16172,27 @@ class $$OrdersTableAnnotationComposer
                 ));
     return f(composer);
   }
+
+  Expression<T> fiscalDocsRefs<T extends Object>(
+      Expression<T> Function($$FiscalDocsTableAnnotationComposer a) f) {
+    final $$FiscalDocsTableAnnotationComposer composer = $composerBuilder(
+        composer: this,
+        getCurrentColumn: (t) => t.id,
+        referencedTable: $db.fiscalDocs,
+        getReferencedColumn: (t) => t.orderId,
+        builder: (joinBuilder,
+                {$addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer}) =>
+            $$FiscalDocsTableAnnotationComposer(
+              $db: $db,
+              $table: $db.fiscalDocs,
+              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+              joinBuilder: joinBuilder,
+              $removeJoinBuilderFromRootComposer:
+                  $removeJoinBuilderFromRootComposer,
+            ));
+    return f(composer);
+  }
 }
 
 class $$OrdersTableTableManager extends RootTableManager<
@@ -14370,7 +16215,8 @@ class $$OrdersTableTableManager extends RootTableManager<
         bool paymentsRefs,
         bool inventoryMovementsRefs,
         bool refundsRefs,
-        bool ingredientMovementsRefs})> {
+        bool ingredientMovementsRefs,
+        bool fiscalDocsRefs})> {
   $$OrdersTableTableManager(_$AppDatabase db, $OrdersTable table)
       : super(TableManagerState(
           db: db,
@@ -14494,7 +16340,8 @@ class $$OrdersTableTableManager extends RootTableManager<
               paymentsRefs = false,
               inventoryMovementsRefs = false,
               refundsRefs = false,
-              ingredientMovementsRefs = false}) {
+              ingredientMovementsRefs = false,
+              fiscalDocsRefs = false}) {
             return PrefetchHooks(
               db: db,
               explicitlyWatchedTables: [
@@ -14502,7 +16349,8 @@ class $$OrdersTableTableManager extends RootTableManager<
                 if (paymentsRefs) db.payments,
                 if (inventoryMovementsRefs) db.inventoryMovements,
                 if (refundsRefs) db.refunds,
-                if (ingredientMovementsRefs) db.ingredientMovements
+                if (ingredientMovementsRefs) db.ingredientMovements,
+                if (fiscalDocsRefs) db.fiscalDocs
               ],
               addJoins: <
                   T extends TableManagerState<
@@ -14619,6 +16467,18 @@ class $$OrdersTableTableManager extends RootTableManager<
                         referencedItemsForCurrentItem: (item,
                                 referencedItems) =>
                             referencedItems.where((e) => e.orderId == item.id),
+                        typedResults: items),
+                  if (fiscalDocsRefs)
+                    await $_getPrefetchedData<Order, $OrdersTable, FiscalDoc>(
+                        currentTable: table,
+                        referencedTable:
+                            $$OrdersTableReferences._fiscalDocsRefsTable(db),
+                        managerFromTypedResult: (p0) =>
+                            $$OrdersTableReferences(db, table, p0)
+                                .fiscalDocsRefs,
+                        referencedItemsForCurrentItem: (item,
+                                referencedItems) =>
+                            referencedItems.where((e) => e.orderId == item.id),
                         typedResults: items)
                 ];
               },
@@ -14647,7 +16507,8 @@ typedef $$OrdersTableProcessedTableManager = ProcessedTableManager<
         bool paymentsRefs,
         bool inventoryMovementsRefs,
         bool refundsRefs,
-        bool ingredientMovementsRefs})>;
+        bool ingredientMovementsRefs,
+        bool fiscalDocsRefs})>;
 typedef $$OrderItemsTableCreateCompanionBuilder = OrderItemsCompanion Function({
   Value<int> id,
   required int orderId,
@@ -20118,6 +21979,868 @@ typedef $$DeliveryZonesTableProcessedTableManager = ProcessedTableManager<
     ),
     DeliveryZone,
     PrefetchHooks Function()>;
+typedef $$FiscalDocsTableCreateCompanionBuilder = FiscalDocsCompanion Function({
+  Value<int> id,
+  Value<int?> orderId,
+  Value<String?> receptorRfc,
+  Value<String?> receptorRazonSocial,
+  Value<String?> receptorCpFiscal,
+  Value<String?> receptorRegimen,
+  Value<String?> receptorUsoCfdi,
+  required String tipo,
+  Value<String> estado,
+  Value<String?> periodoRef,
+  Value<DateTime?> exportedAt,
+  Value<DateTime> createdAt,
+  Value<DateTime> updatedAt,
+});
+typedef $$FiscalDocsTableUpdateCompanionBuilder = FiscalDocsCompanion Function({
+  Value<int> id,
+  Value<int?> orderId,
+  Value<String?> receptorRfc,
+  Value<String?> receptorRazonSocial,
+  Value<String?> receptorCpFiscal,
+  Value<String?> receptorRegimen,
+  Value<String?> receptorUsoCfdi,
+  Value<String> tipo,
+  Value<String> estado,
+  Value<String?> periodoRef,
+  Value<DateTime?> exportedAt,
+  Value<DateTime> createdAt,
+  Value<DateTime> updatedAt,
+});
+
+final class $$FiscalDocsTableReferences
+    extends BaseReferences<_$AppDatabase, $FiscalDocsTable, FiscalDoc> {
+  $$FiscalDocsTableReferences(super.$_db, super.$_table, super.$_typedResult);
+
+  static $OrdersTable _orderIdTable(_$AppDatabase db) => db.orders
+      .createAlias($_aliasNameGenerator(db.fiscalDocs.orderId, db.orders.id));
+
+  $$OrdersTableProcessedTableManager? get orderId {
+    final $_column = $_itemColumn<int>('order_id');
+    if ($_column == null) return null;
+    final manager = $$OrdersTableTableManager($_db, $_db.orders)
+        .filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_orderIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+        manager.$state.copyWith(prefetchedData: [item]));
+  }
+
+  static MultiTypedResultKey<$FiscalDocItemsTable, List<FiscalDocItem>>
+      _fiscalDocItemsRefsTable(_$AppDatabase db) =>
+          MultiTypedResultKey.fromTable(db.fiscalDocItems,
+              aliasName: $_aliasNameGenerator(
+                  db.fiscalDocs.id, db.fiscalDocItems.fiscalDocId));
+
+  $$FiscalDocItemsTableProcessedTableManager get fiscalDocItemsRefs {
+    final manager = $$FiscalDocItemsTableTableManager($_db, $_db.fiscalDocItems)
+        .filter((f) => f.fiscalDocId.id.sqlEquals($_itemColumn<int>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_fiscalDocItemsRefsTable($_db));
+    return ProcessedTableManager(
+        manager.$state.copyWith(prefetchedData: cache));
+  }
+}
+
+class $$FiscalDocsTableFilterComposer
+    extends Composer<_$AppDatabase, $FiscalDocsTable> {
+  $$FiscalDocsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get receptorRfc => $composableBuilder(
+      column: $table.receptorRfc, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get receptorRazonSocial => $composableBuilder(
+      column: $table.receptorRazonSocial,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get receptorCpFiscal => $composableBuilder(
+      column: $table.receptorCpFiscal,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get receptorRegimen => $composableBuilder(
+      column: $table.receptorRegimen,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get receptorUsoCfdi => $composableBuilder(
+      column: $table.receptorUsoCfdi,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get tipo => $composableBuilder(
+      column: $table.tipo, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get estado => $composableBuilder(
+      column: $table.estado, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get periodoRef => $composableBuilder(
+      column: $table.periodoRef, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<DateTime> get exportedAt => $composableBuilder(
+      column: $table.exportedAt, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+      column: $table.createdAt, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
+      column: $table.updatedAt, builder: (column) => ColumnFilters(column));
+
+  $$OrdersTableFilterComposer get orderId {
+    final $$OrdersTableFilterComposer composer = $composerBuilder(
+        composer: this,
+        getCurrentColumn: (t) => t.orderId,
+        referencedTable: $db.orders,
+        getReferencedColumn: (t) => t.id,
+        builder: (joinBuilder,
+                {$addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer}) =>
+            $$OrdersTableFilterComposer(
+              $db: $db,
+              $table: $db.orders,
+              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+              joinBuilder: joinBuilder,
+              $removeJoinBuilderFromRootComposer:
+                  $removeJoinBuilderFromRootComposer,
+            ));
+    return composer;
+  }
+
+  Expression<bool> fiscalDocItemsRefs(
+      Expression<bool> Function($$FiscalDocItemsTableFilterComposer f) f) {
+    final $$FiscalDocItemsTableFilterComposer composer = $composerBuilder(
+        composer: this,
+        getCurrentColumn: (t) => t.id,
+        referencedTable: $db.fiscalDocItems,
+        getReferencedColumn: (t) => t.fiscalDocId,
+        builder: (joinBuilder,
+                {$addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer}) =>
+            $$FiscalDocItemsTableFilterComposer(
+              $db: $db,
+              $table: $db.fiscalDocItems,
+              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+              joinBuilder: joinBuilder,
+              $removeJoinBuilderFromRootComposer:
+                  $removeJoinBuilderFromRootComposer,
+            ));
+    return f(composer);
+  }
+}
+
+class $$FiscalDocsTableOrderingComposer
+    extends Composer<_$AppDatabase, $FiscalDocsTable> {
+  $$FiscalDocsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get receptorRfc => $composableBuilder(
+      column: $table.receptorRfc, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get receptorRazonSocial => $composableBuilder(
+      column: $table.receptorRazonSocial,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get receptorCpFiscal => $composableBuilder(
+      column: $table.receptorCpFiscal,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get receptorRegimen => $composableBuilder(
+      column: $table.receptorRegimen,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get receptorUsoCfdi => $composableBuilder(
+      column: $table.receptorUsoCfdi,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get tipo => $composableBuilder(
+      column: $table.tipo, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get estado => $composableBuilder(
+      column: $table.estado, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get periodoRef => $composableBuilder(
+      column: $table.periodoRef, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<DateTime> get exportedAt => $composableBuilder(
+      column: $table.exportedAt, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+      column: $table.createdAt, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
+      column: $table.updatedAt, builder: (column) => ColumnOrderings(column));
+
+  $$OrdersTableOrderingComposer get orderId {
+    final $$OrdersTableOrderingComposer composer = $composerBuilder(
+        composer: this,
+        getCurrentColumn: (t) => t.orderId,
+        referencedTable: $db.orders,
+        getReferencedColumn: (t) => t.id,
+        builder: (joinBuilder,
+                {$addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer}) =>
+            $$OrdersTableOrderingComposer(
+              $db: $db,
+              $table: $db.orders,
+              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+              joinBuilder: joinBuilder,
+              $removeJoinBuilderFromRootComposer:
+                  $removeJoinBuilderFromRootComposer,
+            ));
+    return composer;
+  }
+}
+
+class $$FiscalDocsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $FiscalDocsTable> {
+  $$FiscalDocsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get receptorRfc => $composableBuilder(
+      column: $table.receptorRfc, builder: (column) => column);
+
+  GeneratedColumn<String> get receptorRazonSocial => $composableBuilder(
+      column: $table.receptorRazonSocial, builder: (column) => column);
+
+  GeneratedColumn<String> get receptorCpFiscal => $composableBuilder(
+      column: $table.receptorCpFiscal, builder: (column) => column);
+
+  GeneratedColumn<String> get receptorRegimen => $composableBuilder(
+      column: $table.receptorRegimen, builder: (column) => column);
+
+  GeneratedColumn<String> get receptorUsoCfdi => $composableBuilder(
+      column: $table.receptorUsoCfdi, builder: (column) => column);
+
+  GeneratedColumn<String> get tipo =>
+      $composableBuilder(column: $table.tipo, builder: (column) => column);
+
+  GeneratedColumn<String> get estado =>
+      $composableBuilder(column: $table.estado, builder: (column) => column);
+
+  GeneratedColumn<String> get periodoRef => $composableBuilder(
+      column: $table.periodoRef, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get exportedAt => $composableBuilder(
+      column: $table.exportedAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  $$OrdersTableAnnotationComposer get orderId {
+    final $$OrdersTableAnnotationComposer composer = $composerBuilder(
+        composer: this,
+        getCurrentColumn: (t) => t.orderId,
+        referencedTable: $db.orders,
+        getReferencedColumn: (t) => t.id,
+        builder: (joinBuilder,
+                {$addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer}) =>
+            $$OrdersTableAnnotationComposer(
+              $db: $db,
+              $table: $db.orders,
+              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+              joinBuilder: joinBuilder,
+              $removeJoinBuilderFromRootComposer:
+                  $removeJoinBuilderFromRootComposer,
+            ));
+    return composer;
+  }
+
+  Expression<T> fiscalDocItemsRefs<T extends Object>(
+      Expression<T> Function($$FiscalDocItemsTableAnnotationComposer a) f) {
+    final $$FiscalDocItemsTableAnnotationComposer composer = $composerBuilder(
+        composer: this,
+        getCurrentColumn: (t) => t.id,
+        referencedTable: $db.fiscalDocItems,
+        getReferencedColumn: (t) => t.fiscalDocId,
+        builder: (joinBuilder,
+                {$addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer}) =>
+            $$FiscalDocItemsTableAnnotationComposer(
+              $db: $db,
+              $table: $db.fiscalDocItems,
+              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+              joinBuilder: joinBuilder,
+              $removeJoinBuilderFromRootComposer:
+                  $removeJoinBuilderFromRootComposer,
+            ));
+    return f(composer);
+  }
+}
+
+class $$FiscalDocsTableTableManager extends RootTableManager<
+    _$AppDatabase,
+    $FiscalDocsTable,
+    FiscalDoc,
+    $$FiscalDocsTableFilterComposer,
+    $$FiscalDocsTableOrderingComposer,
+    $$FiscalDocsTableAnnotationComposer,
+    $$FiscalDocsTableCreateCompanionBuilder,
+    $$FiscalDocsTableUpdateCompanionBuilder,
+    (FiscalDoc, $$FiscalDocsTableReferences),
+    FiscalDoc,
+    PrefetchHooks Function({bool orderId, bool fiscalDocItemsRefs})> {
+  $$FiscalDocsTableTableManager(_$AppDatabase db, $FiscalDocsTable table)
+      : super(TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$FiscalDocsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$FiscalDocsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$FiscalDocsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback: ({
+            Value<int> id = const Value.absent(),
+            Value<int?> orderId = const Value.absent(),
+            Value<String?> receptorRfc = const Value.absent(),
+            Value<String?> receptorRazonSocial = const Value.absent(),
+            Value<String?> receptorCpFiscal = const Value.absent(),
+            Value<String?> receptorRegimen = const Value.absent(),
+            Value<String?> receptorUsoCfdi = const Value.absent(),
+            Value<String> tipo = const Value.absent(),
+            Value<String> estado = const Value.absent(),
+            Value<String?> periodoRef = const Value.absent(),
+            Value<DateTime?> exportedAt = const Value.absent(),
+            Value<DateTime> createdAt = const Value.absent(),
+            Value<DateTime> updatedAt = const Value.absent(),
+          }) =>
+              FiscalDocsCompanion(
+            id: id,
+            orderId: orderId,
+            receptorRfc: receptorRfc,
+            receptorRazonSocial: receptorRazonSocial,
+            receptorCpFiscal: receptorCpFiscal,
+            receptorRegimen: receptorRegimen,
+            receptorUsoCfdi: receptorUsoCfdi,
+            tipo: tipo,
+            estado: estado,
+            periodoRef: periodoRef,
+            exportedAt: exportedAt,
+            createdAt: createdAt,
+            updatedAt: updatedAt,
+          ),
+          createCompanionCallback: ({
+            Value<int> id = const Value.absent(),
+            Value<int?> orderId = const Value.absent(),
+            Value<String?> receptorRfc = const Value.absent(),
+            Value<String?> receptorRazonSocial = const Value.absent(),
+            Value<String?> receptorCpFiscal = const Value.absent(),
+            Value<String?> receptorRegimen = const Value.absent(),
+            Value<String?> receptorUsoCfdi = const Value.absent(),
+            required String tipo,
+            Value<String> estado = const Value.absent(),
+            Value<String?> periodoRef = const Value.absent(),
+            Value<DateTime?> exportedAt = const Value.absent(),
+            Value<DateTime> createdAt = const Value.absent(),
+            Value<DateTime> updatedAt = const Value.absent(),
+          }) =>
+              FiscalDocsCompanion.insert(
+            id: id,
+            orderId: orderId,
+            receptorRfc: receptorRfc,
+            receptorRazonSocial: receptorRazonSocial,
+            receptorCpFiscal: receptorCpFiscal,
+            receptorRegimen: receptorRegimen,
+            receptorUsoCfdi: receptorUsoCfdi,
+            tipo: tipo,
+            estado: estado,
+            periodoRef: periodoRef,
+            exportedAt: exportedAt,
+            createdAt: createdAt,
+            updatedAt: updatedAt,
+          ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (
+                    e.readTable(table),
+                    $$FiscalDocsTableReferences(db, table, e)
+                  ))
+              .toList(),
+          prefetchHooksCallback: (
+              {orderId = false, fiscalDocItemsRefs = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [
+                if (fiscalDocItemsRefs) db.fiscalDocItems
+              ],
+              addJoins: <
+                  T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic>>(state) {
+                if (orderId) {
+                  state = state.withJoin(
+                    currentTable: table,
+                    currentColumn: table.orderId,
+                    referencedTable:
+                        $$FiscalDocsTableReferences._orderIdTable(db),
+                    referencedColumn:
+                        $$FiscalDocsTableReferences._orderIdTable(db).id,
+                  ) as T;
+                }
+
+                return state;
+              },
+              getPrefetchedDataCallback: (items) async {
+                return [
+                  if (fiscalDocItemsRefs)
+                    await $_getPrefetchedData<FiscalDoc, $FiscalDocsTable,
+                            FiscalDocItem>(
+                        currentTable: table,
+                        referencedTable: $$FiscalDocsTableReferences
+                            ._fiscalDocItemsRefsTable(db),
+                        managerFromTypedResult: (p0) =>
+                            $$FiscalDocsTableReferences(db, table, p0)
+                                .fiscalDocItemsRefs,
+                        referencedItemsForCurrentItem:
+                            (item, referencedItems) => referencedItems
+                                .where((e) => e.fiscalDocId == item.id),
+                        typedResults: items)
+                ];
+              },
+            );
+          },
+        ));
+}
+
+typedef $$FiscalDocsTableProcessedTableManager = ProcessedTableManager<
+    _$AppDatabase,
+    $FiscalDocsTable,
+    FiscalDoc,
+    $$FiscalDocsTableFilterComposer,
+    $$FiscalDocsTableOrderingComposer,
+    $$FiscalDocsTableAnnotationComposer,
+    $$FiscalDocsTableCreateCompanionBuilder,
+    $$FiscalDocsTableUpdateCompanionBuilder,
+    (FiscalDoc, $$FiscalDocsTableReferences),
+    FiscalDoc,
+    PrefetchHooks Function({bool orderId, bool fiscalDocItemsRefs})>;
+typedef $$FiscalDocItemsTableCreateCompanionBuilder = FiscalDocItemsCompanion
+    Function({
+  Value<int> id,
+  required int fiscalDocId,
+  Value<String?> claveProdServ,
+  Value<String?> claveUnidad,
+  required String descripcion,
+  required double cantidad,
+  required double valorUnitario,
+  required double importe,
+  Value<double> descuento,
+  Value<String?> objetoImp,
+  required double base,
+  Value<double> tasaIva,
+  Value<double> importeIva,
+});
+typedef $$FiscalDocItemsTableUpdateCompanionBuilder = FiscalDocItemsCompanion
+    Function({
+  Value<int> id,
+  Value<int> fiscalDocId,
+  Value<String?> claveProdServ,
+  Value<String?> claveUnidad,
+  Value<String> descripcion,
+  Value<double> cantidad,
+  Value<double> valorUnitario,
+  Value<double> importe,
+  Value<double> descuento,
+  Value<String?> objetoImp,
+  Value<double> base,
+  Value<double> tasaIva,
+  Value<double> importeIva,
+});
+
+final class $$FiscalDocItemsTableReferences
+    extends BaseReferences<_$AppDatabase, $FiscalDocItemsTable, FiscalDocItem> {
+  $$FiscalDocItemsTableReferences(
+      super.$_db, super.$_table, super.$_typedResult);
+
+  static $FiscalDocsTable _fiscalDocIdTable(_$AppDatabase db) =>
+      db.fiscalDocs.createAlias($_aliasNameGenerator(
+          db.fiscalDocItems.fiscalDocId, db.fiscalDocs.id));
+
+  $$FiscalDocsTableProcessedTableManager get fiscalDocId {
+    final $_column = $_itemColumn<int>('fiscal_doc_id')!;
+
+    final manager = $$FiscalDocsTableTableManager($_db, $_db.fiscalDocs)
+        .filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_fiscalDocIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+        manager.$state.copyWith(prefetchedData: [item]));
+  }
+}
+
+class $$FiscalDocItemsTableFilterComposer
+    extends Composer<_$AppDatabase, $FiscalDocItemsTable> {
+  $$FiscalDocItemsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get claveProdServ => $composableBuilder(
+      column: $table.claveProdServ, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get claveUnidad => $composableBuilder(
+      column: $table.claveUnidad, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get descripcion => $composableBuilder(
+      column: $table.descripcion, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<double> get cantidad => $composableBuilder(
+      column: $table.cantidad, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<double> get valorUnitario => $composableBuilder(
+      column: $table.valorUnitario, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<double> get importe => $composableBuilder(
+      column: $table.importe, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<double> get descuento => $composableBuilder(
+      column: $table.descuento, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get objetoImp => $composableBuilder(
+      column: $table.objetoImp, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<double> get base => $composableBuilder(
+      column: $table.base, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<double> get tasaIva => $composableBuilder(
+      column: $table.tasaIva, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<double> get importeIva => $composableBuilder(
+      column: $table.importeIva, builder: (column) => ColumnFilters(column));
+
+  $$FiscalDocsTableFilterComposer get fiscalDocId {
+    final $$FiscalDocsTableFilterComposer composer = $composerBuilder(
+        composer: this,
+        getCurrentColumn: (t) => t.fiscalDocId,
+        referencedTable: $db.fiscalDocs,
+        getReferencedColumn: (t) => t.id,
+        builder: (joinBuilder,
+                {$addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer}) =>
+            $$FiscalDocsTableFilterComposer(
+              $db: $db,
+              $table: $db.fiscalDocs,
+              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+              joinBuilder: joinBuilder,
+              $removeJoinBuilderFromRootComposer:
+                  $removeJoinBuilderFromRootComposer,
+            ));
+    return composer;
+  }
+}
+
+class $$FiscalDocItemsTableOrderingComposer
+    extends Composer<_$AppDatabase, $FiscalDocItemsTable> {
+  $$FiscalDocItemsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get claveProdServ => $composableBuilder(
+      column: $table.claveProdServ,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get claveUnidad => $composableBuilder(
+      column: $table.claveUnidad, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get descripcion => $composableBuilder(
+      column: $table.descripcion, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<double> get cantidad => $composableBuilder(
+      column: $table.cantidad, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<double> get valorUnitario => $composableBuilder(
+      column: $table.valorUnitario,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<double> get importe => $composableBuilder(
+      column: $table.importe, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<double> get descuento => $composableBuilder(
+      column: $table.descuento, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get objetoImp => $composableBuilder(
+      column: $table.objetoImp, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<double> get base => $composableBuilder(
+      column: $table.base, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<double> get tasaIva => $composableBuilder(
+      column: $table.tasaIva, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<double> get importeIva => $composableBuilder(
+      column: $table.importeIva, builder: (column) => ColumnOrderings(column));
+
+  $$FiscalDocsTableOrderingComposer get fiscalDocId {
+    final $$FiscalDocsTableOrderingComposer composer = $composerBuilder(
+        composer: this,
+        getCurrentColumn: (t) => t.fiscalDocId,
+        referencedTable: $db.fiscalDocs,
+        getReferencedColumn: (t) => t.id,
+        builder: (joinBuilder,
+                {$addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer}) =>
+            $$FiscalDocsTableOrderingComposer(
+              $db: $db,
+              $table: $db.fiscalDocs,
+              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+              joinBuilder: joinBuilder,
+              $removeJoinBuilderFromRootComposer:
+                  $removeJoinBuilderFromRootComposer,
+            ));
+    return composer;
+  }
+}
+
+class $$FiscalDocItemsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $FiscalDocItemsTable> {
+  $$FiscalDocItemsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get claveProdServ => $composableBuilder(
+      column: $table.claveProdServ, builder: (column) => column);
+
+  GeneratedColumn<String> get claveUnidad => $composableBuilder(
+      column: $table.claveUnidad, builder: (column) => column);
+
+  GeneratedColumn<String> get descripcion => $composableBuilder(
+      column: $table.descripcion, builder: (column) => column);
+
+  GeneratedColumn<double> get cantidad =>
+      $composableBuilder(column: $table.cantidad, builder: (column) => column);
+
+  GeneratedColumn<double> get valorUnitario => $composableBuilder(
+      column: $table.valorUnitario, builder: (column) => column);
+
+  GeneratedColumn<double> get importe =>
+      $composableBuilder(column: $table.importe, builder: (column) => column);
+
+  GeneratedColumn<double> get descuento =>
+      $composableBuilder(column: $table.descuento, builder: (column) => column);
+
+  GeneratedColumn<String> get objetoImp =>
+      $composableBuilder(column: $table.objetoImp, builder: (column) => column);
+
+  GeneratedColumn<double> get base =>
+      $composableBuilder(column: $table.base, builder: (column) => column);
+
+  GeneratedColumn<double> get tasaIva =>
+      $composableBuilder(column: $table.tasaIva, builder: (column) => column);
+
+  GeneratedColumn<double> get importeIva => $composableBuilder(
+      column: $table.importeIva, builder: (column) => column);
+
+  $$FiscalDocsTableAnnotationComposer get fiscalDocId {
+    final $$FiscalDocsTableAnnotationComposer composer = $composerBuilder(
+        composer: this,
+        getCurrentColumn: (t) => t.fiscalDocId,
+        referencedTable: $db.fiscalDocs,
+        getReferencedColumn: (t) => t.id,
+        builder: (joinBuilder,
+                {$addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer}) =>
+            $$FiscalDocsTableAnnotationComposer(
+              $db: $db,
+              $table: $db.fiscalDocs,
+              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+              joinBuilder: joinBuilder,
+              $removeJoinBuilderFromRootComposer:
+                  $removeJoinBuilderFromRootComposer,
+            ));
+    return composer;
+  }
+}
+
+class $$FiscalDocItemsTableTableManager extends RootTableManager<
+    _$AppDatabase,
+    $FiscalDocItemsTable,
+    FiscalDocItem,
+    $$FiscalDocItemsTableFilterComposer,
+    $$FiscalDocItemsTableOrderingComposer,
+    $$FiscalDocItemsTableAnnotationComposer,
+    $$FiscalDocItemsTableCreateCompanionBuilder,
+    $$FiscalDocItemsTableUpdateCompanionBuilder,
+    (FiscalDocItem, $$FiscalDocItemsTableReferences),
+    FiscalDocItem,
+    PrefetchHooks Function({bool fiscalDocId})> {
+  $$FiscalDocItemsTableTableManager(
+      _$AppDatabase db, $FiscalDocItemsTable table)
+      : super(TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$FiscalDocItemsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$FiscalDocItemsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$FiscalDocItemsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback: ({
+            Value<int> id = const Value.absent(),
+            Value<int> fiscalDocId = const Value.absent(),
+            Value<String?> claveProdServ = const Value.absent(),
+            Value<String?> claveUnidad = const Value.absent(),
+            Value<String> descripcion = const Value.absent(),
+            Value<double> cantidad = const Value.absent(),
+            Value<double> valorUnitario = const Value.absent(),
+            Value<double> importe = const Value.absent(),
+            Value<double> descuento = const Value.absent(),
+            Value<String?> objetoImp = const Value.absent(),
+            Value<double> base = const Value.absent(),
+            Value<double> tasaIva = const Value.absent(),
+            Value<double> importeIva = const Value.absent(),
+          }) =>
+              FiscalDocItemsCompanion(
+            id: id,
+            fiscalDocId: fiscalDocId,
+            claveProdServ: claveProdServ,
+            claveUnidad: claveUnidad,
+            descripcion: descripcion,
+            cantidad: cantidad,
+            valorUnitario: valorUnitario,
+            importe: importe,
+            descuento: descuento,
+            objetoImp: objetoImp,
+            base: base,
+            tasaIva: tasaIva,
+            importeIva: importeIva,
+          ),
+          createCompanionCallback: ({
+            Value<int> id = const Value.absent(),
+            required int fiscalDocId,
+            Value<String?> claveProdServ = const Value.absent(),
+            Value<String?> claveUnidad = const Value.absent(),
+            required String descripcion,
+            required double cantidad,
+            required double valorUnitario,
+            required double importe,
+            Value<double> descuento = const Value.absent(),
+            Value<String?> objetoImp = const Value.absent(),
+            required double base,
+            Value<double> tasaIva = const Value.absent(),
+            Value<double> importeIva = const Value.absent(),
+          }) =>
+              FiscalDocItemsCompanion.insert(
+            id: id,
+            fiscalDocId: fiscalDocId,
+            claveProdServ: claveProdServ,
+            claveUnidad: claveUnidad,
+            descripcion: descripcion,
+            cantidad: cantidad,
+            valorUnitario: valorUnitario,
+            importe: importe,
+            descuento: descuento,
+            objetoImp: objetoImp,
+            base: base,
+            tasaIva: tasaIva,
+            importeIva: importeIva,
+          ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (
+                    e.readTable(table),
+                    $$FiscalDocItemsTableReferences(db, table, e)
+                  ))
+              .toList(),
+          prefetchHooksCallback: ({fiscalDocId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins: <
+                  T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic>>(state) {
+                if (fiscalDocId) {
+                  state = state.withJoin(
+                    currentTable: table,
+                    currentColumn: table.fiscalDocId,
+                    referencedTable:
+                        $$FiscalDocItemsTableReferences._fiscalDocIdTable(db),
+                    referencedColumn: $$FiscalDocItemsTableReferences
+                        ._fiscalDocIdTable(db)
+                        .id,
+                  ) as T;
+                }
+
+                return state;
+              },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ));
+}
+
+typedef $$FiscalDocItemsTableProcessedTableManager = ProcessedTableManager<
+    _$AppDatabase,
+    $FiscalDocItemsTable,
+    FiscalDocItem,
+    $$FiscalDocItemsTableFilterComposer,
+    $$FiscalDocItemsTableOrderingComposer,
+    $$FiscalDocItemsTableAnnotationComposer,
+    $$FiscalDocItemsTableCreateCompanionBuilder,
+    $$FiscalDocItemsTableUpdateCompanionBuilder,
+    (FiscalDocItem, $$FiscalDocItemsTableReferences),
+    FiscalDocItem,
+    PrefetchHooks Function({bool fiscalDocId})>;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -20171,4 +22894,8 @@ class $AppDatabaseManager {
       $$RecipeItemsTableTableManager(_db, _db.recipeItems);
   $$DeliveryZonesTableTableManager get deliveryZones =>
       $$DeliveryZonesTableTableManager(_db, _db.deliveryZones);
+  $$FiscalDocsTableTableManager get fiscalDocs =>
+      $$FiscalDocsTableTableManager(_db, _db.fiscalDocs);
+  $$FiscalDocItemsTableTableManager get fiscalDocItems =>
+      $$FiscalDocItemsTableTableManager(_db, _db.fiscalDocItems);
 }

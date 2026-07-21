@@ -7,6 +7,9 @@ explicación larga.
 
 ## Índice
 
+- [**Estándar de trabajo**](estandar-de-trabajo.md) — cómo ordenamos y
+  documentamos: docs por dominio, comentarios cortos, puertas de calidad, git,
+  checklist para un módulo nuevo. **Leer antes de empezar cualquier módulo.**
 - [Base de datos (SQLite + Drift)](base-de-datos.md) — ubicación, acceso
   multiproceso (WAL), foreign_keys, migraciones.
 - [Precios, descuentos e IVA](precios-e-iva.md) — cálculo de totales de una
@@ -34,5 +37,7 @@ explicación larga.
   `.sql`/`.xlsx`, rutas.
 - [Restauración parcial por grupo](restauracion-parcial.md) — asistente de
   fusión, grupos seguros, modos Agregar/Reemplazar.
+- [Facturación (prellenado CFDI 4.0)](facturacion.md) — export de datos fiscales
+  listos para timbrar (no timbra); flujos individual y global, catálogos SAT.
 
 > Este índice crece conforme se van limpiando más archivos.

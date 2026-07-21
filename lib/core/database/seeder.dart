@@ -75,6 +75,12 @@ class SeederService {
       // FASE 7: insumos y recetas (default OFF hasta que el usuario lo active
       // en Admin → Insumos).
       'insumos_activo': 'false',
+      // Facturación: datos del emisor (vacíos hasta que se capturen en Config).
+      // docs/facturacion.md.
+      'rfc_emisor': '',
+      'razon_social_emisor': '',
+      'regimen_fiscal_emisor': '',
+      'cp_lugar_expedicion': '',
       'seeded': 'true',
     };
     for (final entry in defaults.entries) {

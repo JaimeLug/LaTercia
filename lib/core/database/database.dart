@@ -70,6 +70,10 @@ class Products extends Table {
   // receta ([RecipeItems]) en vez de por trackInventory/stockQuantity — las
   // dos formas de rastrear stock son mutuamente excluyentes por producto.
   BoolColumn get usesRecipe => boolean().withDefault(const Constant(false))();
+  // Facturación (CFDI 4.0): se llenan una vez por producto. docs/facturacion.md.
+  TextColumn get claveProdServ => text().nullable()(); // c_ClaveProdServ
+  TextColumn get claveUnidad => text().nullable()(); // c_ClaveUnidad
+  TextColumn get objetoImp => text().nullable()(); // c_ObjetoImp (01/02/03)
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
   DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();
 }
@@ -111,6 +115,13 @@ class Customers extends Table {
   IntColumn get visits => integer().withDefault(const Constant(0))();
   RealColumn get totalSpent => real().withDefault(const Constant(0))();
   TextColumn get notes => text().nullable()();
+  // Datos fiscales (opcionales; solo si el cliente pide factura).
+  // docs/facturacion.md.
+  TextColumn get rfc => text().nullable()();
+  TextColumn get razonSocial => text().nullable()();
+  TextColumn get cpFiscal => text().nullable()();
+  TextColumn get regimenFiscal => text().nullable()(); // c_RegimenFiscal
+  TextColumn get usoCfdiPreferido => text().nullable()(); // c_UsoCFDI (def G03)
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
 }
 
@@ -340,6 +351,46 @@ class DeliveryZones extends Table {
   BoolColumn get active => boolean().withDefault(const Constant(true))();
 }
 
+/// Cabecera de un documento fiscal (prellenado CFDI 4.0), con el snapshot
+/// congelado del receptor. `docs/facturacion.md`.
+class FiscalDocs extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  // Null en la factura global consolidada; con valor en la individual.
+  IntColumn get orderId => integer().nullable().references(Orders, #id)();
+  // Receptor congelado al emitir el documento (no se lee del cliente al exportar).
+  TextColumn get receptorRfc => text().nullable()();
+  TextColumn get receptorRazonSocial => text().nullable()();
+  TextColumn get receptorCpFiscal => text().nullable()();
+  TextColumn get receptorRegimen => text().nullable()();
+  TextColumn get receptorUsoCfdi => text().nullable()();
+  TextColumn get tipo => text()(); // 'individual' | 'global'
+  TextColumn get estado => text()
+      .withDefault(const Constant('pendiente'))(); // 'pendiente'|'exportada'
+  TextColumn get periodoRef =>
+      text().nullable()(); // global: día/semana/mes+año
+  DateTimeColumn get exportedAt => dateTime().nullable()();
+  DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
+  DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();
+}
+
+/// Conceptos congelados de un [FiscalDocs] (snapshot inmutable con el IVA ya
+/// desglosado base/impuesto). `docs/facturacion.md`.
+class FiscalDocItems extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  IntColumn get fiscalDocId => integer().references(FiscalDocs, #id)();
+  TextColumn get claveProdServ => text().nullable()();
+  TextColumn get claveUnidad => text().nullable()();
+  TextColumn get descripcion => text()();
+  RealColumn get cantidad => real()();
+  RealColumn get valorUnitario => real()(); // sin IVA
+  RealColumn get importe => real()(); // sin IVA (cantidad × valorUnitario)
+  RealColumn get descuento => real().withDefault(const Constant(0))();
+  TextColumn get objetoImp => text().nullable()();
+  RealColumn get base => real()(); // base gravable (importe − descuento)
+  RealColumn get tasaIva => real().withDefault(const Constant(0))(); // ej. 0.16
+  RealColumn get importeIva => real().withDefault(const Constant(0))();
+}
+
 // ─── Database class ──────────────────────────────────────────────────────────
 
 @DriftDatabase(tables: [
@@ -367,6 +418,8 @@ class DeliveryZones extends Table {
   IngredientPurchaseItems,
   RecipeItems,
   DeliveryZones,
+  FiscalDocs,
+  FiscalDocItems,
 ])
 
 /// Base de datos SQLite (Drift). `docs/base-de-datos.md`.
@@ -377,7 +430,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 9;
+  int get schemaVersion => 10;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -464,6 +517,19 @@ class AppDatabase extends _$AppDatabase {
             // la comanda de reparto (nombre ya existía desde antes).
             await m.addColumn(orders, orders.customerPhone);
             await m.addColumn(orders, orders.customerAddress);
+          }
+          if (from < 10) {
+            // v10: facturación (prellenado CFDI 4.0). docs/facturacion.md.
+            await m.addColumn(products, products.claveProdServ);
+            await m.addColumn(products, products.claveUnidad);
+            await m.addColumn(products, products.objetoImp);
+            await m.addColumn(customers, customers.rfc);
+            await m.addColumn(customers, customers.razonSocial);
+            await m.addColumn(customers, customers.cpFiscal);
+            await m.addColumn(customers, customers.regimenFiscal);
+            await m.addColumn(customers, customers.usoCfdiPreferido);
+            await m.createTable(fiscalDocs);
+            await m.createTable(fiscalDocItems);
           }
         },
       );
