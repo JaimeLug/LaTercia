@@ -222,8 +222,7 @@ void main() {
       final products = await db.productsDao.getAllProducts();
       final productName = products.first.name;
 
-      await makeOrderWithItem('0001',
-          productName: productName, createdAt: now);
+      await makeOrderWithItem('0001', productName: productName, createdAt: now);
       await makeOrderWithItem('0002',
           productName: productName,
           modifiersJson: '[{"name":"Sin azúcar","included":false}]',
@@ -276,8 +275,7 @@ void main() {
       // que B (total 2).
       for (var i = 0; i < 3; i++) {
         await makeOrderWithItem('A-plano-$i',
-            productName: productA,
-            createdAt: now.add(Duration(minutes: i)));
+            productName: productA, createdAt: now.add(Duration(minutes: i)));
       }
       for (var i = 0; i < 2; i++) {
         await makeOrderWithItem('B-$i',

@@ -264,5 +264,46 @@ void main() {
       expect(items.first.claveUnidad, 'ACT');
       expect(items.first.descripcion, 'Venta T-1');
     });
+
+    test(
+        'freezeIndividual sin RFC queda "sin_datos" y completarReceptor lo '
+        'deja "pendiente"', () async {
+      final orderId = await ventaPagada('SD-1', 116);
+      // Marca "requiere factura" pero sin datos del cliente.
+      final docId = await svc.freezeIndividual(
+        orderId: orderId,
+        receptor: (
+          rfc: null,
+          razonSocial: null,
+          cpFiscal: null,
+          regimen: null,
+          usoCfdi: null
+        ),
+        usoCfdi: 'G03',
+      );
+
+      var doc = await (db.select(db.fiscalDocs)
+            ..where((t) => t.id.equals(docId)))
+          .getSingle();
+      expect(doc.estado, 'sin_datos');
+      // Los conceptos SÍ quedaron congelados aunque falten los datos.
+      final items = await (db.select(db.fiscalDocItems)
+            ..where((t) => t.fiscalDocId.equals(docId)))
+          .get();
+      expect(items, hasLength(1));
+
+      // Se completan los datos después → pendiente.
+      await svc.completarReceptor(docId, (
+        rfc: 'AAA010101AAA',
+        razonSocial: 'ACME',
+        cpFiscal: '97000',
+        regimen: '601',
+        usoCfdi: 'G03',
+      ));
+      doc = await (db.select(db.fiscalDocs)..where((t) => t.id.equals(docId)))
+          .getSingle();
+      expect(doc.estado, 'pendiente');
+      expect(doc.receptorRfc, 'AAA010101AAA');
+    });
   });
 }

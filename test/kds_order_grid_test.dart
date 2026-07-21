@@ -108,7 +108,8 @@ void main() {
 
     final keys = await pumpGrid(tester, orders: [short, long]);
 
-    final shortHeight = tester.getSize(find.byKey(keys[short.order.id]!)).height;
+    final shortHeight =
+        tester.getSize(find.byKey(keys[short.order.id]!)).height;
     final longHeight = tester.getSize(find.byKey(keys[long.order.id]!)).height;
 
     expect(shortHeight, lessThan(longHeight),

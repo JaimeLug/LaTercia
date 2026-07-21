@@ -77,12 +77,16 @@ void main() {
     await tester.pumpAndSettle();
 
     // Agregar el parcial y seguir con el saldo.
+    await tester.ensureVisible(find.textContaining('Agregar'));
     await tester.tap(find.textContaining('Agregar'));
     await tester.pumpAndSettle();
 
     // Tramo 2: efectivo cubre el resto (40) con 50 recibido → cambio 10.
     await tester.enterText(find.byType(TextField).first, '50');
     await tester.pumpAndSettle();
+    // El modal es scrollable; con un pago parcial + el checkbox de factura el
+    // botón puede quedar fuera del viewport del test — hay que traerlo a la vista.
+    await tester.ensureVisible(find.textContaining('Cobrar resto'));
     await tester.tap(find.textContaining('Cobrar resto'));
     await tester.pumpAndSettle();
 

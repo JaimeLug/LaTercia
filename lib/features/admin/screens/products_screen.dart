@@ -11,9 +11,11 @@ import '../../../core/database/daos/recipes_dao.dart';
 import '../../../core/providers/categories_provider.dart';
 import '../../../core/providers/database_provider.dart';
 import '../../../core/providers/settings_provider.dart';
+import '../../../core/services/sat_catalog_service.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/formatters.dart';
 import '../widgets/admin_panel.dart';
+import '../widgets/sat_clave_picker.dart';
 
 class ProductsScreen extends ConsumerStatefulWidget {
   const ProductsScreen({super.key});
@@ -308,6 +310,12 @@ class _ProductFormDialogState extends ConsumerState<_ProductFormDialog> {
   final List<_RecipeLine> _recipeLines = [];
   late Future<List<Ingredient>> _ingredientsFuture;
 
+  // Facturación (CFDI 4.0): claves SAT del producto. docs/facturacion.md.
+  String? _claveProdServ, _claveProdServDesc;
+  String? _claveUnidad, _claveUnidadDesc;
+  String? _objetoImp;
+  List<SatEntry> _objetoImpOpciones = const [];
+
   @override
   void initState() {
     super.initState();
@@ -329,6 +337,10 @@ class _ProductFormDialogState extends ConsumerState<_ProductFormDialog> {
     _taxIncluded = p?.taxIncluded;
     _imagePath = p?.imagePath;
     _usesRecipe = p?.usesRecipe ?? false;
+    _claveProdServ = p?.claveProdServ;
+    _claveUnidad = p?.claveUnidad;
+    _objetoImp = p?.objetoImp;
+    _loadFiscalCatalog();
 
     final db = ref.read(databaseProvider);
     _ingredientsFuture = db.ingredientsDao.getActiveIngredients();
@@ -555,6 +567,8 @@ class _ProductFormDialogState extends ConsumerState<_ProductFormDialog> {
                     ),
                   ],
                 ),
+                const SizedBox(height: 12),
+                _buildFiscalSection(),
               ],
             ),
           ),
@@ -667,6 +681,142 @@ class _ProductFormDialogState extends ConsumerState<_ProductFormDialog> {
     setState(() => _imagePath = dest);
   }
 
+  Future<void> _loadFiscalCatalog() async {
+    final cat = ref.read(satCatalogServiceProvider);
+    final objetos = await cat.objetosImp();
+    final prodDesc = _claveProdServ == null
+        ? null
+        : await cat.descripcionDe('clave_prod_serv', _claveProdServ!);
+    final unidadDesc = _claveUnidad == null
+        ? null
+        : await cat.descripcionDe('clave_unidad', _claveUnidad!);
+    if (!mounted) return;
+    setState(() {
+      _objetoImpOpciones = objetos;
+      _claveProdServDesc = prodDesc;
+      _claveUnidadDesc = unidadDesc;
+    });
+  }
+
+  /// Sección de claves SAT del producto. docs/facturacion.md §"Catálogos SAT".
+  Widget _buildFiscalSection() {
+    final cat = ref.read(satCatalogServiceProvider);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Divider(height: 8),
+        const Text('Datos fiscales (SAT)',
+            style: TextStyle(
+                fontWeight: FontWeight.w700, color: LaTerciaColors.darkBrown)),
+        const Text(
+          'Para facturación (CFDI 4.0). Opcional; solo si vas a facturar '
+          'este producto.',
+          style: TextStyle(fontSize: 12, color: LaTerciaColors.tan),
+        ),
+        const SizedBox(height: 8),
+        _claveField(
+          label: 'Clave producto/servicio',
+          value: _claveProdServ,
+          desc: _claveProdServDesc,
+          onPick: () async {
+            final e = await showSatClavePicker(
+              context,
+              titulo: 'Clave producto/servicio',
+              search: cat.searchClaveProdServ,
+              sugeridas: cat.sugeridasCafeteria,
+            );
+            if (e != null) {
+              setState(() {
+                _claveProdServ = e.id;
+                _claveProdServDesc = e.texto;
+              });
+            }
+          },
+          onClear: () => setState(() {
+            _claveProdServ = null;
+            _claveProdServDesc = null;
+          }),
+        ),
+        const SizedBox(height: 8),
+        _claveField(
+          label: 'Clave unidad',
+          value: _claveUnidad,
+          desc: _claveUnidadDesc,
+          onPick: () async {
+            final e = await showSatClavePicker(
+              context,
+              titulo: 'Clave unidad',
+              search: cat.searchClaveUnidad,
+            );
+            if (e != null) {
+              setState(() {
+                _claveUnidad = e.id;
+                _claveUnidadDesc = e.texto;
+              });
+            }
+          },
+          onClear: () => setState(() {
+            _claveUnidad = null;
+            _claveUnidadDesc = null;
+          }),
+        ),
+        const SizedBox(height: 8),
+        DropdownButtonFormField<String?>(
+          value: _objetoImp,
+          decoration: const InputDecoration(labelText: 'Objeto de impuesto'),
+          items: [
+            const DropdownMenuItem(value: null, child: Text('—')),
+            for (final o in _objetoImpOpciones)
+              DropdownMenuItem(
+                value: o.id,
+                child: Text('${o.id} · ${o.texto}',
+                    overflow: TextOverflow.ellipsis),
+              ),
+          ],
+          onChanged: (v) => setState(() => _objetoImp = v),
+        ),
+      ],
+    );
+  }
+
+  Widget _claveField({
+    required String label,
+    String? value,
+    String? desc,
+    required VoidCallback onPick,
+    required VoidCallback onClear,
+  }) {
+    return InputDecorator(
+      decoration: InputDecoration(
+        labelText: label,
+        border: const OutlineInputBorder(),
+        isDense: true,
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: value == null
+                ? const Text('Sin asignar',
+                    style: TextStyle(color: LaTerciaColors.tan))
+                : Text('$value${desc != null ? ' · $desc' : ''}',
+                    overflow: TextOverflow.ellipsis),
+          ),
+          if (value != null)
+            IconButton(
+              icon: const Icon(Icons.close, size: 18),
+              visualDensity: VisualDensity.compact,
+              onPressed: onClear,
+            ),
+          IconButton(
+            icon: const Icon(Icons.search, size: 18),
+            visualDensity: VisualDensity.compact,
+            onPressed: onPick,
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
     final db = ref.read(databaseProvider);
@@ -692,6 +842,9 @@ class _ProductFormDialogState extends ConsumerState<_ProductFormDialog> {
           : double.tryParse(_taxRateCtrl.text.replaceAll(',', '.'))),
       taxIncluded: Value(_taxIncluded),
       usesRecipe: Value(_usesRecipe),
+      claveProdServ: Value(_claveProdServ),
+      claveUnidad: Value(_claveUnidad),
+      objetoImp: Value(_objetoImp),
       updatedAt: Value(DateTime.now()),
     );
 

@@ -101,7 +101,9 @@ class FiscalService {
   final AppDatabase _db;
 
   /// Congela los conceptos de una orden y crea un [FiscalDocs] individual.
-  /// `docs/facturacion.md` §"Flujo A".
+  /// Si el receptor no trae RFC, el documento queda en estado `sin_datos`
+  /// (requiere factura pero faltan los datos del cliente; se completan después
+  /// con [completarReceptor]). `docs/facturacion.md` §"Flujo A".
   Future<int> freezeIndividual({
     required int orderId,
     required FiscalReceptor receptor,
@@ -114,10 +116,14 @@ class FiscalService {
       final conceptos =
           buildFiscalConceptos(lines, descuento: order.discountAmount);
 
+      final estado = (receptor.rfc == null || receptor.rfc!.trim().isEmpty)
+          ? 'sin_datos'
+          : 'pendiente';
       final docId = await _db.into(_db.fiscalDocs).insert(
             FiscalDocsCompanion.insert(
               orderId: Value(orderId),
               tipo: 'individual',
+              estado: Value(estado),
               receptorRfc: Value(receptor.rfc),
               receptorRazonSocial: Value(receptor.razonSocial),
               receptorCpFiscal: Value(receptor.cpFiscal),
@@ -128,6 +134,25 @@ class FiscalService {
       await _insertConceptos(docId, conceptos);
       return docId;
     });
+  }
+
+  /// Completa (o corrige) los datos del receptor de un documento que quedó
+  /// `sin_datos`, dejándolo `pendiente` (listo para exportar). No re-congela
+  /// los conceptos. `docs/facturacion.md` §"Flujo A".
+  Future<void> completarReceptor(
+    int fiscalDocId,
+    FiscalReceptor receptor,
+  ) async {
+    await (_db.update(_db.fiscalDocs)..where((t) => t.id.equals(fiscalDocId)))
+        .write(FiscalDocsCompanion(
+      estado: const Value('pendiente'),
+      receptorRfc: Value(receptor.rfc),
+      receptorRazonSocial: Value(receptor.razonSocial),
+      receptorCpFiscal: Value(receptor.cpFiscal),
+      receptorRegimen: Value(receptor.regimen),
+      receptorUsoCfdi: Value(receptor.usoCfdi),
+      updatedAt: Value(DateTime.now()),
+    ));
   }
 
   /// Consolida las ventas del periodo [desde, hasta] que estén pagadas, no

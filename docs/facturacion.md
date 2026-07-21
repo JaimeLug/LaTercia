@@ -231,6 +231,21 @@ Texto visible en la pantalla de exportación, tipo:
 > "Este archivo es un **prellenado para timbrar**, NO es una factura válida. El
 > CFDI existe solo cuando tu facturador/PAC lo timbra."
 
+## Dónde vive en la UI (implementado)
+
+- **Flujo A** — checkbox "Requiere factura (CFDI)" en el modal de cobro
+  (`payment_modal.dart`); al confirmar, abre el diálogo de captura fiscal
+  (`factura_capture_dialog.dart`, prellenado desde el cliente) que congela la
+  factura y guarda los datos fiscales en el cliente para la próxima.
+- **Flujo B + exportación** — pantalla **Admin → Facturación**
+  (`facturacion_screen.dart`): selector de periodo, "Generar factura global",
+  lista de documentos, y export por documento o de las individuales pendientes.
+  El disclaimer y el aviso de "falta configurar el emisor" están ahí.
+- **Claves del producto**: sección "Datos fiscales (SAT)" en el formulario de
+  producto, con el buscador `sat_clave_picker.dart`.
+- **Datos del cliente**: `ExpansionTile` fiscal en el formulario de cliente.
+- **Emisor**: Configuración → "Facturación (emisor)".
+
 ## Orden de implementación sugerido
 
 1. Migración v10 (columnas + tablas nuevas) + servicio de emisor en Settings.

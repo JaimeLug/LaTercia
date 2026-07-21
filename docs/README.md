@@ -38,6 +38,7 @@ explicación larga.
 - [Restauración parcial por grupo](restauracion-parcial.md) — asistente de
   fusión, grupos seguros, modos Agregar/Reemplazar.
 - [Facturación (prellenado CFDI 4.0)](facturacion.md) — export de datos fiscales
-  listos para timbrar (no timbra); flujos individual y global, catálogos SAT.
+  listos para timbrar (no timbra); flujos individual y global, catálogos SAT,
+  separación base/IVA, exportador.
 
 > Este índice crece conforme se van limpiando más archivos.

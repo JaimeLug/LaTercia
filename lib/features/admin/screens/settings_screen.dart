@@ -79,6 +79,12 @@ const _settingsCategories = <_SettingsCategory>[
     title: 'Ticket / Recibo',
     subtitle: 'Pie de página y detalles'
   ),
+  (
+    key: 'facturacion',
+    icon: Icons.request_quote_outlined,
+    title: 'Facturación (emisor)',
+    subtitle: 'Datos fiscales del negocio'
+  ),
 ];
 
 class SettingsScreen extends ConsumerStatefulWidget {
@@ -126,6 +132,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   bool _showDiscountOnReceipt = true;
   bool _showEmployeeOnReceipt = true;
 
+  // Facturación — emisor. docs/facturacion.md.
+  late TextEditingController _rfcEmisor;
+  late TextEditingController _razonEmisor;
+  late TextEditingController _regimenEmisor;
+  late TextEditingController _cpExpedicion;
+
   // Caja y seguridad (Fase 2)
   bool _cajaRequiereTurno = true;
   late TextEditingController _autoLockMin;
@@ -166,6 +178,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     _receiptFooter = TextEditingController();
     _autoLockMin = TextEditingController();
     _printerAddress = TextEditingController();
+    _rfcEmisor = TextEditingController();
+    _razonEmisor = TextEditingController();
+    _regimenEmisor = TextEditingController();
+    _cpExpedicion = TextEditingController();
     _availablePrinters = listWindowsPrinters();
   }
 
@@ -193,6 +209,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     _receiptFooter.dispose();
     _autoLockMin.dispose();
     _printerAddress.dispose();
+    _rfcEmisor.dispose();
+    _razonEmisor.dispose();
+    _regimenEmisor.dispose();
+    _cpExpedicion.dispose();
     super.dispose();
   }
 
@@ -229,6 +249,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     _printerWidth = s['printer_width'] ?? '80';
     _gavetaActiva = s['gaveta_activa'] == 'true';
     _gavetaAutoEfectivo = s['gaveta_auto_efectivo'] != 'false';
+    _rfcEmisor.text = s['rfc_emisor'] ?? '';
+    _razonEmisor.text = s['razon_social_emisor'] ?? '';
+    _regimenEmisor.text = s['regimen_fiscal_emisor'] ?? '';
+    _cpExpedicion.text = s['cp_lugar_expedicion'] ?? '';
   }
 
   Color _parseColor(String hex) {
@@ -747,6 +771,43 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             contentPadding: EdgeInsets.zero,
           ),
         ];
+      case 'facturacion':
+        return [
+          const Text(
+            'Datos fiscales del negocio (emisor), necesarios para el prellenado '
+            'CFDI 4.0. No timbramos: la factura la genera tu facturador/PAC.',
+            style: TextStyle(fontSize: 12.5, color: LaTerciaColors.tan),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _rfcEmisor,
+            decoration: const InputDecoration(labelText: 'RFC del emisor'),
+            textCapitalization: TextCapitalization.characters,
+          ),
+          const SizedBox(height: 8),
+          TextField(
+            controller: _razonEmisor,
+            decoration: const InputDecoration(labelText: 'Razón social'),
+          ),
+          const SizedBox(height: 8),
+          TextField(
+            controller: _regimenEmisor,
+            decoration: const InputDecoration(
+              labelText: 'Régimen fiscal (clave SAT)',
+              helperText: 'Ej. 612, 621, 626 (c_RegimenFiscal)',
+            ),
+            keyboardType: TextInputType.number,
+          ),
+          const SizedBox(height: 8),
+          TextField(
+            controller: _cpExpedicion,
+            decoration: const InputDecoration(
+              labelText: 'CP lugar de expedición',
+              helperText: 'Código postal del negocio',
+            ),
+            keyboardType: TextInputType.number,
+          ),
+        ];
       default:
         return const [];
     }
@@ -964,6 +1025,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       'printer_width': _printerWidth,
       'gaveta_activa': _gavetaActiva.toString(),
       'gaveta_auto_efectivo': _gavetaAutoEfectivo.toString(),
+      'rfc_emisor': _rfcEmisor.text.trim().toUpperCase(),
+      'razon_social_emisor': _razonEmisor.text.trim(),
+      'regimen_fiscal_emisor': _regimenEmisor.text.trim(),
+      'cp_lugar_expedicion': _cpExpedicion.text.trim(),
     };
 
     await ref.read(settingsProvider.notifier).setSettings(settings);

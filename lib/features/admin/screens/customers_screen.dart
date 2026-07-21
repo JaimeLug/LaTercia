@@ -5,6 +5,7 @@ import '../../../core/database/database.dart';
 import '../../../core/providers/customers_provider.dart';
 import '../../../core/providers/database_provider.dart';
 import '../../../core/providers/settings_provider.dart';
+import '../../../core/services/sat_catalog_service.dart';
 import '../../../core/utils/formatters.dart';
 
 class CustomersScreen extends ConsumerStatefulWidget {
@@ -174,6 +175,14 @@ class _CustomerFormDialogState extends ConsumerState<_CustomerFormDialog> {
   late TextEditingController _emailCtrl;
   late TextEditingController _notesCtrl;
 
+  // Datos fiscales (opcionales; solo si el cliente pide factura).
+  // docs/facturacion.md.
+  late TextEditingController _rfcCtrl;
+  late TextEditingController _razonCtrl;
+  late TextEditingController _cpCtrl;
+  String? _regimen, _usoCfdi;
+  List<SatEntry> _regimenes = const [], _usos = const [];
+
   @override
   void initState() {
     super.initState();
@@ -182,6 +191,23 @@ class _CustomerFormDialogState extends ConsumerState<_CustomerFormDialog> {
     _phoneCtrl = TextEditingController(text: c?.phone ?? '');
     _emailCtrl = TextEditingController(text: c?.email ?? '');
     _notesCtrl = TextEditingController(text: c?.notes ?? '');
+    _rfcCtrl = TextEditingController(text: c?.rfc ?? '');
+    _razonCtrl = TextEditingController(text: c?.razonSocial ?? '');
+    _cpCtrl = TextEditingController(text: c?.cpFiscal ?? '');
+    _regimen = c?.regimenFiscal;
+    _usoCfdi = c?.usoCfdiPreferido ?? 'G03'; // default sugerido
+    _loadCatalogos();
+  }
+
+  Future<void> _loadCatalogos() async {
+    final cat = ref.read(satCatalogServiceProvider);
+    final regs = await cat.regimenesFiscales();
+    final usos = await cat.usosCfdi();
+    if (!mounted) return;
+    setState(() {
+      _regimenes = regs;
+      _usos = usos;
+    });
   }
 
   @override
@@ -190,6 +216,9 @@ class _CustomerFormDialogState extends ConsumerState<_CustomerFormDialog> {
     _phoneCtrl.dispose();
     _emailCtrl.dispose();
     _notesCtrl.dispose();
+    _rfcCtrl.dispose();
+    _razonCtrl.dispose();
+    _cpCtrl.dispose();
     super.dispose();
   }
 
@@ -197,35 +226,42 @@ class _CustomerFormDialogState extends ConsumerState<_CustomerFormDialog> {
   Widget build(BuildContext context) {
     return AlertDialog(
       title: Text(widget.customer == null ? 'Nuevo cliente' : 'Editar cliente'),
-      content: Form(
-        key: _formKey,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextFormField(
-              controller: _nameCtrl,
-              decoration: const InputDecoration(labelText: 'Nombre *'),
-              validator: (v) => v!.isEmpty ? 'Requerido' : null,
+      content: SizedBox(
+        width: 440,
+        child: SingleChildScrollView(
+          child: Form(
+            key: _formKey,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextFormField(
+                  controller: _nameCtrl,
+                  decoration: const InputDecoration(labelText: 'Nombre *'),
+                  validator: (v) => v!.isEmpty ? 'Requerido' : null,
+                ),
+                const SizedBox(height: 8),
+                TextFormField(
+                  controller: _phoneCtrl,
+                  decoration: const InputDecoration(labelText: 'Teléfono'),
+                  keyboardType: TextInputType.phone,
+                ),
+                const SizedBox(height: 8),
+                TextFormField(
+                  controller: _emailCtrl,
+                  decoration: const InputDecoration(labelText: 'Email'),
+                  keyboardType: TextInputType.emailAddress,
+                ),
+                const SizedBox(height: 8),
+                TextFormField(
+                  controller: _notesCtrl,
+                  decoration: const InputDecoration(labelText: 'Notas'),
+                  maxLines: 2,
+                ),
+                const SizedBox(height: 8),
+                _buildFiscalExpansion(),
+              ],
             ),
-            const SizedBox(height: 8),
-            TextFormField(
-              controller: _phoneCtrl,
-              decoration: const InputDecoration(labelText: 'Teléfono'),
-              keyboardType: TextInputType.phone,
-            ),
-            const SizedBox(height: 8),
-            TextFormField(
-              controller: _emailCtrl,
-              decoration: const InputDecoration(labelText: 'Email'),
-              keyboardType: TextInputType.emailAddress,
-            ),
-            const SizedBox(height: 8),
-            TextFormField(
-              controller: _notesCtrl,
-              decoration: const InputDecoration(labelText: 'Notas'),
-              maxLines: 2,
-            ),
-          ],
+          ),
         ),
       ),
       actions: [
@@ -237,9 +273,75 @@ class _CustomerFormDialogState extends ConsumerState<_CustomerFormDialog> {
     );
   }
 
+  /// Sección plegable de datos fiscales del receptor. docs/facturacion.md.
+  Widget _buildFiscalExpansion() {
+    String? optValue(List<SatEntry> opts, String? v) =>
+        opts.any((e) => e.id == v) ? v : null;
+    return Theme(
+      data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+      child: ExpansionTile(
+        tilePadding: EdgeInsets.zero,
+        childrenPadding: const EdgeInsets.only(bottom: 8),
+        title: const Text('Datos fiscales (para factura)',
+            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+        subtitle: const Text('Opcional; solo si el cliente pide factura',
+            style: TextStyle(fontSize: 12)),
+        children: [
+          TextFormField(
+            controller: _rfcCtrl,
+            decoration: const InputDecoration(labelText: 'RFC'),
+            textCapitalization: TextCapitalization.characters,
+          ),
+          const SizedBox(height: 8),
+          TextFormField(
+            controller: _razonCtrl,
+            decoration:
+                const InputDecoration(labelText: 'Razón social / Nombre'),
+          ),
+          const SizedBox(height: 8),
+          TextFormField(
+            controller: _cpCtrl,
+            decoration:
+                const InputDecoration(labelText: 'CP fiscal (domicilio)'),
+            keyboardType: TextInputType.number,
+          ),
+          const SizedBox(height: 8),
+          DropdownButtonFormField<String>(
+            value: optValue(_regimenes, _regimen),
+            isExpanded: true,
+            decoration: const InputDecoration(labelText: 'Régimen fiscal'),
+            items: [
+              for (final r in _regimenes)
+                DropdownMenuItem(
+                    value: r.id,
+                    child: Text('${r.id} · ${r.texto}',
+                        overflow: TextOverflow.ellipsis)),
+            ],
+            onChanged: (v) => setState(() => _regimen = v),
+          ),
+          const SizedBox(height: 8),
+          DropdownButtonFormField<String>(
+            value: optValue(_usos, _usoCfdi),
+            isExpanded: true,
+            decoration: const InputDecoration(labelText: 'Uso de CFDI'),
+            items: [
+              for (final u in _usos)
+                DropdownMenuItem(
+                    value: u.id,
+                    child: Text('${u.id} · ${u.texto}',
+                        overflow: TextOverflow.ellipsis)),
+            ],
+            onChanged: (v) => setState(() => _usoCfdi = v),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
     final db = ref.read(databaseProvider);
+    String? nn(String s) => s.trim().isEmpty ? null : s.trim();
     final companion = CustomersCompanion(
       id: widget.customer != null
           ? Value(widget.customer!.id)
@@ -248,6 +350,11 @@ class _CustomerFormDialogState extends ConsumerState<_CustomerFormDialog> {
       phone: Value(_phoneCtrl.text.isEmpty ? null : _phoneCtrl.text),
       email: Value(_emailCtrl.text.isEmpty ? null : _emailCtrl.text),
       notes: Value(_notesCtrl.text.isEmpty ? null : _notesCtrl.text),
+      rfc: Value(nn(_rfcCtrl.text)?.toUpperCase()),
+      razonSocial: Value(nn(_razonCtrl.text)),
+      cpFiscal: Value(nn(_cpCtrl.text)),
+      regimenFiscal: Value(_regimen),
+      usoCfdiPreferido: Value(_usoCfdi),
     );
 
     if (widget.customer == null) {

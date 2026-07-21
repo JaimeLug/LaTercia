@@ -12,17 +12,16 @@ void main() {
       expect(parseKdsModifiers('esto no es json'), isEmpty);
     });
 
-    test('la lista devuelta es MUTABLE (se puede ordenar) — bug real: '
-        'devolver const [] revienta al hacer ..sort() en la vista All-day',
-        () {
+    test(
+        'la lista devuelta es MUTABLE (se puede ordenar) — bug real: '
+        'devolver const [] revienta al hacer ..sort() en la vista All-day', () {
       expect(() => parseKdsModifiers(null).sort(), returnsNormally);
       expect(() => parseKdsModifiers('').sort(), returnsNormally);
       expect(() => parseKdsModifiers('json inválido').sort(), returnsNormally);
     });
 
     test('parsea nombre e incluido', () {
-      final mods = parseKdsModifiers(
-          '[{"name":"Extra shot","included":false},'
+      final mods = parseKdsModifiers('[{"name":"Extra shot","included":false},'
           '{"name":"Leche de almendra","included":true}]');
 
       expect(mods, hasLength(2));

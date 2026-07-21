@@ -12,6 +12,7 @@ import '../../../core/services/checkout_service.dart';
 import '../../../core/services/print_service.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/formatters.dart';
+import 'factura_capture_dialog.dart';
 import 'receipt_dialog.dart';
 
 const _methods = [
@@ -57,6 +58,9 @@ class _PaymentModalState extends ConsumerState<PaymentModal> {
   final _referenceController = TextEditingController();
   final _tipController = TextEditingController();
   bool _processing = false;
+  // Flujo A: si el cliente pide factura, tras cobrar se capturan sus datos
+  // fiscales y se congela la factura. docs/facturacion.md §"Flujo A".
+  bool _requiereFactura = false;
   // Propina (4.1). null = ningún preset seleccionado (monto libre o sin propina).
   int? _tipPreset;
   // Pagos parciales ya agregados (pago mixto, 4.2). El tramo en edición vive en
@@ -218,6 +222,13 @@ class _PaymentModalState extends ConsumerState<PaymentModal> {
       return;
     }
 
+    // Flujo A: si el cliente pidió factura, captura sus datos fiscales y
+    // congela la factura individual (o la marca "faltan datos" si se guarda
+    // sin RFC, para completarla después). docs/facturacion.md §"Flujo A".
+    if (_requiereFactura && mounted) {
+      await showFacturaCapture(context, ref, order: order.order);
+    }
+
     // Fetch payments for receipt (usa el último tramo como referencia).
     final payments = await db.paymentsDao.getPaymentsForOrder(order.order.id);
     final payment = payments.last;
@@ -356,6 +367,18 @@ class _PaymentModalState extends ConsumerState<PaymentModal> {
                     ),
                   ),
                 const SizedBox(height: 8),
+                // Flujo A: al confirmar, si está marcado, se piden los datos
+                // fiscales y se congela la factura. docs/facturacion.md.
+                CheckboxListTile(
+                  value: _requiereFactura,
+                  onChanged: _processing
+                      ? null
+                      : (v) => setState(() => _requiereFactura = v ?? false),
+                  contentPadding: EdgeInsets.zero,
+                  controlAffinity: ListTileControlAffinity.leading,
+                  dense: true,
+                  title: const Text('Requiere factura (CFDI)'),
+                ),
                 Row(
                   children: [
                     Expanded(
