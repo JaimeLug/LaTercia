@@ -119,7 +119,7 @@ class KdsButtonService {
       socket.listen(
         (message) {
           if (message is String) {
-            // El stream crudo recibe TODO (rebote incluido): es el diagnóstico
+            // El stream crudo recibe Todo (rebote incluido): es el diagnóstico
             // de hardware de Admin → Botonera. docs/kds-conexion.md.
             _rawController.add(message);
             final boton = parseKdsButton(message);

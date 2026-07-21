@@ -459,7 +459,7 @@ class BackupService {
     final backup = sq.sqlite3.open(backupPath, mode: sq.OpenMode.readOnly);
     var added = 0, updated = 0, kept = 0;
     try {
-      // Se lee TODO el respaldo antes de abrir la transacción de escritura —
+      // Se lee Todo el respaldo antes de abrir la transacción de escritura —
       // así la conexión secundaria no se cruza con la transacción de drift.
       final cols = <String, List<String>>{};
       final backupData = <String, List<Map<String, Object?>>>{};

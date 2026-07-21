@@ -386,7 +386,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           ColorPicker(
             color: _primaryColor,
             // Bug 2026-07-20: poner `_loaded = false` aquí forzaba a
-            // `_loadFromSettings` a repintar TODO desde la base en el
+            // `_loadFromSettings` a repintar todo desde la base en el
             // siguiente build, y como nada se había guardado aún, el color
             // recién elegido se revertía al instante al valor viejo. Solo
             // se actualiza el estado local; se persiste al dar "Guardar".
