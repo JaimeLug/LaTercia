@@ -328,7 +328,7 @@ void main() {
 
     test('merge a nivel columna: mezcla campos de actual y de respaldo',
         () async {
-      // Ana actual: nombre 'Ana', teléfono '111'. En el respaldo cambió TODO
+      // Ana actual: nombre 'Ana', teléfono '111'. En el respaldo cambió todo
       // (nombre 'Ana Cambiada', teléfono '999'). Se quiere conservar el
       // nombre actual pero tomar el teléfono del respaldo.
       await addCurrentCustomer('Ana', phone: '111'); // id 1
@@ -386,7 +386,7 @@ void main() {
         () async {
       // Un empleado y un cliente con una venta que apunta a ese cliente:
       // borrar el cliente (lo que hace "reemplazar") viola la FK de orders y
-      // debe abortar TODO sin cambiar nada.
+      // debe abortar todo sin cambiar nada.
       final empId = await db.employeesDao.insertEmployee(
         EmployeesCompanion.insert(name: 'Caja', pin: '1234', role: 'cashier'),
       );
