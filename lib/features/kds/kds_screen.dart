@@ -236,8 +236,13 @@ class _KdsScreenState extends ConsumerState<KdsScreen>
     setState(() => _selectedOrderId = id);
     if (id == null) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_gridScrollController.hasClients) return;
+      // Si todo cabe en pantalla no hay que desplazar nada: centrar la tarjeta
+      // seleccionada la sacaría de la esquina y dejaría los pedidos flotando al
+      // centro. Solo se centra cuando hay tantos pedidos que sí hay scroll.
+      if (_gridScrollController.position.maxScrollExtent <= 0) return;
       final ctx = _cardKeys[id]?.currentContext;
-      if (ctx != null && mounted) {
+      if (ctx != null) {
         Scrollable.ensureVisible(
           ctx,
           duration: const Duration(milliseconds: 300),

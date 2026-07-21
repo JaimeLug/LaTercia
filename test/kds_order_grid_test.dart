@@ -122,6 +122,20 @@ void main() {
   });
 
   testWidgets(
+      'un solo pedido queda pegado a la esquina izquierda, no centrado '
+      '(feedback en sitio 2026-07-21)', (tester) async {
+    final o = await makeOrder('0001');
+    final keys = await pumpGrid(tester, orders: [o]);
+
+    // La tarjeta debe arrancar cerca del borde izquierdo (~padding), no
+    // flotando al centro de la pantalla.
+    final left = tester.getTopLeft(find.byKey(keys[o.order.id]!)).dx;
+    expect(left, lessThan(40),
+        reason: 'con un solo pedido la tarjeta debe quedar en la esquina '
+            'izquierda, no centrada');
+  });
+
+  testWidgets(
       'con muchas órdenes activas, TODAS quedan en el árbol (sin paginar)',
       (tester) async {
     final orders = <OrderWithItems>[];
