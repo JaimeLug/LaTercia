@@ -695,31 +695,40 @@ class KdsOrderGrid extends StatelessWidget {
           controller: controller,
           scrollDirection: Axis.horizontal,
           padding: const EdgeInsets.all(pad),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              for (final o in orders) ...[
-                ConstrainedBox(
-                  key: cardKeyFor(o.order.id),
-                  constraints: BoxConstraints(
-                    minWidth: cardW,
-                    maxWidth: cardW,
-                    maxHeight: maxCardHeight,
-                  ),
-                  child: SelectableOrderCard(
-                    selected: o.order.id == highlightId,
-                    child: OrderCardKds(
-                      key: ValueKey(o.order.id),
-                      orderWithItems: o,
-                      onSoundPlay: onSoundPlay,
-                      itemsScrollController:
-                          itemsControllerFor?.call(o.order.id),
+          // La fila ocupa AL MENOS el ancho visible: con pocos pedidos las
+          // tarjetas quedan pegadas a la izquierda (el espacio sobrante va a la
+          // derecha) en vez de centrarse; con muchos, desborda y hace scroll.
+          // Sin esto, algunos entornos centran el contenido cuando es más
+          // angosto que la pantalla. docs/kds.md.
+          child: ConstrainedBox(
+            constraints:
+                BoxConstraints(minWidth: constraints.maxWidth - pad * 2),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                for (final o in orders) ...[
+                  ConstrainedBox(
+                    key: cardKeyFor(o.order.id),
+                    constraints: BoxConstraints(
+                      minWidth: cardW,
+                      maxWidth: cardW,
+                      maxHeight: maxCardHeight,
+                    ),
+                    child: SelectableOrderCard(
+                      selected: o.order.id == highlightId,
+                      child: OrderCardKds(
+                        key: ValueKey(o.order.id),
+                        orderWithItems: o,
+                        onSoundPlay: onSoundPlay,
+                        itemsScrollController:
+                            itemsControllerFor?.call(o.order.id),
+                      ),
                     ),
                   ),
-                ),
-                const SizedBox(width: gap),
+                  const SizedBox(width: gap),
+                ],
               ],
-            ],
+            ),
           ),
         ),
       );
