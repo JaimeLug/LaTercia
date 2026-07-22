@@ -7,6 +7,7 @@ import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../core/providers/settings_provider.dart';
 import '../widgets/admin_panel.dart';
+import '../widgets/category_scope_picker.dart';
 
 class ModifiersScreen extends ConsumerStatefulWidget {
   const ModifiersScreen({super.key});
@@ -225,12 +226,10 @@ class _ModifierFormDialogState extends ConsumerState<_ModifierFormDialog> {
     final categories =
         await ref.read(databaseProvider).categoriesDao.getAllCategories();
     if (!mounted) return;
-    final result = await showDialog<Set<String>>(
-      context: context,
-      builder: (_) => _ScopePickerDialog(
-        categories: categories.map((c) => c.name).toList(),
-        initialSelected: _scopeCategories,
-      ),
+    final result = await showCategoryScopePicker(
+      context,
+      categories: categories.map((c) => c.name).toList(),
+      initialSelected: _scopeCategories,
     );
     if (result != null) setState(() => _scopeCategories = result);
   }
@@ -314,67 +313,5 @@ class _ModifierFormDialogState extends ConsumerState<_ModifierFormDialog> {
       await db.modifiersDao.updateModifier(companion);
     }
     if (mounted) Navigator.pop(context);
-  }
-}
-
-/// FASE 8 — selector múltiple de categorías para el alcance de un
-/// modificador, con checkboxes sobre el catálogo real (reemplaza el texto
-/// libre separado por comas).
-class _ScopePickerDialog extends StatefulWidget {
-  final List<String> categories;
-  final Set<String> initialSelected;
-  const _ScopePickerDialog(
-      {required this.categories, required this.initialSelected});
-
-  @override
-  State<_ScopePickerDialog> createState() => _ScopePickerDialogState();
-}
-
-class _ScopePickerDialogState extends State<_ScopePickerDialog> {
-  late Set<String> _selected = Set.from(widget.initialSelected);
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text('Alcance por categoría'),
-      content: SizedBox(
-        width: 360,
-        child: widget.categories.isEmpty
-            ? const Text('No hay categorías todavía.')
-            : SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: widget.categories
-                      .map((c) => CheckboxListTile(
-                            title: Text(c),
-                            value: _selected.contains(c),
-                            controlAffinity: ListTileControlAffinity.leading,
-                            contentPadding: EdgeInsets.zero,
-                            onChanged: (v) => setState(() {
-                              if (v == true) {
-                                _selected.add(c);
-                              } else {
-                                _selected.remove(c);
-                              }
-                            }),
-                          ))
-                      .toList(),
-                ),
-              ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => setState(() => _selected = {}),
-          child: const Text('Todas (limpiar)'),
-        ),
-        TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancelar')),
-        FilledButton(
-          onPressed: () => Navigator.pop(context, _selected),
-          child: const Text('Aplicar'),
-        ),
-      ],
-    );
   }
 }

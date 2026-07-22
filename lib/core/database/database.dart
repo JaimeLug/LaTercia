@@ -94,6 +94,13 @@ class Discounts extends Table {
   BoolColumn get active => boolean().withDefault(const Constant(true))();
   DateTimeColumn get validFrom => dateTime().nullable()();
   DateTimeColumn get validUntil => dateTime().nullable()();
+  // Promociones programadas (v13): ventana de día/hora (happy hour) y alcance
+  // por categoría, reusando el criterio de Modifiers.categoryScope. `type`
+  // ahora también acepta '2x1'. docs/promociones.md.
+  TextColumn get daysOfWeek => text().nullable()(); // CSV 1=lun..7=dom
+  TextColumn get startTime => text().nullable()(); // "HH:mm"
+  TextColumn get endTime => text().nullable()(); // "HH:mm"
+  TextColumn get categoryScope => text().nullable()();
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
 }
 
@@ -442,7 +449,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 12;
+  int get schemaVersion => 13;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -553,6 +560,14 @@ class AppDatabase extends _$AppDatabase {
             // docs/impresion.md §"Comanda de reparto".
             await m.addColumn(orders, orders.deliveryPaymentMethod);
             await m.addColumn(orders, orders.deliveryCashAmount);
+          }
+          if (from < 13) {
+            // v13: promociones programadas (día/hora + 2x1 + alcance por
+            // categoría). docs/promociones.md.
+            await m.addColumn(discounts, discounts.daysOfWeek);
+            await m.addColumn(discounts, discounts.startTime);
+            await m.addColumn(discounts, discounts.endTime);
+            await m.addColumn(discounts, discounts.categoryScope);
           }
         },
       );

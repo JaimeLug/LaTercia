@@ -1778,6 +1778,30 @@ class $DiscountsTable extends Discounts
   late final GeneratedColumn<DateTime> validUntil = GeneratedColumn<DateTime>(
       'valid_until', aliasedName, true,
       type: DriftSqlType.dateTime, requiredDuringInsert: false);
+  static const VerificationMeta _daysOfWeekMeta =
+      const VerificationMeta('daysOfWeek');
+  @override
+  late final GeneratedColumn<String> daysOfWeek = GeneratedColumn<String>(
+      'days_of_week', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _startTimeMeta =
+      const VerificationMeta('startTime');
+  @override
+  late final GeneratedColumn<String> startTime = GeneratedColumn<String>(
+      'start_time', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _endTimeMeta =
+      const VerificationMeta('endTime');
+  @override
+  late final GeneratedColumn<String> endTime = GeneratedColumn<String>(
+      'end_time', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _categoryScopeMeta =
+      const VerificationMeta('categoryScope');
+  @override
+  late final GeneratedColumn<String> categoryScope = GeneratedColumn<String>(
+      'category_scope', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
   static const VerificationMeta _createdAtMeta =
       const VerificationMeta('createdAt');
   @override
@@ -1796,6 +1820,10 @@ class $DiscountsTable extends Discounts
         active,
         validFrom,
         validUntil,
+        daysOfWeek,
+        startTime,
+        endTime,
+        categoryScope,
         createdAt
       ];
   @override
@@ -1849,6 +1877,26 @@ class $DiscountsTable extends Discounts
           validUntil.isAcceptableOrUnknown(
               data['valid_until']!, _validUntilMeta));
     }
+    if (data.containsKey('days_of_week')) {
+      context.handle(
+          _daysOfWeekMeta,
+          daysOfWeek.isAcceptableOrUnknown(
+              data['days_of_week']!, _daysOfWeekMeta));
+    }
+    if (data.containsKey('start_time')) {
+      context.handle(_startTimeMeta,
+          startTime.isAcceptableOrUnknown(data['start_time']!, _startTimeMeta));
+    }
+    if (data.containsKey('end_time')) {
+      context.handle(_endTimeMeta,
+          endTime.isAcceptableOrUnknown(data['end_time']!, _endTimeMeta));
+    }
+    if (data.containsKey('category_scope')) {
+      context.handle(
+          _categoryScopeMeta,
+          categoryScope.isAcceptableOrUnknown(
+              data['category_scope']!, _categoryScopeMeta));
+    }
     if (data.containsKey('created_at')) {
       context.handle(_createdAtMeta,
           createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta));
@@ -1878,6 +1926,14 @@ class $DiscountsTable extends Discounts
           .read(DriftSqlType.dateTime, data['${effectivePrefix}valid_from']),
       validUntil: attachedDatabase.typeMapping
           .read(DriftSqlType.dateTime, data['${effectivePrefix}valid_until']),
+      daysOfWeek: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}days_of_week']),
+      startTime: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}start_time']),
+      endTime: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}end_time']),
+      categoryScope: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}category_scope']),
       createdAt: attachedDatabase.typeMapping
           .read(DriftSqlType.dateTime, data['${effectivePrefix}created_at'])!,
     );
@@ -1898,6 +1954,10 @@ class Discount extends DataClass implements Insertable<Discount> {
   final bool active;
   final DateTime? validFrom;
   final DateTime? validUntil;
+  final String? daysOfWeek;
+  final String? startTime;
+  final String? endTime;
+  final String? categoryScope;
   final DateTime createdAt;
   const Discount(
       {required this.id,
@@ -1908,6 +1968,10 @@ class Discount extends DataClass implements Insertable<Discount> {
       required this.active,
       this.validFrom,
       this.validUntil,
+      this.daysOfWeek,
+      this.startTime,
+      this.endTime,
+      this.categoryScope,
       required this.createdAt});
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -1923,6 +1987,18 @@ class Discount extends DataClass implements Insertable<Discount> {
     }
     if (!nullToAbsent || validUntil != null) {
       map['valid_until'] = Variable<DateTime>(validUntil);
+    }
+    if (!nullToAbsent || daysOfWeek != null) {
+      map['days_of_week'] = Variable<String>(daysOfWeek);
+    }
+    if (!nullToAbsent || startTime != null) {
+      map['start_time'] = Variable<String>(startTime);
+    }
+    if (!nullToAbsent || endTime != null) {
+      map['end_time'] = Variable<String>(endTime);
+    }
+    if (!nullToAbsent || categoryScope != null) {
+      map['category_scope'] = Variable<String>(categoryScope);
     }
     map['created_at'] = Variable<DateTime>(createdAt);
     return map;
@@ -1942,6 +2018,18 @@ class Discount extends DataClass implements Insertable<Discount> {
       validUntil: validUntil == null && nullToAbsent
           ? const Value.absent()
           : Value(validUntil),
+      daysOfWeek: daysOfWeek == null && nullToAbsent
+          ? const Value.absent()
+          : Value(daysOfWeek),
+      startTime: startTime == null && nullToAbsent
+          ? const Value.absent()
+          : Value(startTime),
+      endTime: endTime == null && nullToAbsent
+          ? const Value.absent()
+          : Value(endTime),
+      categoryScope: categoryScope == null && nullToAbsent
+          ? const Value.absent()
+          : Value(categoryScope),
       createdAt: Value(createdAt),
     );
   }
@@ -1958,6 +2046,10 @@ class Discount extends DataClass implements Insertable<Discount> {
       active: serializer.fromJson<bool>(json['active']),
       validFrom: serializer.fromJson<DateTime?>(json['validFrom']),
       validUntil: serializer.fromJson<DateTime?>(json['validUntil']),
+      daysOfWeek: serializer.fromJson<String?>(json['daysOfWeek']),
+      startTime: serializer.fromJson<String?>(json['startTime']),
+      endTime: serializer.fromJson<String?>(json['endTime']),
+      categoryScope: serializer.fromJson<String?>(json['categoryScope']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
     );
   }
@@ -1973,6 +2065,10 @@ class Discount extends DataClass implements Insertable<Discount> {
       'active': serializer.toJson<bool>(active),
       'validFrom': serializer.toJson<DateTime?>(validFrom),
       'validUntil': serializer.toJson<DateTime?>(validUntil),
+      'daysOfWeek': serializer.toJson<String?>(daysOfWeek),
+      'startTime': serializer.toJson<String?>(startTime),
+      'endTime': serializer.toJson<String?>(endTime),
+      'categoryScope': serializer.toJson<String?>(categoryScope),
       'createdAt': serializer.toJson<DateTime>(createdAt),
     };
   }
@@ -1986,6 +2082,10 @@ class Discount extends DataClass implements Insertable<Discount> {
           bool? active,
           Value<DateTime?> validFrom = const Value.absent(),
           Value<DateTime?> validUntil = const Value.absent(),
+          Value<String?> daysOfWeek = const Value.absent(),
+          Value<String?> startTime = const Value.absent(),
+          Value<String?> endTime = const Value.absent(),
+          Value<String?> categoryScope = const Value.absent(),
           DateTime? createdAt}) =>
       Discount(
         id: id ?? this.id,
@@ -1996,6 +2096,11 @@ class Discount extends DataClass implements Insertable<Discount> {
         active: active ?? this.active,
         validFrom: validFrom.present ? validFrom.value : this.validFrom,
         validUntil: validUntil.present ? validUntil.value : this.validUntil,
+        daysOfWeek: daysOfWeek.present ? daysOfWeek.value : this.daysOfWeek,
+        startTime: startTime.present ? startTime.value : this.startTime,
+        endTime: endTime.present ? endTime.value : this.endTime,
+        categoryScope:
+            categoryScope.present ? categoryScope.value : this.categoryScope,
         createdAt: createdAt ?? this.createdAt,
       );
   Discount copyWithCompanion(DiscountsCompanion data) {
@@ -2011,6 +2116,13 @@ class Discount extends DataClass implements Insertable<Discount> {
       validFrom: data.validFrom.present ? data.validFrom.value : this.validFrom,
       validUntil:
           data.validUntil.present ? data.validUntil.value : this.validUntil,
+      daysOfWeek:
+          data.daysOfWeek.present ? data.daysOfWeek.value : this.daysOfWeek,
+      startTime: data.startTime.present ? data.startTime.value : this.startTime,
+      endTime: data.endTime.present ? data.endTime.value : this.endTime,
+      categoryScope: data.categoryScope.present
+          ? data.categoryScope.value
+          : this.categoryScope,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
     );
   }
@@ -2026,14 +2138,30 @@ class Discount extends DataClass implements Insertable<Discount> {
           ..write('active: $active, ')
           ..write('validFrom: $validFrom, ')
           ..write('validUntil: $validUntil, ')
+          ..write('daysOfWeek: $daysOfWeek, ')
+          ..write('startTime: $startTime, ')
+          ..write('endTime: $endTime, ')
+          ..write('categoryScope: $categoryScope, ')
           ..write('createdAt: $createdAt')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(id, name, type, value, minOrderAmount, active,
-      validFrom, validUntil, createdAt);
+  int get hashCode => Object.hash(
+      id,
+      name,
+      type,
+      value,
+      minOrderAmount,
+      active,
+      validFrom,
+      validUntil,
+      daysOfWeek,
+      startTime,
+      endTime,
+      categoryScope,
+      createdAt);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -2046,6 +2174,10 @@ class Discount extends DataClass implements Insertable<Discount> {
           other.active == this.active &&
           other.validFrom == this.validFrom &&
           other.validUntil == this.validUntil &&
+          other.daysOfWeek == this.daysOfWeek &&
+          other.startTime == this.startTime &&
+          other.endTime == this.endTime &&
+          other.categoryScope == this.categoryScope &&
           other.createdAt == this.createdAt);
 }
 
@@ -2058,6 +2190,10 @@ class DiscountsCompanion extends UpdateCompanion<Discount> {
   final Value<bool> active;
   final Value<DateTime?> validFrom;
   final Value<DateTime?> validUntil;
+  final Value<String?> daysOfWeek;
+  final Value<String?> startTime;
+  final Value<String?> endTime;
+  final Value<String?> categoryScope;
   final Value<DateTime> createdAt;
   const DiscountsCompanion({
     this.id = const Value.absent(),
@@ -2068,6 +2204,10 @@ class DiscountsCompanion extends UpdateCompanion<Discount> {
     this.active = const Value.absent(),
     this.validFrom = const Value.absent(),
     this.validUntil = const Value.absent(),
+    this.daysOfWeek = const Value.absent(),
+    this.startTime = const Value.absent(),
+    this.endTime = const Value.absent(),
+    this.categoryScope = const Value.absent(),
     this.createdAt = const Value.absent(),
   });
   DiscountsCompanion.insert({
@@ -2079,6 +2219,10 @@ class DiscountsCompanion extends UpdateCompanion<Discount> {
     this.active = const Value.absent(),
     this.validFrom = const Value.absent(),
     this.validUntil = const Value.absent(),
+    this.daysOfWeek = const Value.absent(),
+    this.startTime = const Value.absent(),
+    this.endTime = const Value.absent(),
+    this.categoryScope = const Value.absent(),
     this.createdAt = const Value.absent(),
   })  : name = Value(name),
         type = Value(type),
@@ -2092,6 +2236,10 @@ class DiscountsCompanion extends UpdateCompanion<Discount> {
     Expression<bool>? active,
     Expression<DateTime>? validFrom,
     Expression<DateTime>? validUntil,
+    Expression<String>? daysOfWeek,
+    Expression<String>? startTime,
+    Expression<String>? endTime,
+    Expression<String>? categoryScope,
     Expression<DateTime>? createdAt,
   }) {
     return RawValuesInsertable({
@@ -2103,6 +2251,10 @@ class DiscountsCompanion extends UpdateCompanion<Discount> {
       if (active != null) 'active': active,
       if (validFrom != null) 'valid_from': validFrom,
       if (validUntil != null) 'valid_until': validUntil,
+      if (daysOfWeek != null) 'days_of_week': daysOfWeek,
+      if (startTime != null) 'start_time': startTime,
+      if (endTime != null) 'end_time': endTime,
+      if (categoryScope != null) 'category_scope': categoryScope,
       if (createdAt != null) 'created_at': createdAt,
     });
   }
@@ -2116,6 +2268,10 @@ class DiscountsCompanion extends UpdateCompanion<Discount> {
       Value<bool>? active,
       Value<DateTime?>? validFrom,
       Value<DateTime?>? validUntil,
+      Value<String?>? daysOfWeek,
+      Value<String?>? startTime,
+      Value<String?>? endTime,
+      Value<String?>? categoryScope,
       Value<DateTime>? createdAt}) {
     return DiscountsCompanion(
       id: id ?? this.id,
@@ -2126,6 +2282,10 @@ class DiscountsCompanion extends UpdateCompanion<Discount> {
       active: active ?? this.active,
       validFrom: validFrom ?? this.validFrom,
       validUntil: validUntil ?? this.validUntil,
+      daysOfWeek: daysOfWeek ?? this.daysOfWeek,
+      startTime: startTime ?? this.startTime,
+      endTime: endTime ?? this.endTime,
+      categoryScope: categoryScope ?? this.categoryScope,
       createdAt: createdAt ?? this.createdAt,
     );
   }
@@ -2157,6 +2317,18 @@ class DiscountsCompanion extends UpdateCompanion<Discount> {
     if (validUntil.present) {
       map['valid_until'] = Variable<DateTime>(validUntil.value);
     }
+    if (daysOfWeek.present) {
+      map['days_of_week'] = Variable<String>(daysOfWeek.value);
+    }
+    if (startTime.present) {
+      map['start_time'] = Variable<String>(startTime.value);
+    }
+    if (endTime.present) {
+      map['end_time'] = Variable<String>(endTime.value);
+    }
+    if (categoryScope.present) {
+      map['category_scope'] = Variable<String>(categoryScope.value);
+    }
     if (createdAt.present) {
       map['created_at'] = Variable<DateTime>(createdAt.value);
     }
@@ -2174,6 +2346,10 @@ class DiscountsCompanion extends UpdateCompanion<Discount> {
           ..write('active: $active, ')
           ..write('validFrom: $validFrom, ')
           ..write('validUntil: $validUntil, ')
+          ..write('daysOfWeek: $daysOfWeek, ')
+          ..write('startTime: $startTime, ')
+          ..write('endTime: $endTime, ')
+          ..write('categoryScope: $categoryScope, ')
           ..write('createdAt: $createdAt')
           ..write(')'))
         .toString();
@@ -13216,6 +13392,10 @@ typedef $$DiscountsTableCreateCompanionBuilder = DiscountsCompanion Function({
   Value<bool> active,
   Value<DateTime?> validFrom,
   Value<DateTime?> validUntil,
+  Value<String?> daysOfWeek,
+  Value<String?> startTime,
+  Value<String?> endTime,
+  Value<String?> categoryScope,
   Value<DateTime> createdAt,
 });
 typedef $$DiscountsTableUpdateCompanionBuilder = DiscountsCompanion Function({
@@ -13227,6 +13407,10 @@ typedef $$DiscountsTableUpdateCompanionBuilder = DiscountsCompanion Function({
   Value<bool> active,
   Value<DateTime?> validFrom,
   Value<DateTime?> validUntil,
+  Value<String?> daysOfWeek,
+  Value<String?> startTime,
+  Value<String?> endTime,
+  Value<String?> categoryScope,
   Value<DateTime> createdAt,
 });
 
@@ -13263,6 +13447,18 @@ class $$DiscountsTableFilterComposer
 
   ColumnFilters<DateTime> get validUntil => $composableBuilder(
       column: $table.validUntil, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get daysOfWeek => $composableBuilder(
+      column: $table.daysOfWeek, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get startTime => $composableBuilder(
+      column: $table.startTime, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get endTime => $composableBuilder(
+      column: $table.endTime, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get categoryScope => $composableBuilder(
+      column: $table.categoryScope, builder: (column) => ColumnFilters(column));
 
   ColumnFilters<DateTime> get createdAt => $composableBuilder(
       column: $table.createdAt, builder: (column) => ColumnFilters(column));
@@ -13302,6 +13498,19 @@ class $$DiscountsTableOrderingComposer
   ColumnOrderings<DateTime> get validUntil => $composableBuilder(
       column: $table.validUntil, builder: (column) => ColumnOrderings(column));
 
+  ColumnOrderings<String> get daysOfWeek => $composableBuilder(
+      column: $table.daysOfWeek, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get startTime => $composableBuilder(
+      column: $table.startTime, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get endTime => $composableBuilder(
+      column: $table.endTime, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get categoryScope => $composableBuilder(
+      column: $table.categoryScope,
+      builder: (column) => ColumnOrderings(column));
+
   ColumnOrderings<DateTime> get createdAt => $composableBuilder(
       column: $table.createdAt, builder: (column) => ColumnOrderings(column));
 }
@@ -13339,6 +13548,18 @@ class $$DiscountsTableAnnotationComposer
   GeneratedColumn<DateTime> get validUntil => $composableBuilder(
       column: $table.validUntil, builder: (column) => column);
 
+  GeneratedColumn<String> get daysOfWeek => $composableBuilder(
+      column: $table.daysOfWeek, builder: (column) => column);
+
+  GeneratedColumn<String> get startTime =>
+      $composableBuilder(column: $table.startTime, builder: (column) => column);
+
+  GeneratedColumn<String> get endTime =>
+      $composableBuilder(column: $table.endTime, builder: (column) => column);
+
+  GeneratedColumn<String> get categoryScope => $composableBuilder(
+      column: $table.categoryScope, builder: (column) => column);
+
   GeneratedColumn<DateTime> get createdAt =>
       $composableBuilder(column: $table.createdAt, builder: (column) => column);
 }
@@ -13374,6 +13595,10 @@ class $$DiscountsTableTableManager extends RootTableManager<
             Value<bool> active = const Value.absent(),
             Value<DateTime?> validFrom = const Value.absent(),
             Value<DateTime?> validUntil = const Value.absent(),
+            Value<String?> daysOfWeek = const Value.absent(),
+            Value<String?> startTime = const Value.absent(),
+            Value<String?> endTime = const Value.absent(),
+            Value<String?> categoryScope = const Value.absent(),
             Value<DateTime> createdAt = const Value.absent(),
           }) =>
               DiscountsCompanion(
@@ -13385,6 +13610,10 @@ class $$DiscountsTableTableManager extends RootTableManager<
             active: active,
             validFrom: validFrom,
             validUntil: validUntil,
+            daysOfWeek: daysOfWeek,
+            startTime: startTime,
+            endTime: endTime,
+            categoryScope: categoryScope,
             createdAt: createdAt,
           ),
           createCompanionCallback: ({
@@ -13396,6 +13625,10 @@ class $$DiscountsTableTableManager extends RootTableManager<
             Value<bool> active = const Value.absent(),
             Value<DateTime?> validFrom = const Value.absent(),
             Value<DateTime?> validUntil = const Value.absent(),
+            Value<String?> daysOfWeek = const Value.absent(),
+            Value<String?> startTime = const Value.absent(),
+            Value<String?> endTime = const Value.absent(),
+            Value<String?> categoryScope = const Value.absent(),
             Value<DateTime> createdAt = const Value.absent(),
           }) =>
               DiscountsCompanion.insert(
@@ -13407,6 +13640,10 @@ class $$DiscountsTableTableManager extends RootTableManager<
             active: active,
             validFrom: validFrom,
             validUntil: validUntil,
+            daysOfWeek: daysOfWeek,
+            startTime: startTime,
+            endTime: endTime,
+            categoryScope: categoryScope,
             createdAt: createdAt,
           ),
           withReferenceMapper: (p0) => p0

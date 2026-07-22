@@ -190,6 +190,10 @@ void _buildV9Fixture(String path) {
   // que el fixture necesita la tabla (mínima) para poder correr el ALTER.
   db.execute(
       'CREATE TABLE shifts (id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT)');
+  // discounts idem — la migración v13 (promociones programadas) le agrega
+  // columnas.
+  db.execute(
+      'CREATE TABLE discounts (id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT)');
 
   final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
   db.execute(

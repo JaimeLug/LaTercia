@@ -60,6 +60,10 @@ class _PosScreenState extends ConsumerState<PosScreen> {
   String _deliveryMethod = 'efectivo';
   String? _orderNote;
   Discount? _selectedDiscount;
+  // Si el cajero tocó "Sin desc." mientras había una promo programada, no se
+  // vuelve a auto-aplicar en esta orden (se resetea al vaciar el carrito).
+  // docs/promociones.md.
+  bool _autoDismissed = false;
 
   // UI state
   int? _selectedCategoryId;
@@ -128,9 +132,43 @@ class _PosScreenState extends ConsumerState<PosScreen> {
         .toList();
   }
 
+  /// Cada línea del carrito para calcular promociones (precio, cantidad,
+  /// categoría) — igual patrón de resolución de categoría que `_addToCart`.
+  /// `docs/promociones.md`.
+  List<PromoLine> get _promoLines {
+    final cats = ref.read(categoriesProvider).valueOrNull ?? [];
+    final catNameById = {for (final c in cats) c.id: c.name};
+    return _cart
+        .map((item) => (
+              unitPrice: item.unitPrice,
+              quantity: item.quantity,
+              categoryName: catNameById[item.product.categoryId],
+            ))
+        .toList();
+  }
+
+  /// El descuento elegido, ya resuelto a un monto fijo en efectivo vía
+  /// `discountAmountForCart` (respeta alcance por categoría y 2x1). Se pasa a
+  /// `computeTaxedTotals` como 'fixed' ya calculado — el prorrateo de IVA no
+  /// cambia. `docs/promociones.md`.
+  Discount? get _resolvedDiscount {
+    final d = _selectedDiscount;
+    if (d == null) return null;
+    final amount = discountAmountForCart(d, _promoLines);
+    return Discount(
+      id: d.id,
+      name: d.name,
+      type: 'fixed',
+      value: amount,
+      minOrderAmount: 0,
+      active: true,
+      createdAt: d.createdAt,
+    );
+  }
+
   OrderTotals get _totals => computeTaxedTotals(
         lines: _taxLines,
-        discount: _selectedDiscount,
+        discount: _resolvedDiscount,
       );
 
   double get _discountAmount => _totals.discount;
@@ -233,6 +271,7 @@ class _PosScreenState extends ConsumerState<PosScreen> {
     setState(() {
       _cart.clear();
       _selectedDiscount = null;
+      _autoDismissed = false;
       _selectedZoneId = null;
       _noteController.clear();
       _customerController.clear();
@@ -789,6 +828,19 @@ class _PosScreenState extends ConsumerState<PosScreen> {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) setState(() => _selectedDiscount = null);
       });
+    } else if (_selectedDiscount == null &&
+        !_autoDismissed &&
+        _cart.isNotEmpty) {
+      // Auto-aplica la primera promoción PROGRAMADA elegible (happy hour,
+      // 2x1 por horario) — un descuento manual normal nunca se auto-aplica.
+      // docs/promociones.md.
+      final scheduled = activeDiscounts.where(isScheduledDiscount).toList();
+      if (scheduled.isNotEmpty) {
+        final promo = scheduled.first;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) setState(() => _selectedDiscount = promo);
+        });
+      }
     }
 
     // El IVA ahora se calcula por producto (4.5); la fila del resumen se muestra
@@ -938,14 +990,26 @@ class _PosScreenState extends ConsumerState<PosScreen> {
                       _DiscountPill(
                         label: 'Sin desc.',
                         selected: _selectedDiscount == null,
-                        onTap: () => setState(() => _selectedDiscount = null),
+                        onTap: () => setState(() {
+                          _selectedDiscount = null;
+                          _autoDismissed = true;
+                        }),
                       ),
                       ...activeDiscounts.map((d) => Padding(
                             padding: const EdgeInsets.only(left: 6),
                             child: _DiscountPill(
-                              label: d.type == 'percentage'
-                                  ? '${d.name} (${d.value.toInt()}%)'
-                                  : '${d.name} (${formatCurrency(d.value, symbol)})',
+                              label: switch (d.type) {
+                                'percentage' =>
+                                  '${d.name} (${d.value.toInt()}%)',
+                                '2x1' => '${d.name} (2x1)',
+                                _ =>
+                                  '${d.name} (${formatCurrency(d.value, symbol)})',
+                              },
+                              // Reloj = promoción programada (se auto-aplicó
+                              // sola). docs/promociones.md.
+                              icon: isScheduledDiscount(d)
+                                  ? Icons.schedule
+                                  : null,
                               selected: _selectedDiscount?.id == d.id,
                               onTap: () => _selectDiscount(d),
                             ),
@@ -1217,10 +1281,13 @@ class _DiscountPill extends StatelessWidget {
   final String label;
   final bool selected;
   final VoidCallback onTap;
+  // Ícono opcional (reloj = promoción programada). docs/promociones.md.
+  final IconData? icon;
   const _DiscountPill({
     required this.label,
     required this.selected,
     required this.onTap,
+    this.icon,
   });
 
   @override
@@ -1241,13 +1308,24 @@ class _DiscountPill extends StatelessWidget {
                     ? LaTerciaColors.burntOrange
                     : LaTerciaColors.border),
           ),
-          child: Text(
-            label,
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              color: selected ? Colors.white : LaTerciaColors.cocoa,
-            ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (icon != null) ...[
+                Icon(icon,
+                    size: 13,
+                    color: selected ? Colors.white : LaTerciaColors.tan),
+                const SizedBox(width: 4),
+              ],
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: selected ? Colors.white : LaTerciaColors.cocoa,
+                ),
+              ),
+            ],
           ),
         ),
       ),

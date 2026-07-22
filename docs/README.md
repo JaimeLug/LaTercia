@@ -44,5 +44,7 @@ explicación larga.
   los nombres se usan en el selector de la Cocina.
 - [Soft delete de órdenes y cortes](soft-delete.md) — eliminar (ocultar) una
   orden o corte de listas/reportes sin borrarlo; con PIN de supervisor.
+- [Promociones programadas](promociones.md) — happy hour (día/hora) y 2x1 con
+  alcance por categoría, auto-aplicados en el POS; extiende Descuentos.
 
 > Este índice crece conforme se van limpiando más archivos.

@@ -109,11 +109,88 @@ bool taxIsIncludedInTotal({
   return (asAdded - total).abs() > 0.01;
 }
 
-/// Si un descuento puede ofrecerse para la orden actual. `docs/precios-e-iva.md`.
+/// Si un descuento puede ofrecerse para la orden actual. `docs/precios-e-iva.md`;
+/// la ventana de día/hora es de `docs/promociones.md`.
 bool isDiscountEligible(Discount d, double subtotal, DateTime now) {
   if (!d.active) return false;
   if (d.validFrom != null && now.isBefore(d.validFrom!)) return false;
   if (d.validUntil != null && now.isAfter(d.validUntil!)) return false;
   if (subtotal < d.minOrderAmount) return false;
+  if (!_matchesDayOfWeek(d.daysOfWeek, now)) return false;
+  if (!_matchesTimeWindow(d.startTime, d.endTime, now)) return false;
   return true;
+}
+
+// ─── Promociones programadas (docs/promociones.md) ───────────────────────────
+
+bool _matchesDayOfWeek(String? csv, DateTime now) {
+  final s = csv?.trim();
+  if (s == null || s.isEmpty) return true; // sin restricción = todos los días
+  final days = s.split(',').map((e) => int.tryParse(e.trim())).whereType<int>();
+  return days.contains(now.weekday); // DateTime.weekday: 1=lun..7=dom
+}
+
+bool _matchesTimeWindow(String? start, String? end, DateTime now) {
+  final s = (start ?? '').trim();
+  final e = (end ?? '').trim();
+  if (s.isEmpty || e.isEmpty) return true; // falta uno de los dos = sin ventana
+  final sMin = _minutesOfDay(s);
+  final eMin = _minutesOfDay(e);
+  if (sMin == null || eMin == null) {
+    return false; // dato mal formado: falla cerrado
+  }
+  final nowMin = now.hour * 60 + now.minute;
+  if (sMin <= eMin) return nowMin >= sMin && nowMin <= eMin;
+  return nowMin >= sMin || nowMin <= eMin; // cruza medianoche (ej. 22:00–02:00)
+}
+
+int? _minutesOfDay(String hhmm) {
+  final parts = hhmm.split(':');
+  if (parts.length != 2) return null;
+  final h = int.tryParse(parts[0]);
+  final m = int.tryParse(parts[1]);
+  if (h == null || m == null || h < 0 || h > 23 || m < 0 || m > 59) return null;
+  return h * 60 + m;
+}
+
+/// `true` si [d] tiene alguna restricción de día/hora — distingue una
+/// promoción programada (happy hour, que se auto-aplica en el POS) de un
+/// descuento manual de mostrador. `docs/promociones.md`.
+bool isScheduledDiscount(Discount d) {
+  final hasDays = (d.daysOfWeek ?? '').trim().isNotEmpty;
+  final hasTime = (d.startTime ?? '').trim().isNotEmpty &&
+      (d.endTime ?? '').trim().isNotEmpty;
+  return hasDays || hasTime;
+}
+
+/// Una línea del carrito relevante para calcular una promoción: precio
+/// unitario, cantidad y el nombre de su categoría (para el alcance).
+/// `docs/promociones.md`.
+typedef PromoLine = ({double unitPrice, int quantity, String? categoryName});
+
+/// Filtra [lines] al `categoryScope` de [d] — mismo criterio que
+/// `Modifiers.categoryScope` (CSV case-insensitive; vacío = todas).
+List<PromoLine> _linesInScope(Discount d, List<PromoLine> lines) {
+  final scope = (d.categoryScope ?? '').trim();
+  if (scope.isEmpty) return lines;
+  final names = scope.split(',').map((s) => s.trim().toLowerCase()).toSet();
+  return lines
+      .where((l) => names.contains((l.categoryName ?? '').trim().toLowerCase()))
+      .toList();
+}
+
+/// Monto de descuento de [d] sobre el carrito [lines], respetando su alcance
+/// de categoría. Si `type == '2x1'`, por cada línea en alcance cada 2 unidades
+/// dejan 1 gratis (redondeo hacia abajo); si no, aplica `discountAmountFor`
+/// sobre el subtotal de las líneas en alcance (con alcance vacío, es el
+/// subtotal completo — 100% compatible con el comportamiento de antes).
+/// `docs/promociones.md`.
+double discountAmountForCart(Discount d, List<PromoLine> lines) {
+  final scoped = _linesInScope(d, lines);
+  if (d.type == '2x1') {
+    return scoped.fold(0.0, (sum, l) => sum + (l.quantity ~/ 2) * l.unitPrice);
+  }
+  final scopedSubtotal =
+      scoped.fold(0.0, (sum, l) => sum + l.unitPrice * l.quantity);
+  return discountAmountFor(d, scopedSubtotal);
 }
