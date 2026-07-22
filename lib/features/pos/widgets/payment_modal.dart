@@ -42,11 +42,24 @@ class PaymentModal extends ConsumerStatefulWidget {
   /// (ya se imprimió al enviar a cocina). docs/ordenes-y-cocina.md.
   final bool printKitchenComanda;
 
+  /// División de cuenta por artículo: "Cuenta de la persona 1 de 3" arriba
+  /// del monto, para que quede claro a quién le toca este cobro.
+  /// `docs/division-cuenta.md`.
+  final String? personLabel;
+
+  /// Abre el modal y de inmediato pide "¿entre cuántas personas?" (partes
+  /// iguales) — para cuando el cajero ya eligió esa opción desde el diálogo
+  /// de "Dividir cuenta" del carrito, en vez de tener que volver a tocar el
+  /// botón "Dividir cuenta" de aquí adentro. `docs/division-cuenta.md`.
+  final bool autoStartEvenSplit;
+
   const PaymentModal({
     super.key,
     required this.total,
     required this.onCheckout,
     this.printKitchenComanda = true,
+    this.personLabel,
+    this.autoStartEvenSplit = false,
   });
 
   @override
@@ -72,6 +85,14 @@ class _PaymentModalState extends ConsumerState<PaymentModal> {
   // tramo con el monto que le toca a esa persona.
   List<double>? _evenSplit;
   int _evenSplitCursor = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.autoStartEvenSplit) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _startEvenSplit());
+    }
+  }
 
   @override
   void dispose() {
@@ -116,11 +137,24 @@ class _PaymentModalState extends ConsumerState<PaymentModal> {
 
   /// El tramo actual es parcial: aporta algo pero no cierra el saldo.
   bool get _isPartial =>
-      _receivedAmount > 0 && _currentApplied < _remaining - 0.0001;
+      _receivedAmount > 0 && !_reachesCents(_currentApplied, _remaining);
 
   /// El tramo actual cierra el cobro (cubre el saldo pendiente).
   bool get _closesBalance =>
-      _remaining <= 0.0001 || _receivedAmount >= _remaining - 0.0001;
+      _centsOf(_remaining) <= 0 || _reachesCents(_receivedAmount, _remaining);
+
+  /// Redondea a centavos (evita arrastrar el ruido de punto flotante de un
+  /// precio prorrateado — ej. un combo — hasta el número entero de centavos
+  /// que de verdad importa para cobrar). `docs/division-cuenta.md`.
+  int _centsOf(double amount) => (amount * 100).round();
+
+  /// `true` si [received] alcanza para cubrir [remaining] A NIVEL DE CENTAVO
+  /// — comparar los doubles crudos con una tolerancia de 0.0001 no basta: un
+  /// precio prorrateado de combo puede quedar a medio centavo (ej. $35.585),
+  /// y "Exacto" (que redondea a "35.59" en el campo) terminaba pareciendo
+  /// insuficiente. `docs/division-cuenta.md`.
+  bool _reachesCents(double received, double remaining) =>
+      _centsOf(received) >= _centsOf(remaining);
 
   void _setReceived(double amount) {
     _receivedController.text = amount.toStringAsFixed(2);
@@ -330,10 +364,30 @@ class _PaymentModalState extends ConsumerState<PaymentModal> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
+                if (widget.personLabel != null)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: LaTerciaColors.surfaceVariant,
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Text(widget.personLabel!,
+                          style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              color: LaTerciaColors.burntOrange)),
+                    ),
+                  ),
                 // Dividir cuenta en partes iguales (docs/division-cuenta.md):
                 // solo antes de empezar a agregar tramos, para no mezclar con
-                // un pago mixto ya en curso.
-                if (_committed.isEmpty && _evenSplit == null)
+                // un pago mixto ya en curso, y no dentro de un cobro que ya es
+                // "la cuenta de una persona" del split por artículo.
+                if (_committed.isEmpty &&
+                    _evenSplit == null &&
+                    widget.personLabel == null)
                   Align(
                     alignment: Alignment.centerRight,
                     child: TextButton.icon(

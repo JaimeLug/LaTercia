@@ -60,11 +60,40 @@ manejar una orden normal, sin importar que venga de un split.
   movería líneas entre órdenes ya existentes, mucho más riesgoso.
 - Partir una línea con cantidad > 1 entre dos personas (ver punto 2 arriba).
 
+## Bugs encontrados en sitio (2026-07-22) y su arreglo
+
+- **"Exacto" no cerraba el saldo con un total prorrateado de combo** (ej.
+  $35.585): la comparación recibido-vs-saldo usaba una tolerancia fija de
+  0.0001, insuficiente contra un residuo de medio centavo. Ahora
+  `_isPartial`/`_closesBalance` comparan **en centavos enteros**
+  (`_centsOf`/`_reachesCents` en `payment_modal.dart`), no en doubles crudos.
+- **Cancelar a media persona borraba TODA la orden**: `_startItemSplit`
+  llamaba `_clearCart()` sin importar si cada persona había pagado o
+  cancelado. Ahora se rastrea qué grupos SÍ completaron el pago
+  (`onCheckout` solo se dispara al confirmar, nunca al cancelar) y solo esas
+  líneas se quitan del carrito — si alguien cancela, sus artículos se quedan.
+- Cada `PaymentModal` del split por artículo ahora dice **"Cuenta de la
+  persona N de M"** arriba del monto.
+- **No se encontraba "partes iguales" desde el carrito**: el botón vivía
+  escondido DENTRO del `PaymentModal` (solo tras tocar "Cobrar"), mientras
+  que "por artículo" tenía su propio botón visible en el carrito — Jaime
+  probó y solo encontró la segunda. Ahora el carrito tiene un solo botón
+  **"Dividir cuenta"** que abre un diálogo con las dos opciones ("Partes
+  iguales" / "Por producto"); elegir "Partes iguales" abre el `PaymentModal`
+  con `autoStartEvenSplit: true`, que dispara de inmediato el mismo diálogo
+  "¿Entre cuántas personas?" que antes había que buscar adentro.
+
 ## Dónde vive en la UI
 
-- **Partes iguales**: dentro del `PaymentModal` de siempre — un botón
-  "Dividir cuenta" arriba (solo antes de agregar el primer tramo) pide el
-  número de personas y precarga el monto de cada parte.
-- **Por artículo**: botón **"Dividir por artículo"** en la barra de resumen
-  del carrito del POS, junto a "Cobrar". Deshabilitado si el carrito tiene
-  menos de 2 líneas o si hay un descuento/combo/recompensa aplicado.
+- **Botón "Dividir cuenta"** en la barra de resumen del carrito del POS,
+  junto a "Cobrar" (visible con 2+ líneas) — abre un diálogo con las dos
+  opciones:
+  - **Partes iguales**: siempre disponible. Abre el `PaymentModal` con
+    `autoStartEvenSplit: true`, que pide el número de personas y precarga el
+    monto de cada parte (mismo mecanismo de pago mixto de siempre). También
+    se puede iniciar desde DENTRO del `PaymentModal` normal (botón "Dividir
+    cuenta" arriba, solo antes de agregar el primer tramo) — por si el
+    cajero ya estaba cobrando y decide dividir a medio camino.
+  - **Por producto**: deshabilitado si hay un descuento/combo/recompensa
+    aplicado (con aviso de por qué). Abre `_SplitByItemDialog` para asignar
+    cada línea a una persona.

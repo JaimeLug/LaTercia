@@ -660,6 +660,14 @@ class $ProductsTable extends Products with TableInfo<$ProductsTable, Product> {
   late final GeneratedColumn<String> objetoImp = GeneratedColumn<String>(
       'objeto_imp', aliasedName, true,
       type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _loyaltyPointsValueMeta =
+      const VerificationMeta('loyaltyPointsValue');
+  @override
+  late final GeneratedColumn<int> loyaltyPointsValue = GeneratedColumn<int>(
+      'loyalty_points_value', aliasedName, false,
+      type: DriftSqlType.int,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(0));
   static const VerificationMeta _createdAtMeta =
       const VerificationMeta('createdAt');
   @override
@@ -696,6 +704,7 @@ class $ProductsTable extends Products with TableInfo<$ProductsTable, Product> {
         claveProdServ,
         claveUnidad,
         objetoImp,
+        loyaltyPointsValue,
         createdAt,
         updatedAt
       ];
@@ -802,6 +811,12 @@ class $ProductsTable extends Products with TableInfo<$ProductsTable, Product> {
       context.handle(_objetoImpMeta,
           objetoImp.isAcceptableOrUnknown(data['objeto_imp']!, _objetoImpMeta));
     }
+    if (data.containsKey('loyalty_points_value')) {
+      context.handle(
+          _loyaltyPointsValueMeta,
+          loyaltyPointsValue.isAcceptableOrUnknown(
+              data['loyalty_points_value']!, _loyaltyPointsValueMeta));
+    }
     if (data.containsKey('created_at')) {
       context.handle(_createdAtMeta,
           createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta));
@@ -855,6 +870,8 @@ class $ProductsTable extends Products with TableInfo<$ProductsTable, Product> {
           .read(DriftSqlType.string, data['${effectivePrefix}clave_unidad']),
       objetoImp: attachedDatabase.typeMapping
           .read(DriftSqlType.string, data['${effectivePrefix}objeto_imp']),
+      loyaltyPointsValue: attachedDatabase.typeMapping.read(
+          DriftSqlType.int, data['${effectivePrefix}loyalty_points_value'])!,
       createdAt: attachedDatabase.typeMapping
           .read(DriftSqlType.dateTime, data['${effectivePrefix}created_at'])!,
       updatedAt: attachedDatabase.typeMapping
@@ -887,6 +904,7 @@ class Product extends DataClass implements Insertable<Product> {
   final String? claveProdServ;
   final String? claveUnidad;
   final String? objetoImp;
+  final int loyaltyPointsValue;
   final DateTime createdAt;
   final DateTime updatedAt;
   const Product(
@@ -908,6 +926,7 @@ class Product extends DataClass implements Insertable<Product> {
       this.claveProdServ,
       this.claveUnidad,
       this.objetoImp,
+      required this.loyaltyPointsValue,
       required this.createdAt,
       required this.updatedAt});
   @override
@@ -947,6 +966,7 @@ class Product extends DataClass implements Insertable<Product> {
     if (!nullToAbsent || objetoImp != null) {
       map['objeto_imp'] = Variable<String>(objetoImp);
     }
+    map['loyalty_points_value'] = Variable<int>(loyaltyPointsValue);
     map['created_at'] = Variable<DateTime>(createdAt);
     map['updated_at'] = Variable<DateTime>(updatedAt);
     return map;
@@ -986,6 +1006,7 @@ class Product extends DataClass implements Insertable<Product> {
       objetoImp: objetoImp == null && nullToAbsent
           ? const Value.absent()
           : Value(objetoImp),
+      loyaltyPointsValue: Value(loyaltyPointsValue),
       createdAt: Value(createdAt),
       updatedAt: Value(updatedAt),
     );
@@ -1013,6 +1034,7 @@ class Product extends DataClass implements Insertable<Product> {
       claveProdServ: serializer.fromJson<String?>(json['claveProdServ']),
       claveUnidad: serializer.fromJson<String?>(json['claveUnidad']),
       objetoImp: serializer.fromJson<String?>(json['objetoImp']),
+      loyaltyPointsValue: serializer.fromJson<int>(json['loyaltyPointsValue']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
       updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
     );
@@ -1039,6 +1061,7 @@ class Product extends DataClass implements Insertable<Product> {
       'claveProdServ': serializer.toJson<String?>(claveProdServ),
       'claveUnidad': serializer.toJson<String?>(claveUnidad),
       'objetoImp': serializer.toJson<String?>(objetoImp),
+      'loyaltyPointsValue': serializer.toJson<int>(loyaltyPointsValue),
       'createdAt': serializer.toJson<DateTime>(createdAt),
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
     };
@@ -1063,6 +1086,7 @@ class Product extends DataClass implements Insertable<Product> {
           Value<String?> claveProdServ = const Value.absent(),
           Value<String?> claveUnidad = const Value.absent(),
           Value<String?> objetoImp = const Value.absent(),
+          int? loyaltyPointsValue,
           DateTime? createdAt,
           DateTime? updatedAt}) =>
       Product(
@@ -1085,6 +1109,7 @@ class Product extends DataClass implements Insertable<Product> {
             claveProdServ.present ? claveProdServ.value : this.claveProdServ,
         claveUnidad: claveUnidad.present ? claveUnidad.value : this.claveUnidad,
         objetoImp: objetoImp.present ? objetoImp.value : this.objetoImp,
+        loyaltyPointsValue: loyaltyPointsValue ?? this.loyaltyPointsValue,
         createdAt: createdAt ?? this.createdAt,
         updatedAt: updatedAt ?? this.updatedAt,
       );
@@ -1119,6 +1144,9 @@ class Product extends DataClass implements Insertable<Product> {
       claveUnidad:
           data.claveUnidad.present ? data.claveUnidad.value : this.claveUnidad,
       objetoImp: data.objetoImp.present ? data.objetoImp.value : this.objetoImp,
+      loyaltyPointsValue: data.loyaltyPointsValue.present
+          ? data.loyaltyPointsValue.value
+          : this.loyaltyPointsValue,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
     );
@@ -1145,6 +1173,7 @@ class Product extends DataClass implements Insertable<Product> {
           ..write('claveProdServ: $claveProdServ, ')
           ..write('claveUnidad: $claveUnidad, ')
           ..write('objetoImp: $objetoImp, ')
+          ..write('loyaltyPointsValue: $loyaltyPointsValue, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt')
           ..write(')'))
@@ -1152,27 +1181,29 @@ class Product extends DataClass implements Insertable<Product> {
   }
 
   @override
-  int get hashCode => Object.hash(
-      id,
-      name,
-      description,
-      price,
-      cost,
-      categoryId,
-      sku,
-      imagePath,
-      available,
-      trackInventory,
-      stockQuantity,
-      minStock,
-      taxRate,
-      taxIncluded,
-      usesRecipe,
-      claveProdServ,
-      claveUnidad,
-      objetoImp,
-      createdAt,
-      updatedAt);
+  int get hashCode => Object.hashAll([
+        id,
+        name,
+        description,
+        price,
+        cost,
+        categoryId,
+        sku,
+        imagePath,
+        available,
+        trackInventory,
+        stockQuantity,
+        minStock,
+        taxRate,
+        taxIncluded,
+        usesRecipe,
+        claveProdServ,
+        claveUnidad,
+        objetoImp,
+        loyaltyPointsValue,
+        createdAt,
+        updatedAt
+      ]);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -1195,6 +1226,7 @@ class Product extends DataClass implements Insertable<Product> {
           other.claveProdServ == this.claveProdServ &&
           other.claveUnidad == this.claveUnidad &&
           other.objetoImp == this.objetoImp &&
+          other.loyaltyPointsValue == this.loyaltyPointsValue &&
           other.createdAt == this.createdAt &&
           other.updatedAt == this.updatedAt);
 }
@@ -1218,6 +1250,7 @@ class ProductsCompanion extends UpdateCompanion<Product> {
   final Value<String?> claveProdServ;
   final Value<String?> claveUnidad;
   final Value<String?> objetoImp;
+  final Value<int> loyaltyPointsValue;
   final Value<DateTime> createdAt;
   final Value<DateTime> updatedAt;
   const ProductsCompanion({
@@ -1239,6 +1272,7 @@ class ProductsCompanion extends UpdateCompanion<Product> {
     this.claveProdServ = const Value.absent(),
     this.claveUnidad = const Value.absent(),
     this.objetoImp = const Value.absent(),
+    this.loyaltyPointsValue = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
   });
@@ -1261,6 +1295,7 @@ class ProductsCompanion extends UpdateCompanion<Product> {
     this.claveProdServ = const Value.absent(),
     this.claveUnidad = const Value.absent(),
     this.objetoImp = const Value.absent(),
+    this.loyaltyPointsValue = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
   })  : name = Value(name),
@@ -1285,6 +1320,7 @@ class ProductsCompanion extends UpdateCompanion<Product> {
     Expression<String>? claveProdServ,
     Expression<String>? claveUnidad,
     Expression<String>? objetoImp,
+    Expression<int>? loyaltyPointsValue,
     Expression<DateTime>? createdAt,
     Expression<DateTime>? updatedAt,
   }) {
@@ -1307,6 +1343,8 @@ class ProductsCompanion extends UpdateCompanion<Product> {
       if (claveProdServ != null) 'clave_prod_serv': claveProdServ,
       if (claveUnidad != null) 'clave_unidad': claveUnidad,
       if (objetoImp != null) 'objeto_imp': objetoImp,
+      if (loyaltyPointsValue != null)
+        'loyalty_points_value': loyaltyPointsValue,
       if (createdAt != null) 'created_at': createdAt,
       if (updatedAt != null) 'updated_at': updatedAt,
     });
@@ -1331,6 +1369,7 @@ class ProductsCompanion extends UpdateCompanion<Product> {
       Value<String?>? claveProdServ,
       Value<String?>? claveUnidad,
       Value<String?>? objetoImp,
+      Value<int>? loyaltyPointsValue,
       Value<DateTime>? createdAt,
       Value<DateTime>? updatedAt}) {
     return ProductsCompanion(
@@ -1352,6 +1391,7 @@ class ProductsCompanion extends UpdateCompanion<Product> {
       claveProdServ: claveProdServ ?? this.claveProdServ,
       claveUnidad: claveUnidad ?? this.claveUnidad,
       objetoImp: objetoImp ?? this.objetoImp,
+      loyaltyPointsValue: loyaltyPointsValue ?? this.loyaltyPointsValue,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
     );
@@ -1414,6 +1454,9 @@ class ProductsCompanion extends UpdateCompanion<Product> {
     if (objetoImp.present) {
       map['objeto_imp'] = Variable<String>(objetoImp.value);
     }
+    if (loyaltyPointsValue.present) {
+      map['loyalty_points_value'] = Variable<int>(loyaltyPointsValue.value);
+    }
     if (createdAt.present) {
       map['created_at'] = Variable<DateTime>(createdAt.value);
     }
@@ -1444,6 +1487,7 @@ class ProductsCompanion extends UpdateCompanion<Product> {
           ..write('claveProdServ: $claveProdServ, ')
           ..write('claveUnidad: $claveUnidad, ')
           ..write('objetoImp: $objetoImp, ')
+          ..write('loyaltyPointsValue: $loyaltyPointsValue, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt')
           ..write(')'))
@@ -1796,11 +1840,11 @@ class $DiscountsTable extends Discounts
   late final GeneratedColumn<String> endTime = GeneratedColumn<String>(
       'end_time', aliasedName, true,
       type: DriftSqlType.string, requiredDuringInsert: false);
-  static const VerificationMeta _categoryScopeMeta =
-      const VerificationMeta('categoryScope');
+  static const VerificationMeta _productScopeMeta =
+      const VerificationMeta('productScope');
   @override
-  late final GeneratedColumn<String> categoryScope = GeneratedColumn<String>(
-      'category_scope', aliasedName, true,
+  late final GeneratedColumn<String> productScope = GeneratedColumn<String>(
+      'product_scope', aliasedName, true,
       type: DriftSqlType.string, requiredDuringInsert: false);
   static const VerificationMeta _createdAtMeta =
       const VerificationMeta('createdAt');
@@ -1823,7 +1867,7 @@ class $DiscountsTable extends Discounts
         daysOfWeek,
         startTime,
         endTime,
-        categoryScope,
+        productScope,
         createdAt
       ];
   @override
@@ -1891,11 +1935,11 @@ class $DiscountsTable extends Discounts
       context.handle(_endTimeMeta,
           endTime.isAcceptableOrUnknown(data['end_time']!, _endTimeMeta));
     }
-    if (data.containsKey('category_scope')) {
+    if (data.containsKey('product_scope')) {
       context.handle(
-          _categoryScopeMeta,
-          categoryScope.isAcceptableOrUnknown(
-              data['category_scope']!, _categoryScopeMeta));
+          _productScopeMeta,
+          productScope.isAcceptableOrUnknown(
+              data['product_scope']!, _productScopeMeta));
     }
     if (data.containsKey('created_at')) {
       context.handle(_createdAtMeta,
@@ -1932,8 +1976,8 @@ class $DiscountsTable extends Discounts
           .read(DriftSqlType.string, data['${effectivePrefix}start_time']),
       endTime: attachedDatabase.typeMapping
           .read(DriftSqlType.string, data['${effectivePrefix}end_time']),
-      categoryScope: attachedDatabase.typeMapping
-          .read(DriftSqlType.string, data['${effectivePrefix}category_scope']),
+      productScope: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}product_scope']),
       createdAt: attachedDatabase.typeMapping
           .read(DriftSqlType.dateTime, data['${effectivePrefix}created_at'])!,
     );
@@ -1957,7 +2001,7 @@ class Discount extends DataClass implements Insertable<Discount> {
   final String? daysOfWeek;
   final String? startTime;
   final String? endTime;
-  final String? categoryScope;
+  final String? productScope;
   final DateTime createdAt;
   const Discount(
       {required this.id,
@@ -1971,7 +2015,7 @@ class Discount extends DataClass implements Insertable<Discount> {
       this.daysOfWeek,
       this.startTime,
       this.endTime,
-      this.categoryScope,
+      this.productScope,
       required this.createdAt});
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -1997,8 +2041,8 @@ class Discount extends DataClass implements Insertable<Discount> {
     if (!nullToAbsent || endTime != null) {
       map['end_time'] = Variable<String>(endTime);
     }
-    if (!nullToAbsent || categoryScope != null) {
-      map['category_scope'] = Variable<String>(categoryScope);
+    if (!nullToAbsent || productScope != null) {
+      map['product_scope'] = Variable<String>(productScope);
     }
     map['created_at'] = Variable<DateTime>(createdAt);
     return map;
@@ -2027,9 +2071,9 @@ class Discount extends DataClass implements Insertable<Discount> {
       endTime: endTime == null && nullToAbsent
           ? const Value.absent()
           : Value(endTime),
-      categoryScope: categoryScope == null && nullToAbsent
+      productScope: productScope == null && nullToAbsent
           ? const Value.absent()
-          : Value(categoryScope),
+          : Value(productScope),
       createdAt: Value(createdAt),
     );
   }
@@ -2049,7 +2093,7 @@ class Discount extends DataClass implements Insertable<Discount> {
       daysOfWeek: serializer.fromJson<String?>(json['daysOfWeek']),
       startTime: serializer.fromJson<String?>(json['startTime']),
       endTime: serializer.fromJson<String?>(json['endTime']),
-      categoryScope: serializer.fromJson<String?>(json['categoryScope']),
+      productScope: serializer.fromJson<String?>(json['productScope']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
     );
   }
@@ -2068,7 +2112,7 @@ class Discount extends DataClass implements Insertable<Discount> {
       'daysOfWeek': serializer.toJson<String?>(daysOfWeek),
       'startTime': serializer.toJson<String?>(startTime),
       'endTime': serializer.toJson<String?>(endTime),
-      'categoryScope': serializer.toJson<String?>(categoryScope),
+      'productScope': serializer.toJson<String?>(productScope),
       'createdAt': serializer.toJson<DateTime>(createdAt),
     };
   }
@@ -2085,7 +2129,7 @@ class Discount extends DataClass implements Insertable<Discount> {
           Value<String?> daysOfWeek = const Value.absent(),
           Value<String?> startTime = const Value.absent(),
           Value<String?> endTime = const Value.absent(),
-          Value<String?> categoryScope = const Value.absent(),
+          Value<String?> productScope = const Value.absent(),
           DateTime? createdAt}) =>
       Discount(
         id: id ?? this.id,
@@ -2099,8 +2143,8 @@ class Discount extends DataClass implements Insertable<Discount> {
         daysOfWeek: daysOfWeek.present ? daysOfWeek.value : this.daysOfWeek,
         startTime: startTime.present ? startTime.value : this.startTime,
         endTime: endTime.present ? endTime.value : this.endTime,
-        categoryScope:
-            categoryScope.present ? categoryScope.value : this.categoryScope,
+        productScope:
+            productScope.present ? productScope.value : this.productScope,
         createdAt: createdAt ?? this.createdAt,
       );
   Discount copyWithCompanion(DiscountsCompanion data) {
@@ -2120,9 +2164,9 @@ class Discount extends DataClass implements Insertable<Discount> {
           data.daysOfWeek.present ? data.daysOfWeek.value : this.daysOfWeek,
       startTime: data.startTime.present ? data.startTime.value : this.startTime,
       endTime: data.endTime.present ? data.endTime.value : this.endTime,
-      categoryScope: data.categoryScope.present
-          ? data.categoryScope.value
-          : this.categoryScope,
+      productScope: data.productScope.present
+          ? data.productScope.value
+          : this.productScope,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
     );
   }
@@ -2141,7 +2185,7 @@ class Discount extends DataClass implements Insertable<Discount> {
           ..write('daysOfWeek: $daysOfWeek, ')
           ..write('startTime: $startTime, ')
           ..write('endTime: $endTime, ')
-          ..write('categoryScope: $categoryScope, ')
+          ..write('productScope: $productScope, ')
           ..write('createdAt: $createdAt')
           ..write(')'))
         .toString();
@@ -2160,7 +2204,7 @@ class Discount extends DataClass implements Insertable<Discount> {
       daysOfWeek,
       startTime,
       endTime,
-      categoryScope,
+      productScope,
       createdAt);
   @override
   bool operator ==(Object other) =>
@@ -2177,7 +2221,7 @@ class Discount extends DataClass implements Insertable<Discount> {
           other.daysOfWeek == this.daysOfWeek &&
           other.startTime == this.startTime &&
           other.endTime == this.endTime &&
-          other.categoryScope == this.categoryScope &&
+          other.productScope == this.productScope &&
           other.createdAt == this.createdAt);
 }
 
@@ -2193,7 +2237,7 @@ class DiscountsCompanion extends UpdateCompanion<Discount> {
   final Value<String?> daysOfWeek;
   final Value<String?> startTime;
   final Value<String?> endTime;
-  final Value<String?> categoryScope;
+  final Value<String?> productScope;
   final Value<DateTime> createdAt;
   const DiscountsCompanion({
     this.id = const Value.absent(),
@@ -2207,7 +2251,7 @@ class DiscountsCompanion extends UpdateCompanion<Discount> {
     this.daysOfWeek = const Value.absent(),
     this.startTime = const Value.absent(),
     this.endTime = const Value.absent(),
-    this.categoryScope = const Value.absent(),
+    this.productScope = const Value.absent(),
     this.createdAt = const Value.absent(),
   });
   DiscountsCompanion.insert({
@@ -2222,7 +2266,7 @@ class DiscountsCompanion extends UpdateCompanion<Discount> {
     this.daysOfWeek = const Value.absent(),
     this.startTime = const Value.absent(),
     this.endTime = const Value.absent(),
-    this.categoryScope = const Value.absent(),
+    this.productScope = const Value.absent(),
     this.createdAt = const Value.absent(),
   })  : name = Value(name),
         type = Value(type),
@@ -2239,7 +2283,7 @@ class DiscountsCompanion extends UpdateCompanion<Discount> {
     Expression<String>? daysOfWeek,
     Expression<String>? startTime,
     Expression<String>? endTime,
-    Expression<String>? categoryScope,
+    Expression<String>? productScope,
     Expression<DateTime>? createdAt,
   }) {
     return RawValuesInsertable({
@@ -2254,7 +2298,7 @@ class DiscountsCompanion extends UpdateCompanion<Discount> {
       if (daysOfWeek != null) 'days_of_week': daysOfWeek,
       if (startTime != null) 'start_time': startTime,
       if (endTime != null) 'end_time': endTime,
-      if (categoryScope != null) 'category_scope': categoryScope,
+      if (productScope != null) 'product_scope': productScope,
       if (createdAt != null) 'created_at': createdAt,
     });
   }
@@ -2271,7 +2315,7 @@ class DiscountsCompanion extends UpdateCompanion<Discount> {
       Value<String?>? daysOfWeek,
       Value<String?>? startTime,
       Value<String?>? endTime,
-      Value<String?>? categoryScope,
+      Value<String?>? productScope,
       Value<DateTime>? createdAt}) {
     return DiscountsCompanion(
       id: id ?? this.id,
@@ -2285,7 +2329,7 @@ class DiscountsCompanion extends UpdateCompanion<Discount> {
       daysOfWeek: daysOfWeek ?? this.daysOfWeek,
       startTime: startTime ?? this.startTime,
       endTime: endTime ?? this.endTime,
-      categoryScope: categoryScope ?? this.categoryScope,
+      productScope: productScope ?? this.productScope,
       createdAt: createdAt ?? this.createdAt,
     );
   }
@@ -2326,8 +2370,8 @@ class DiscountsCompanion extends UpdateCompanion<Discount> {
     if (endTime.present) {
       map['end_time'] = Variable<String>(endTime.value);
     }
-    if (categoryScope.present) {
-      map['category_scope'] = Variable<String>(categoryScope.value);
+    if (productScope.present) {
+      map['product_scope'] = Variable<String>(productScope.value);
     }
     if (createdAt.present) {
       map['created_at'] = Variable<DateTime>(createdAt.value);
@@ -2349,7 +2393,7 @@ class DiscountsCompanion extends UpdateCompanion<Discount> {
           ..write('daysOfWeek: $daysOfWeek, ')
           ..write('startTime: $startTime, ')
           ..write('endTime: $endTime, ')
-          ..write('categoryScope: $categoryScope, ')
+          ..write('productScope: $productScope, ')
           ..write('createdAt: $createdAt')
           ..write(')'))
         .toString();
@@ -13271,6 +13315,7 @@ typedef $$ProductsTableCreateCompanionBuilder = ProductsCompanion Function({
   Value<String?> claveProdServ,
   Value<String?> claveUnidad,
   Value<String?> objetoImp,
+  Value<int> loyaltyPointsValue,
   Value<DateTime> createdAt,
   Value<DateTime> updatedAt,
 });
@@ -13293,6 +13338,7 @@ typedef $$ProductsTableUpdateCompanionBuilder = ProductsCompanion Function({
   Value<String?> claveProdServ,
   Value<String?> claveUnidad,
   Value<String?> objetoImp,
+  Value<int> loyaltyPointsValue,
   Value<DateTime> createdAt,
   Value<DateTime> updatedAt,
 });
@@ -13439,6 +13485,10 @@ class $$ProductsTableFilterComposer
 
   ColumnFilters<String> get objetoImp => $composableBuilder(
       column: $table.objetoImp, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get loyaltyPointsValue => $composableBuilder(
+      column: $table.loyaltyPointsValue,
+      builder: (column) => ColumnFilters(column));
 
   ColumnFilters<DateTime> get createdAt => $composableBuilder(
       column: $table.createdAt, builder: (column) => ColumnFilters(column));
@@ -13614,6 +13664,10 @@ class $$ProductsTableOrderingComposer
   ColumnOrderings<String> get objetoImp => $composableBuilder(
       column: $table.objetoImp, builder: (column) => ColumnOrderings(column));
 
+  ColumnOrderings<int> get loyaltyPointsValue => $composableBuilder(
+      column: $table.loyaltyPointsValue,
+      builder: (column) => ColumnOrderings(column));
+
   ColumnOrderings<DateTime> get createdAt => $composableBuilder(
       column: $table.createdAt, builder: (column) => ColumnOrderings(column));
 
@@ -13700,6 +13754,9 @@ class $$ProductsTableAnnotationComposer
 
   GeneratedColumn<String> get objetoImp =>
       $composableBuilder(column: $table.objetoImp, builder: (column) => column);
+
+  GeneratedColumn<int> get loyaltyPointsValue => $composableBuilder(
+      column: $table.loyaltyPointsValue, builder: (column) => column);
 
   GeneratedColumn<DateTime> get createdAt =>
       $composableBuilder(column: $table.createdAt, builder: (column) => column);
@@ -13859,6 +13916,7 @@ class $$ProductsTableTableManager extends RootTableManager<
             Value<String?> claveProdServ = const Value.absent(),
             Value<String?> claveUnidad = const Value.absent(),
             Value<String?> objetoImp = const Value.absent(),
+            Value<int> loyaltyPointsValue = const Value.absent(),
             Value<DateTime> createdAt = const Value.absent(),
             Value<DateTime> updatedAt = const Value.absent(),
           }) =>
@@ -13881,6 +13939,7 @@ class $$ProductsTableTableManager extends RootTableManager<
             claveProdServ: claveProdServ,
             claveUnidad: claveUnidad,
             objetoImp: objetoImp,
+            loyaltyPointsValue: loyaltyPointsValue,
             createdAt: createdAt,
             updatedAt: updatedAt,
           ),
@@ -13903,6 +13962,7 @@ class $$ProductsTableTableManager extends RootTableManager<
             Value<String?> claveProdServ = const Value.absent(),
             Value<String?> claveUnidad = const Value.absent(),
             Value<String?> objetoImp = const Value.absent(),
+            Value<int> loyaltyPointsValue = const Value.absent(),
             Value<DateTime> createdAt = const Value.absent(),
             Value<DateTime> updatedAt = const Value.absent(),
           }) =>
@@ -13925,6 +13985,7 @@ class $$ProductsTableTableManager extends RootTableManager<
             claveProdServ: claveProdServ,
             claveUnidad: claveUnidad,
             objetoImp: objetoImp,
+            loyaltyPointsValue: loyaltyPointsValue,
             createdAt: createdAt,
             updatedAt: updatedAt,
           ),
@@ -14207,7 +14268,7 @@ typedef $$DiscountsTableCreateCompanionBuilder = DiscountsCompanion Function({
   Value<String?> daysOfWeek,
   Value<String?> startTime,
   Value<String?> endTime,
-  Value<String?> categoryScope,
+  Value<String?> productScope,
   Value<DateTime> createdAt,
 });
 typedef $$DiscountsTableUpdateCompanionBuilder = DiscountsCompanion Function({
@@ -14222,7 +14283,7 @@ typedef $$DiscountsTableUpdateCompanionBuilder = DiscountsCompanion Function({
   Value<String?> daysOfWeek,
   Value<String?> startTime,
   Value<String?> endTime,
-  Value<String?> categoryScope,
+  Value<String?> productScope,
   Value<DateTime> createdAt,
 });
 
@@ -14269,8 +14330,8 @@ class $$DiscountsTableFilterComposer
   ColumnFilters<String> get endTime => $composableBuilder(
       column: $table.endTime, builder: (column) => ColumnFilters(column));
 
-  ColumnFilters<String> get categoryScope => $composableBuilder(
-      column: $table.categoryScope, builder: (column) => ColumnFilters(column));
+  ColumnFilters<String> get productScope => $composableBuilder(
+      column: $table.productScope, builder: (column) => ColumnFilters(column));
 
   ColumnFilters<DateTime> get createdAt => $composableBuilder(
       column: $table.createdAt, builder: (column) => ColumnFilters(column));
@@ -14319,8 +14380,8 @@ class $$DiscountsTableOrderingComposer
   ColumnOrderings<String> get endTime => $composableBuilder(
       column: $table.endTime, builder: (column) => ColumnOrderings(column));
 
-  ColumnOrderings<String> get categoryScope => $composableBuilder(
-      column: $table.categoryScope,
+  ColumnOrderings<String> get productScope => $composableBuilder(
+      column: $table.productScope,
       builder: (column) => ColumnOrderings(column));
 
   ColumnOrderings<DateTime> get createdAt => $composableBuilder(
@@ -14369,8 +14430,8 @@ class $$DiscountsTableAnnotationComposer
   GeneratedColumn<String> get endTime =>
       $composableBuilder(column: $table.endTime, builder: (column) => column);
 
-  GeneratedColumn<String> get categoryScope => $composableBuilder(
-      column: $table.categoryScope, builder: (column) => column);
+  GeneratedColumn<String> get productScope => $composableBuilder(
+      column: $table.productScope, builder: (column) => column);
 
   GeneratedColumn<DateTime> get createdAt =>
       $composableBuilder(column: $table.createdAt, builder: (column) => column);
@@ -14410,7 +14471,7 @@ class $$DiscountsTableTableManager extends RootTableManager<
             Value<String?> daysOfWeek = const Value.absent(),
             Value<String?> startTime = const Value.absent(),
             Value<String?> endTime = const Value.absent(),
-            Value<String?> categoryScope = const Value.absent(),
+            Value<String?> productScope = const Value.absent(),
             Value<DateTime> createdAt = const Value.absent(),
           }) =>
               DiscountsCompanion(
@@ -14425,7 +14486,7 @@ class $$DiscountsTableTableManager extends RootTableManager<
             daysOfWeek: daysOfWeek,
             startTime: startTime,
             endTime: endTime,
-            categoryScope: categoryScope,
+            productScope: productScope,
             createdAt: createdAt,
           ),
           createCompanionCallback: ({
@@ -14440,7 +14501,7 @@ class $$DiscountsTableTableManager extends RootTableManager<
             Value<String?> daysOfWeek = const Value.absent(),
             Value<String?> startTime = const Value.absent(),
             Value<String?> endTime = const Value.absent(),
-            Value<String?> categoryScope = const Value.absent(),
+            Value<String?> productScope = const Value.absent(),
             Value<DateTime> createdAt = const Value.absent(),
           }) =>
               DiscountsCompanion.insert(
@@ -14455,7 +14516,7 @@ class $$DiscountsTableTableManager extends RootTableManager<
             daysOfWeek: daysOfWeek,
             startTime: startTime,
             endTime: endTime,
-            categoryScope: categoryScope,
+            productScope: productScope,
             createdAt: createdAt,
           ),
           withReferenceMapper: (p0) => p0

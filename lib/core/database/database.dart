@@ -75,6 +75,10 @@ class Products extends Table {
   TextColumn get claveProdServ => text().nullable()(); // c_ClaveProdServ
   TextColumn get claveUnidad => text().nullable()(); // c_ClaveUnidad
   TextColumn get objetoImp => text().nullable()(); // c_ObjetoImp (01/02/03)
+  // Fidelización por puntos (v15): puntos que este producto otorga por unidad
+  // vendida. docs/fidelizacion.md.
+  IntColumn get loyaltyPointsValue =>
+      integer().withDefault(const Constant(0))();
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
   DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();
 }
@@ -96,12 +100,13 @@ class Discounts extends Table {
   DateTimeColumn get validFrom => dateTime().nullable()();
   DateTimeColumn get validUntil => dateTime().nullable()();
   // Promociones programadas (v13): ventana de día/hora (happy hour) y alcance
-  // por categoría, reusando el criterio de Modifiers.categoryScope. `type`
-  // ahora también acepta '2x1'. docs/promociones.md.
+  // por producto (no por categoría — Jaime prefiere "2x1" sobre productos
+  // específicos, no categorías enteras; feedback de sitio 2026-07-22).
+  // `type` ahora también acepta '2x1'. docs/promociones.md.
   TextColumn get daysOfWeek => text().nullable()(); // CSV 1=lun..7=dom
   TextColumn get startTime => text().nullable()(); // "HH:mm"
   TextColumn get endTime => text().nullable()(); // "HH:mm"
-  TextColumn get categoryScope => text().nullable()();
+  TextColumn get productScope => text().nullable()(); // CSV nombres de producto
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
 }
 
@@ -594,11 +599,11 @@ class AppDatabase extends _$AppDatabase {
           }
           if (from < 13) {
             // v13: promociones programadas (día/hora + 2x1 + alcance por
-            // categoría). docs/promociones.md.
+            // producto). docs/promociones.md.
             await m.addColumn(discounts, discounts.daysOfWeek);
             await m.addColumn(discounts, discounts.startTime);
             await m.addColumn(discounts, discounts.endTime);
-            await m.addColumn(discounts, discounts.categoryScope);
+            await m.addColumn(discounts, discounts.productScope);
           }
           if (from < 14) {
             // v14: combos/paquetes. docs/combos.md.
@@ -608,9 +613,11 @@ class AppDatabase extends _$AppDatabase {
             await m.addColumn(orderItems, orderItems.comboName);
           }
           if (from < 15) {
-            // v15: fidelización (sellos/puntos). docs/fidelizacion.md.
+            // v15: fidelización (sellos/puntos, ambos independientes entre
+            // sí) + puntos por producto. docs/fidelizacion.md.
             await m.addColumn(customers, customers.loyaltyStamps);
             await m.addColumn(customers, customers.loyaltyPoints);
+            await m.addColumn(products, products.loyaltyPointsValue);
           }
         },
       );

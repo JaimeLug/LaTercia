@@ -39,56 +39,78 @@ class CustomersDao extends DatabaseAccessor<AppDatabase>
     }
   }
 
-  /// Suma sellos/puntos según `loyalty_type` en Settings — llamar junto a
-  /// [incrementVisits] al cobrar una venta con cliente vinculado. Lee los
-  /// settings del propio `AppDatabase` (mismo patrón que `InventoryDao` para
+  /// Suma sellos/puntos — sellos y puntos son mecánicas INDEPENDIENTES
+  /// (`loyalty_sellos_activo`/`loyalty_puntos_activo` en Settings, ambas
+  /// pueden estar activas a la vez). Llamar junto a [incrementVisits] al
+  /// cobrar una venta con cliente vinculado. Los puntos se ganan por
+  /// PRODUCTO (`Products.loyaltyPointsValue` × cantidad), no por monto
+  /// gastado — de ahí que reciba las líneas de la orden. Lee los settings del
+  /// propio `AppDatabase` (mismo patrón que `InventoryDao` para
   /// `insumos_activo`), sin necesidad de pasarlos como parámetro.
   /// docs/fidelizacion.md.
-  Future<void> earnLoyalty(int id, double amountSpent) async {
+  Future<void> earnLoyalty(
+    int id,
+    List<({int productId, int quantity})> items,
+  ) async {
     final settings = await attachedDatabase.settingsDao.getAllSettings();
-    final type = settings['loyalty_type'] ?? 'ninguno';
-    if (type == 'ninguno') return;
+    final sellosOn = settings['loyalty_sellos_activo'] == 'true';
+    final puntosOn = settings['loyalty_puntos_activo'] == 'true';
+    if (!sellosOn && !puntosOn) return;
 
     final customer = await (select(customers)..where((c) => c.id.equals(id)))
         .getSingleOrNull();
     if (customer == null) return;
 
-    if (type == 'sellos') {
-      await (update(customers)..where((c) => c.id.equals(id))).write(
-          CustomersCompanion(loyaltyStamps: Value(customer.loyaltyStamps + 1)));
-    } else if (type == 'puntos') {
-      final rate =
-          double.tryParse(settings['loyalty_points_per_currency'] ?? '');
-      if (rate == null || rate <= 0) return;
-      final earned = (amountSpent / rate).floor();
-      if (earned <= 0) return;
-      await (update(customers)..where((c) => c.id.equals(id))).write(
-          CustomersCompanion(
-              loyaltyPoints: Value(customer.loyaltyPoints + earned)));
+    var pointsEarned = 0;
+    if (puntosOn) {
+      for (final item in items) {
+        final product =
+            await attachedDatabase.productsDao.getProductById(item.productId);
+        pointsEarned += (product?.loyaltyPointsValue ?? 0) * item.quantity;
+      }
     }
+    final stampsEarned = sellosOn ? 1 : 0;
+    if (stampsEarned == 0 && pointsEarned == 0) return;
+
+    await (update(customers)..where((c) => c.id.equals(id))).write(
+      CustomersCompanion(
+        loyaltyStamps: Value(customer.loyaltyStamps + stampsEarned),
+        loyaltyPoints: Value(customer.loyaltyPoints + pointsEarned),
+      ),
+    );
   }
 
-  /// Consume la recompensa ganada: resetea sellos a 0, o resta el umbral de
-  /// puntos (el sobrante se queda). Llamar SOLO al cobrar de una vez (nunca en
-  /// el flujo de "pagar después" — v1, ver docs/fidelizacion.md).
-  Future<void> redeemLoyalty(int id) async {
-    final settings = await attachedDatabase.settingsDao.getAllSettings();
-    final type = settings['loyalty_type'] ?? 'ninguno';
+  /// Consume la(s) recompensa(s) ganada(s): resetea sellos a 0 y/o resta el
+  /// umbral de puntos (el sobrante se queda) — independientes entre sí, según
+  /// cuál se haya canjeado en el POS. Llamar SOLO al cobrar de una vez (nunca
+  /// en el flujo de "pagar después" — v1, ver docs/fidelizacion.md).
+  Future<void> redeemLoyalty(
+    int id, {
+    bool stamps = false,
+    bool points = false,
+  }) async {
+    if (!stamps && !points) return;
     final customer = await (select(customers)..where((c) => c.id.equals(id)))
         .getSingleOrNull();
     if (customer == null) return;
 
-    if (type == 'sellos') {
-      await (update(customers)..where((c) => c.id.equals(id)))
-          .write(const CustomersCompanion(loyaltyStamps: Value(0)));
-    } else if (type == 'puntos') {
+    var newStamps = customer.loyaltyStamps;
+    var newPoints = customer.loyaltyPoints;
+    if (stamps) newStamps = 0;
+    if (points) {
+      final settings = await attachedDatabase.settingsDao.getAllSettings();
       final required =
           int.tryParse(settings['loyalty_points_required'] ?? '') ?? 0;
       final remaining = customer.loyaltyPoints - required;
-      await (update(customers)..where((c) => c.id.equals(id))).write(
-          CustomersCompanion(
-              loyaltyPoints: Value(remaining < 0 ? 0 : remaining)));
+      newPoints = remaining < 0 ? 0 : remaining;
     }
+
+    await (update(customers)..where((c) => c.id.equals(id))).write(
+      CustomersCompanion(
+        loyaltyStamps: Value(newStamps),
+        loyaltyPoints: Value(newPoints),
+      ),
+    );
   }
 
   Future<int> deleteCustomer(int id) =>

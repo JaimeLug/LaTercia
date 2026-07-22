@@ -164,23 +164,23 @@ bool isScheduledDiscount(Discount d) {
 }
 
 /// Una línea del carrito relevante para calcular una promoción: precio
-/// unitario, cantidad y el nombre de su categoría (para el alcance).
+/// unitario, cantidad y el nombre de su producto (para el alcance).
 /// `docs/promociones.md`.
-typedef PromoLine = ({double unitPrice, int quantity, String? categoryName});
+typedef PromoLine = ({double unitPrice, int quantity, String? productName});
 
-/// Filtra [lines] al `categoryScope` de [d] — mismo criterio que
-/// `Modifiers.categoryScope` (CSV case-insensitive; vacío = todas).
+/// Filtra [lines] al `productScope` de [d] — mismo criterio CSV
+/// case-insensitive que usaba el alcance por categoría (vacío = todas).
 List<PromoLine> _linesInScope(Discount d, List<PromoLine> lines) {
-  final scope = (d.categoryScope ?? '').trim();
+  final scope = (d.productScope ?? '').trim();
   if (scope.isEmpty) return lines;
   final names = scope.split(',').map((s) => s.trim().toLowerCase()).toSet();
   return lines
-      .where((l) => names.contains((l.categoryName ?? '').trim().toLowerCase()))
+      .where((l) => names.contains((l.productName ?? '').trim().toLowerCase()))
       .toList();
 }
 
 /// Monto de descuento de [d] sobre el carrito [lines], respetando su alcance
-/// de categoría. Si `type == '2x1'`, por cada línea en alcance cada 2 unidades
+/// de producto. Si `type == '2x1'`, por cada línea en alcance cada 2 unidades
 /// dejan 1 gratis (redondeo hacia abajo); si no, aplica `discountAmountFor`
 /// sobre el subtotal de las líneas en alcance (con alcance vacío, es el
 /// subtotal completo — 100% compatible con el comportamiento de antes).
@@ -239,13 +239,13 @@ bool loyaltyRewardAvailable({
   return false;
 }
 
-/// Precio del producto MÁS CARO de [category] entre [lines] — lo que se hace
-/// gratis al canjear. 0 si el carrito no tiene nada de esa categoría (no hay
-/// nada que regalar todavía). `docs/fidelizacion.md`.
-double loyaltyRewardAmount(List<PromoLine> lines, String category) {
-  final cat = category.trim().toLowerCase();
+/// Precio del producto [product] en el carrito [lines] — lo que se hace
+/// gratis al canjear. 0 si el carrito no tiene ese producto (no hay nada que
+/// regalar todavía). `docs/fidelizacion.md`.
+double loyaltyRewardAmount(List<PromoLine> lines, String product) {
+  final p = product.trim().toLowerCase();
   final scoped =
-      lines.where((l) => (l.categoryName ?? '').trim().toLowerCase() == cat);
+      lines.where((l) => (l.productName ?? '').trim().toLowerCase() == p);
   if (scoped.isEmpty) return 0;
   return scoped.map((l) => l.unitPrice).reduce((a, b) => a > b ? a : b);
 }

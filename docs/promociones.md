@@ -15,10 +15,14 @@ Cuatro columnas nuevas en `Discounts`, todas nullable = sin restricción:
 - `startTime` / `endTime` — hora del día en `"HH:mm"` (24h). Los dos deben
   estar presentes para que exista ventana; si falta uno, no hay restricción de
   hora. Soporta ventanas que cruzan medianoche (`22:00`–`02:00`).
-- `categoryScope` — CSV de nombres de categoría, **mismo criterio que
-  `Modifiers.categoryScope`** (case-insensitive, vacío = aplica a todas). Se
-  reutiliza el selector compartido `CategoryScopePicker`
-  (`lib/features/admin/widgets/category_scope_picker.dart`).
+- `productScope` — CSV de nombres de **producto** (no de categoría — cambiado
+  tras feedback de sitio 2026-07-22: interesa más un "2x1" sobre un producto
+  específico que sobre toda una categoría), case-insensitive, vacío = aplica
+  a todos. Se reutiliza el selector compartido `CategoryScopePicker`
+  (`lib/features/admin/widgets/category_scope_picker.dart`, ahora
+  parametrizado con un `title` para poder mostrarse como selector de
+  productos sin renombrar el widget — sigue sirviendo tal cual para
+  `Modifiers.categoryScope`, que ese sí es por categoría).
 
 `type` ahora acepta un tercer valor: `'2x1'` (además de `'percentage'` y
 `'fixed'`).
@@ -46,14 +50,14 @@ de mostrador (ej. "Cliente frecuente 10%"): solo las programadas se
 `discountAmountFor(d, subtotal)` (la función vieja) sigue existiendo tal cual —
 nadie la tocó, sigue cubriendo el caso simple de todo el carrito. La nueva
 `discountAmountForCart(d, lines)` la envuelve para soportar alcance de
-categoría y 2x1:
+producto y 2x1:
 
-1. Filtra `lines` (`PromoLine`: `unitPrice`, `quantity`, `categoryName`) al
-   `categoryScope` de `d` (vacío = todas).
+1. Filtra `lines` (`PromoLine`: `unitPrice`, `quantity`, `productName`) al
+   `productScope` de `d` (vacío = todos).
 2. Si `type == '2x1'`: por cada línea filtrada, `quantity ~/ 2` unidades salen
    gratis (redondeo hacia abajo: 3 unidades → 1 gratis, no 1.5).
 3. Si no, aplica `discountAmountFor` sobre el subtotal **de las líneas
-   filtradas** (no de todo el carrito) — con `categoryScope` vacío esto es
+   filtradas** (no de todo el carrito) — con `productScope` vacío esto es
    exactamente el subtotal completo, o sea 100% compatible con el
    comportamiento de antes.
 
@@ -84,8 +88,11 @@ descuento `'fixed'` ya resuelto — así el prorrateo de IVA existente
 
 - **Configuración → Descuentos** (`discounts_screen.dart`): el formulario
   ahora tiene el tipo `2x1`, chips de día de la semana, selector de hora
-  inicio/fin, y el selector de categoría compartido. La lista muestra la
+  inicio/fin, y el selector de **producto** compartido. La lista muestra la
   vigencia programada cuando aplica.
 - **POS** (`pos_screen.dart`): los pills de descuento junto al resumen del
-  carrito; el programado se auto-selecciona y se puede quitar igual que
-  cualquier otro.
+  carrito, en una barra horizontal con scroll (mismo patrón de auto-scroll
+  que la barra de categorías — con más de 3 descuentos activos, el elegido
+  se centra solo; feedback de sitio 2026-07-22, antes el 3er+ pill quedaba
+  fuera de vista sin forma de llegar a él). El programado se auto-selecciona
+  y se puede quitar igual que cualquier otro.

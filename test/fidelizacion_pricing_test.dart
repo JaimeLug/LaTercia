@@ -74,28 +74,26 @@ void main() {
   });
 
   group('loyaltyRewardAmount', () {
-    const cafe =
-        (unitPrice: 35.0, quantity: 1, categoryName: 'Bebidas calientes');
+    const cafe = (unitPrice: 35.0, quantity: 1, productName: 'Café');
     const cafeGrande =
-        (unitPrice: 45.0, quantity: 1, categoryName: 'Bebidas calientes');
-    const pan = (unitPrice: 20.0, quantity: 1, categoryName: 'Panadería');
+        (unitPrice: 45.0, quantity: 1, productName: 'Café grande');
+    const pan = (unitPrice: 20.0, quantity: 1, productName: 'Pan dulce');
 
-    test('toma el precio del producto MÁS CARO de la categoría', () {
-      expect(loyaltyRewardAmount([cafe, cafeGrande, pan], 'Bebidas calientes'),
+    test('toma el precio del producto elegido', () {
+      expect(loyaltyRewardAmount([cafe, cafeGrande, pan], 'Café grande'),
           closeTo(45, 0.001));
     });
 
-    test('sin nada de esa categoría en el carrito: 0', () {
-      expect(loyaltyRewardAmount([pan], 'Bebidas calientes'), 0);
+    test('sin ese producto en el carrito: 0', () {
+      expect(loyaltyRewardAmount([pan], 'Café'), 0);
     });
 
     test('case-insensitive', () {
-      expect(
-          loyaltyRewardAmount([cafe], 'bebidas CALIENTES'), closeTo(35, 0.001));
+      expect(loyaltyRewardAmount([cafe], 'CAFÉ'), closeTo(35, 0.001));
     });
 
     test('carrito vacío: 0', () {
-      expect(loyaltyRewardAmount(const [], 'Bebidas calientes'), 0);
+      expect(loyaltyRewardAmount(const [], 'Café'), 0);
     });
   });
 }

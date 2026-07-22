@@ -3,7 +3,8 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flex_color_picker/flex_color_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../../core/providers/categories_provider.dart';
+import '../../../core/providers/database_provider.dart';
+import '../../../core/providers/products_provider.dart';
 import '../../../core/providers/settings_provider.dart';
 import '../../../core/services/print_service.dart';
 import '../../../core/theme/app_theme.dart';
@@ -131,12 +132,18 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   // Ventas avanzadas (Fase 4)
   bool _propinasActivas = false;
 
-  // Fidelización. docs/fidelizacion.md.
-  String _loyaltyType = 'ninguno'; // 'ninguno' | 'sellos' | 'puntos'
+  // Fidelización (docs/fidelizacion.md): sellos y puntos son mecánicas
+  // INDEPENDIENTES — ambas pueden estar activas a la vez (feedback de sitio
+  // 2026-07-22: antes era "elige UNA", corregido).
+  bool _loyaltySellosActivo = false;
+  bool _loyaltyPuntosActivo = false;
   late TextEditingController _loyaltyStampsRequired;
-  late TextEditingController _loyaltyPointsPerCurrency;
   late TextEditingController _loyaltyPointsRequired;
-  String? _loyaltyRewardCategory;
+  String? _loyaltyStampsRewardProduct;
+  String? _loyaltyPointsRewardProduct;
+  // Puntos por producto (Products.loyaltyPointsValue) — un controller por
+  // producto, creado perezosamente en `_categoryFields('fidelizacion')`.
+  final Map<int, TextEditingController> _loyaltyPointsControllers = {};
 
   // Moneda
   late TextEditingController _currencySymbol;
@@ -198,7 +205,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     _regimenEmisor = TextEditingController();
     _cpExpedicion = TextEditingController();
     _loyaltyStampsRequired = TextEditingController();
-    _loyaltyPointsPerCurrency = TextEditingController();
     _loyaltyPointsRequired = TextEditingController();
     _availablePrinters = listWindowsPrinters();
   }
@@ -232,8 +238,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     _regimenEmisor.dispose();
     _cpExpedicion.dispose();
     _loyaltyStampsRequired.dispose();
-    _loyaltyPointsPerCurrency.dispose();
     _loyaltyPointsRequired.dispose();
+    for (final c in _loyaltyPointsControllers.values) {
+      c.dispose();
+    }
     super.dispose();
   }
 
@@ -274,13 +282,18 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     _razonEmisor.text = s['razon_social_emisor'] ?? '';
     _regimenEmisor.text = s['regimen_fiscal_emisor'] ?? '';
     _cpExpedicion.text = s['cp_lugar_expedicion'] ?? '';
-    _loyaltyType = s['loyalty_type'] ?? 'ninguno';
+    _loyaltySellosActivo = s['loyalty_sellos_activo'] == 'true';
+    _loyaltyPuntosActivo = s['loyalty_puntos_activo'] == 'true';
     _loyaltyStampsRequired.text = s['loyalty_stamps_required'] ?? '10';
-    _loyaltyPointsPerCurrency.text = s['loyalty_points_per_currency'] ?? '10';
     _loyaltyPointsRequired.text = s['loyalty_points_required'] ?? '100';
-    _loyaltyRewardCategory = s['loyalty_reward_category']?.isEmpty == true
-        ? null
-        : s['loyalty_reward_category'];
+    _loyaltyStampsRewardProduct =
+        s['loyalty_stamps_reward_product']?.isEmpty == true
+            ? null
+            : s['loyalty_stamps_reward_product'];
+    _loyaltyPointsRewardProduct =
+        s['loyalty_points_reward_product']?.isEmpty == true
+            ? null
+            : s['loyalty_points_reward_product'];
   }
 
   Color _parseColor(String hex) {
@@ -772,26 +785,30 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           ),
         ];
       case 'fidelizacion':
-        final cats = ref.watch(categoriesProvider).valueOrNull ?? [];
+        final products = ref.watch(allProductsProvider).valueOrNull ?? [];
+        for (final p in products) {
+          _loyaltyPointsControllers.putIfAbsent(
+            p.id,
+            () => TextEditingController(text: '${p.loyaltyPointsValue}'),
+          );
+        }
         return [
           const Text(
-            'Elige UNA mecánica (no las dos a la vez). El cliente se elige al '
-            'cobrar en el POS. docs/fidelizacion.md.',
+            'Sellos y puntos son independientes: puedes activar uno, otro, o '
+            'los dos a la vez. El cliente se elige al cobrar en el POS.',
             style: TextStyle(fontSize: 12.5, color: LaTerciaColors.tan),
           ),
           const SizedBox(height: 12),
-          DropdownButtonFormField<String>(
-            value: _loyaltyType,
-            decoration: const InputDecoration(labelText: 'Programa'),
-            items: const [
-              DropdownMenuItem(value: 'ninguno', child: Text('Desactivado')),
-              DropdownMenuItem(
-                  value: 'sellos', child: Text('Sellos (tarjeta de puntos)')),
-              DropdownMenuItem(value: 'puntos', child: Text('Puntos')),
-            ],
-            onChanged: (v) => setState(() => _loyaltyType = v!),
+          SwitchListTile(
+            title: const Text('Sellos (tarjeta de visitas)'),
+            subtitle: const Text(
+                'Cada venta con cliente suma un sello; al juntar el número '
+                'elegido, gana la recompensa.'),
+            value: _loyaltySellosActivo,
+            onChanged: (v) => setState(() => _loyaltySellosActivo = v),
+            contentPadding: EdgeInsets.zero,
           ),
-          if (_loyaltyType == 'sellos') ...[
+          if (_loyaltySellosActivo) ...[
             const SizedBox(height: 8),
             TextField(
               controller: _loyaltyStampsRequired,
@@ -801,17 +818,36 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               ),
               keyboardType: TextInputType.number,
             ),
-          ],
-          if (_loyaltyType == 'puntos') ...[
             const SizedBox(height: 8),
-            TextField(
-              controller: _loyaltyPointsPerCurrency,
+            DropdownButtonFormField<String?>(
+              value: products.any((p) => p.name == _loyaltyStampsRewardProduct)
+                  ? _loyaltyStampsRewardProduct
+                  : null,
+              isExpanded: true,
               decoration: const InputDecoration(
-                labelText: 'Pesos gastados por 1 punto',
-                helperText: 'Ej. 10 = 1 punto cada \$10',
+                labelText: 'Producto que se regala (sellos)',
               ),
-              keyboardType: TextInputType.number,
+              items: [
+                for (final p in products)
+                  DropdownMenuItem(value: p.name, child: Text(p.name)),
+              ],
+              onChanged: (v) => setState(() => _loyaltyStampsRewardProduct = v),
             ),
+          ],
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 20),
+            child: Divider(height: 1),
+          ),
+          SwitchListTile(
+            title: const Text('Puntos'),
+            subtitle: const Text(
+                'Cada producto otorga los puntos que definas abajo; el '
+                'cliente los junta y canjea por un producto.'),
+            value: _loyaltyPuntosActivo,
+            onChanged: (v) => setState(() => _loyaltyPuntosActivo = v),
+            contentPadding: EdgeInsets.zero,
+          ),
+          if (_loyaltyPuntosActivo) ...[
             const SizedBox(height: 8),
             TextField(
               controller: _loyaltyPointsRequired,
@@ -819,23 +855,71 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   labelText: 'Puntos necesarios para canjear'),
               keyboardType: TextInputType.number,
             ),
-          ],
-          if (_loyaltyType != 'ninguno') ...[
             const SizedBox(height: 8),
             DropdownButtonFormField<String?>(
-              value: cats.any((c) => c.name == _loyaltyRewardCategory)
-                  ? _loyaltyRewardCategory
+              value: products.any((p) => p.name == _loyaltyPointsRewardProduct)
+                  ? _loyaltyPointsRewardProduct
                   : null,
               isExpanded: true,
               decoration: const InputDecoration(
-                labelText: 'Categoría que se regala',
-                helperText: 'Se hace gratis el producto más caro de ahí',
+                labelText: 'Producto que se regala (puntos)',
               ),
               items: [
-                for (final c in cats)
-                  DropdownMenuItem(value: c.name, child: Text(c.name)),
+                for (final p in products)
+                  DropdownMenuItem(value: p.name, child: Text(p.name)),
               ],
-              onChanged: (v) => setState(() => _loyaltyRewardCategory = v),
+              onChanged: (v) => setState(() => _loyaltyPointsRewardProduct = v),
+            ),
+            const SizedBox(height: 16),
+            const Text('Puntos por producto',
+                style: TextStyle(fontWeight: FontWeight.w600)),
+            const SizedBox(height: 4),
+            const Text(
+              'Cuántos puntos gana el cliente por cada unidad vendida de '
+              'cada producto.',
+              style: TextStyle(fontSize: 12.5, color: LaTerciaColors.tan),
+            ),
+            const SizedBox(height: 8),
+            Container(
+              constraints: const BoxConstraints(maxHeight: 320),
+              decoration: BoxDecoration(
+                border: Border.all(color: LaTerciaColors.border),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: products.isEmpty
+                  ? const Padding(
+                      padding: EdgeInsets.all(16),
+                      child: Text('No hay productos todavía.'),
+                    )
+                  : ListView.separated(
+                      shrinkWrap: true,
+                      itemCount: products.length,
+                      separatorBuilder: (_, __) => const Divider(height: 1),
+                      itemBuilder: (_, i) {
+                        final p = products[i];
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 4),
+                          child: Row(
+                            children: [
+                              Expanded(child: Text(p.name)),
+                              SizedBox(
+                                width: 80,
+                                child: TextField(
+                                  controller: _loyaltyPointsControllers[p.id],
+                                  keyboardType: TextInputType.number,
+                                  textAlign: TextAlign.right,
+                                  decoration: const InputDecoration(
+                                    isDense: true,
+                                    suffixText: 'pts',
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
             ),
           ],
         ];
@@ -1135,14 +1219,23 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       'razon_social_emisor': _razonEmisor.text.trim(),
       'regimen_fiscal_emisor': _regimenEmisor.text.trim(),
       'cp_lugar_expedicion': _cpExpedicion.text.trim(),
-      'loyalty_type': _loyaltyType,
+      'loyalty_sellos_activo': _loyaltySellosActivo.toString(),
+      'loyalty_puntos_activo': _loyaltyPuntosActivo.toString(),
       'loyalty_stamps_required': _loyaltyStampsRequired.text.trim(),
-      'loyalty_points_per_currency': _loyaltyPointsPerCurrency.text.trim(),
       'loyalty_points_required': _loyaltyPointsRequired.text.trim(),
-      'loyalty_reward_category': _loyaltyRewardCategory ?? '',
+      'loyalty_stamps_reward_product': _loyaltyStampsRewardProduct ?? '',
+      'loyalty_points_reward_product': _loyaltyPointsRewardProduct ?? '',
     };
 
     await ref.read(settingsProvider.notifier).setSettings(settings);
+
+    // Puntos por producto (docs/fidelizacion.md) viven en Products, no en
+    // Settings — se guardan aparte, en el mismo click de "Guardar cambios".
+    final db = ref.read(databaseProvider);
+    for (final entry in _loyaltyPointsControllers.entries) {
+      final points = int.tryParse(entry.value.text.trim()) ?? 0;
+      await db.productsDao.updateLoyaltyPointsValue(entry.key, points);
+    }
     // NO se pone `_loaded = false` aquí: el estado local YA es justo lo que
     // se acaba de persistir, así que no hace falta recargarlo desde la base.
     // Antes esto forzaba una vuelta a `_loadFromSettings`, que junto con el

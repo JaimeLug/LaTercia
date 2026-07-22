@@ -1,18 +1,23 @@
 import 'package:flutter/material.dart';
 
-/// Selector múltiple de categorías, compartido por Modificadores y
-/// Descuentos (ambos usan el mismo criterio de alcance: CSV case-insensitive
-/// de nombres de categoría; vacío = aplica a todas). `docs/promociones.md`.
+/// Selector múltiple genérico (checkboxes de strings), compartido por
+/// Modificadores (categorías) y Descuentos/Fidelización (productos) — todos
+/// usan el mismo criterio de alcance: CSV case-insensitive de nombres; vacío
+/// = aplica a todas/os. `docs/promociones.md`, `docs/fidelizacion.md`.
 Future<Set<String>?> showCategoryScopePicker(
   BuildContext context, {
   required List<String> categories,
   required Set<String> initialSelected,
+  String title = 'Alcance por categoría',
+  String emptyLabel = 'No hay categorías todavía.',
 }) {
   return showDialog<Set<String>>(
     context: context,
     builder: (_) => _CategoryScopePickerDialog(
       categories: categories,
       initialSelected: initialSelected,
+      title: title,
+      emptyLabel: emptyLabel,
     ),
   );
 }
@@ -20,8 +25,14 @@ Future<Set<String>?> showCategoryScopePicker(
 class _CategoryScopePickerDialog extends StatefulWidget {
   final List<String> categories;
   final Set<String> initialSelected;
-  const _CategoryScopePickerDialog(
-      {required this.categories, required this.initialSelected});
+  final String title;
+  final String emptyLabel;
+  const _CategoryScopePickerDialog({
+    required this.categories,
+    required this.initialSelected,
+    required this.title,
+    required this.emptyLabel,
+  });
 
   @override
   State<_CategoryScopePickerDialog> createState() =>
@@ -35,11 +46,11 @@ class _CategoryScopePickerDialogState
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text('Alcance por categoría'),
+      title: Text(widget.title),
       content: SizedBox(
         width: 360,
         child: widget.categories.isEmpty
-            ? const Text('No hay categorías todavía.')
+            ? Text(widget.emptyLabel)
             : SingleChildScrollView(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,

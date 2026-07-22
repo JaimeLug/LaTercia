@@ -2,8 +2,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:latercia/core/database/database.dart';
 import 'package:latercia/core/utils/pricing.dart';
 
-/// Promociones programadas: ventana de día/hora, 2x1 y alcance por categoría.
-/// Ver docs/promociones.md.
+/// Promociones programadas: ventana de día/hora, 2x1 y alcance por producto
+/// (no por categoría — feedback de sitio 2026-07-22). Ver docs/promociones.md.
 Discount _discount({
   String type = 'percentage',
   double value = 0,
@@ -14,7 +14,7 @@ Discount _discount({
   String? daysOfWeek,
   String? startTime,
   String? endTime,
-  String? categoryScope,
+  String? productScope,
 }) {
   return Discount(
     id: 1,
@@ -28,7 +28,7 @@ Discount _discount({
     daysOfWeek: daysOfWeek,
     startTime: startTime,
     endTime: endTime,
-    categoryScope: categoryScope,
+    productScope: productScope,
     createdAt: DateTime(2026, 1, 1),
   );
 }
@@ -104,9 +104,8 @@ void main() {
   });
 
   group('discountAmountForCart', () {
-    const cafe =
-        (unitPrice: 35.0, quantity: 3, categoryName: 'Bebidas calientes');
-    const pan = (unitPrice: 20.0, quantity: 2, categoryName: 'Panadería');
+    const cafe = (unitPrice: 35.0, quantity: 3, productName: 'Café');
+    const pan = (unitPrice: 20.0, quantity: 2, productName: 'Pan dulce');
 
     test('porcentaje sin alcance: igual que discountAmountFor de siempre', () {
       final d = _discount(type: 'percentage', value: 10);
@@ -116,10 +115,8 @@ void main() {
           closeTo(discountAmountFor(d, subtotal), 0.001));
     });
 
-    test('porcentaje CON alcance: solo cuenta el subtotal de esa categoría',
-        () {
-      final d = _discount(
-          type: 'percentage', value: 10, categoryScope: 'Bebidas calientes');
+    test('porcentaje CON alcance: solo cuenta el subtotal de ese producto', () {
+      final d = _discount(type: 'percentage', value: 10, productScope: 'Café');
       // Solo café (3×35=105); pan queda fuera.
       expect(discountAmountForCart(d, [cafe, pan]), closeTo(10.5, 0.001));
     });
@@ -130,28 +127,28 @@ void main() {
       expect(discountAmountForCart(d, [cafe, pan]), closeTo(55, 0.001));
     });
 
-    test('2x1 con alcance de categoría: solo esa línea cuenta', () {
-      final d = _discount(type: '2x1', categoryScope: 'Panadería');
+    test('2x1 con alcance de producto: solo esa línea cuenta', () {
+      final d = _discount(type: '2x1', productScope: 'Pan dulce');
       // Solo pan: 2 unidades → 1 gratis (20). Café queda fuera.
       expect(discountAmountForCart(d, [cafe, pan]), closeTo(20, 0.001));
     });
 
     test('2x1 con cantidad impar: redondea hacia abajo', () {
       final d = _discount(type: '2x1');
-      const linea = (unitPrice: 10.0, quantity: 5, categoryName: 'Bebidas');
+      const linea = (unitPrice: 10.0, quantity: 5, productName: 'Té');
       // 5 ~/ 2 = 2 gratis.
       expect(discountAmountForCart(d, [linea]), closeTo(20, 0.001));
     });
 
-    test('alcance case-insensitive y con varias categorías (CSV)', () {
+    test('alcance case-insensitive y con varios productos (CSV)', () {
       final d =
-          _discount(type: 'fixed', value: 5, categoryScope: 'panadería,otros');
+          _discount(type: 'fixed', value: 5, productScope: 'pan dulce,otros');
       expect(discountAmountForCart(d, [pan]), closeTo(5, 0.001));
     });
 
     test('alcance que no matchea ninguna línea: descuento 0', () {
       final d =
-          _discount(type: 'percentage', value: 50, categoryScope: 'Postres');
+          _discount(type: 'percentage', value: 50, productScope: 'Postre');
       expect(discountAmountForCart(d, [cafe, pan]), 0);
     });
   });

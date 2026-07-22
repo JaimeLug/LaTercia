@@ -229,11 +229,11 @@ class _DiscountFormDialogState extends ConsumerState<_DiscountFormDialog> {
   DateTime? _validFrom;
   DateTime? _validUntil;
   // Promociones programadas (docs/promociones.md): días de la semana
-  // (DateTime.weekday, 1=lun..7=dom), ventana de hora y alcance por categoría.
+  // (DateTime.weekday, 1=lun..7=dom), ventana de hora y alcance por producto.
   Set<int> _days = {};
   TimeOfDay? _startTime;
   TimeOfDay? _endTime;
-  Set<String> _scopeCategories = {};
+  Set<String> _scopeProducts = {};
 
   @override
   void initState() {
@@ -254,7 +254,7 @@ class _DiscountFormDialogState extends ConsumerState<_DiscountFormDialog> {
         .toSet();
     _startTime = _parseTime(d?.startTime);
     _endTime = _parseTime(d?.endTime);
-    _scopeCategories = (d?.categoryScope ?? '')
+    _scopeProducts = (d?.productScope ?? '')
         .split(',')
         .map((s) => s.trim())
         .where((s) => s.isNotEmpty)
@@ -283,15 +283,17 @@ class _DiscountFormDialogState extends ConsumerState<_DiscountFormDialog> {
   }
 
   Future<void> _pickScope() async {
-    final categories =
-        await ref.read(databaseProvider).categoriesDao.getAllCategories();
+    final products =
+        await ref.read(databaseProvider).productsDao.getAllProducts();
     if (!mounted) return;
     final result = await showCategoryScopePicker(
       context,
-      categories: categories.map((c) => c.name).toList(),
-      initialSelected: _scopeCategories,
+      categories: products.map((p) => p.name).toList(),
+      initialSelected: _scopeProducts,
+      title: 'Alcance por producto',
+      emptyLabel: 'No hay productos todavía.',
     );
-    if (result != null) setState(() => _scopeCategories = result);
+    if (result != null) setState(() => _scopeProducts = result);
   }
 
   Future<void> _pickTime({required bool isStart}) async {
@@ -465,16 +467,16 @@ class _DiscountFormDialogState extends ConsumerState<_DiscountFormDialog> {
                 onTap: _pickScope,
                 child: InputDecorator(
                   decoration: const InputDecoration(
-                    labelText: 'Alcance por categoría',
+                    labelText: 'Alcance por producto',
                     suffixIcon: Icon(Icons.arrow_drop_down),
                   ),
-                  child: _scopeCategories.isEmpty
-                      ? const Text('Todas las categorías',
+                  child: _scopeProducts.isEmpty
+                      ? const Text('Todos los productos',
                           style: TextStyle(color: LaTerciaColors.tan))
                       : Wrap(
                           spacing: 6,
                           runSpacing: 4,
-                          children: _scopeCategories
+                          children: _scopeProducts
                               .map((c) => Chip(
                                     label: Text(c,
                                         style: const TextStyle(fontSize: 12)),
@@ -516,8 +518,8 @@ class _DiscountFormDialogState extends ConsumerState<_DiscountFormDialog> {
           Value(_days.isEmpty ? null : (_days.toList()..sort()).join(',')),
       startTime: Value(_startTime != null ? _formatTime(_startTime!) : null),
       endTime: Value(_endTime != null ? _formatTime(_endTime!) : null),
-      categoryScope:
-          Value(_scopeCategories.isEmpty ? null : _scopeCategories.join(',')),
+      productScope:
+          Value(_scopeProducts.isEmpty ? null : _scopeProducts.join(',')),
     );
 
     if (widget.discount == null) {

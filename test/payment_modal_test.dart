@@ -152,4 +152,77 @@ void main() {
     final sum = captured!.fold(0.0, (a, d) => a + d.amountTendered);
     expect(sum, closeTo(100, 0.001));
   });
+
+  testWidgets(
+      '"Exacto" con un total a medio centavo (precio prorrateado de combo) '
+      'SÍ cierra el saldo — bug reportado en sitio 2026-07-22', (tester) async {
+    List<PaymentDraft>? captured;
+    // 35.585: justo el tipo de total que deja un precio prorrateado de combo
+    // (comboPrice/totalRegular no siempre da centavos limpios).
+    await pumpModal(tester, total: 35.585, onPayments: (p) => captured = p);
+
+    await tester.tap(find.text('Exacto'));
+    await tester.pumpAndSettle();
+
+    // Antes del fix, esto mostraba "Agregar efectivo 35.59" (parcial) en vez
+    // de "Confirmar pago", porque 35.59 (redondeado) parecía no alcanzar los
+    // 35.585 sin redondear con la tolerancia vieja de 0.0001.
+    expect(find.textContaining('Agregar'), findsNothing);
+    await tester.ensureVisible(find.text('Confirmar pago'));
+    await tester.tap(find.text('Confirmar pago'));
+    await tester.pumpAndSettle();
+
+    expect(captured, isNotNull);
+    expect(captured, hasLength(1));
+    expect(captured!.first.amountTendered, 35.59);
+  });
+
+  testWidgets(
+      'autoStartEvenSplit: abre "¿Entre cuántas personas?" de inmediato — '
+      'antes "partes iguales" solo se encontraba tocando el botón interno '
+      '(feedback de sitio 2026-07-22)', (tester) async {
+    List<PaymentDraft>? captured;
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [databaseProvider.overrideWithValue(db)],
+        child: MaterialApp(
+          home: Scaffold(
+            body: PaymentModal(
+              total: 100,
+              printKitchenComanda: false,
+              autoStartEvenSplit: true,
+              onCheckout: ({required List<PaymentDraft> payments}) async {
+                captured = payments;
+                return null;
+              },
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // El diálogo "¿Entre cuántas personas?" ya está abierto solo, sin tocar
+    // ningún botón — sube de 2 a 3 con el "+" y confirma.
+    expect(find.text('¿Entre cuántas personas?'), findsOneWidget);
+    await tester.tap(find.byIcon(Icons.add));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Dividir'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Dividido entre 3 — parte 1 de 3'), findsOneWidget);
+    await tester.ensureVisible(find.textContaining('Agregar'));
+    await tester.tap(find.textContaining('Agregar'));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.textContaining('Agregar'));
+    await tester.tap(find.textContaining('Agregar'));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.textContaining('Cobrar resto'));
+    await tester.tap(find.textContaining('Cobrar resto'));
+    await tester.pumpAndSettle();
+
+    expect(captured, hasLength(3));
+    final sum = captured!.fold(0.0, (a, d) => a + d.amountTendered);
+    expect(sum, closeTo(100, 0.001));
+  });
 }

@@ -92,10 +92,12 @@ class CheckoutService {
     double tipAmount = 0,
     String? reference,
     List<PaymentDraft>? payments,
-    // Fidelización: si esta venta consume la recompensa ganada del cliente
-    // (resetea sellos o resta puntos). Solo aplica en este cobro inmediato —
-    // no en "pagar después". docs/fidelizacion.md.
-    bool redeemLoyalty = false,
+    // Fidelización: si esta venta consume la recompensa de sellos y/o de
+    // puntos ganada del cliente — independientes entre sí, ambas pueden
+    // canjearse a la vez. Solo aplica en este cobro inmediato — no en "pagar
+    // después". docs/fidelizacion.md.
+    bool redeemStamps = false,
+    bool redeemPoints = false,
   }) {
     final drafts = _resolvePayments(payments, paymentMethod, amountTendered,
         changeGiven, tipAmount, reference);
@@ -191,9 +193,19 @@ class CheckoutService {
 
       if (customerId != null) {
         await _db.customersDao.incrementVisits(customerId, total);
-        await _db.customersDao.earnLoyalty(customerId, total);
-        if (redeemLoyalty) {
-          await _db.customersDao.redeemLoyalty(customerId);
+        await _db.customersDao.earnLoyalty(
+          customerId,
+          [
+            for (final ci in cartItems)
+              (productId: ci.product.id, quantity: ci.quantity)
+          ],
+        );
+        if (redeemStamps || redeemPoints) {
+          await _db.customersDao.redeemLoyalty(
+            customerId,
+            stamps: redeemStamps,
+            points: redeemPoints,
+          );
         }
       }
 

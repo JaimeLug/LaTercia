@@ -41,6 +41,13 @@ class ProductsDao extends DatabaseAccessor<AppDatabase>
       (update(products)..where((p) => p.id.equals(id)))
           .write(ProductsCompanion(available: Value(available)));
 
+  /// Solo el campo de puntos de fidelización — un `.write()` parcial, NO
+  /// `.replace()` (que exige el companion completo y borraría el resto de
+  /// los campos del producto). docs/fidelizacion.md.
+  Future<void> updateLoyaltyPointsValue(int id, int points) =>
+      (update(products)..where((p) => p.id.equals(id)))
+          .write(ProductsCompanion(loyaltyPointsValue: Value(points)));
+
   /// Toggle rápido de "Rastrear inventario" (el caller garantiza que el
   /// producto no use receta — ver `usesRecipe`). docs/inventario.md.
   Future<void> toggleTrackInventory(int id, bool trackInventory) =>

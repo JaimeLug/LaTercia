@@ -5,7 +5,8 @@ import 'package:latercia/core/models/order_with_items.dart';
 import 'package:latercia/core/services/checkout_service.dart';
 
 /// Fidelización de punta a punta: un cobro real gana sellos/puntos, y con
-/// redeemLoyalty:true los consume. Ver docs/fidelizacion.md.
+/// redeemStamps/redeemPoints:true los consume. Sellos y puntos son mecánicas
+/// independientes (feedback de sitio 2026-07-22). Ver docs/fidelizacion.md.
 void main() {
   late AppDatabase db;
   late CheckoutService checkout;
@@ -31,7 +32,7 @@ void main() {
 
   test('un cobro con cliente vinculado gana un sello (además de la visita)',
       () async {
-    await db.settingsDao.setValue('loyalty_type', 'sellos');
+    await db.settingsDao.setValue('loyalty_sellos_activo', 'true');
 
     await checkout.checkout(
       cartItems: [CartItem(product: cafe, quantity: 1)],
@@ -48,12 +49,13 @@ void main() {
     expect(c.visits, 1); // incrementVisits sigue funcionando igual que antes
   });
 
-  test('redeemLoyalty:true consume la recompensa en el mismo cobro', () async {
-    await db.settingsDao.setValue('loyalty_type', 'sellos');
+  test('redeemStamps:true consume la recompensa en el mismo cobro', () async {
+    await db.settingsDao.setValue('loyalty_sellos_activo', 'true');
     // Cliente ya trae 9 sellos; esta compra los completa a 10 y se canjea de
     // una vez (igual que lo haría el POS con el pill "Recompensa aplicada").
     for (var i = 0; i < 9; i++) {
-      await db.customersDao.earnLoyalty(customerId, 35);
+      await db.customersDao
+          .earnLoyalty(customerId, [(productId: cafe.id, quantity: 1)]);
     }
     expect((await db.customersDao.getAllCustomers()).single.loyaltyStamps, 9);
 
@@ -65,7 +67,7 @@ void main() {
       total: 35,
       paymentMethod: 'efectivo',
       amountTendered: 35,
-      redeemLoyalty: true,
+      redeemStamps: true,
     );
 
     final c = (await db.customersDao.getAllCustomers()).single;
@@ -73,11 +75,12 @@ void main() {
     expect(c.loyaltyStamps, 0);
   });
 
-  test('sin redeemLoyalty, los sellos NO se resetean aunque alcancen el umbral',
+  test('sin redeemStamps, los sellos NO se resetean aunque alcancen el umbral',
       () async {
-    await db.settingsDao.setValue('loyalty_type', 'sellos');
+    await db.settingsDao.setValue('loyalty_sellos_activo', 'true');
     for (var i = 0; i < 10; i++) {
-      await db.customersDao.earnLoyalty(customerId, 35);
+      await db.customersDao
+          .earnLoyalty(customerId, [(productId: cafe.id, quantity: 1)]);
     }
 
     await checkout.checkout(
@@ -88,7 +91,7 @@ void main() {
       total: 35,
       paymentMethod: 'efectivo',
       amountTendered: 35,
-      // redeemLoyalty por default es false.
+      // redeemStamps por default es false.
     );
 
     final c = (await db.customersDao.getAllCustomers()).single;
@@ -96,7 +99,7 @@ void main() {
   });
 
   test('sin customerId (venta anónima): no gana ni cuenta visitas', () async {
-    await db.settingsDao.setValue('loyalty_type', 'sellos');
+    await db.settingsDao.setValue('loyalty_sellos_activo', 'true');
 
     await checkout.checkout(
       cartItems: [CartItem(product: cafe, quantity: 1)],
@@ -110,5 +113,26 @@ void main() {
     final c = (await db.customersDao.getAllCustomers()).single;
     expect(c.loyaltyStamps, 0);
     expect(c.visits, 0);
+  });
+
+  test('sellos y puntos activos a la vez: gana ambos en el mismo cobro',
+      () async {
+    await db.settingsDao.setValue('loyalty_sellos_activo', 'true');
+    await db.settingsDao.setValue('loyalty_puntos_activo', 'true');
+    await db.productsDao.updateLoyaltyPointsValue(cafe.id, 3);
+
+    await checkout.checkout(
+      cartItems: [CartItem(product: cafe, quantity: 2)],
+      type: 'para_llevar',
+      employeeId: empId,
+      customerId: customerId,
+      total: 70,
+      paymentMethod: 'efectivo',
+      amountTendered: 70,
+    );
+
+    final c = (await db.customersDao.getAllCustomers()).single;
+    expect(c.loyaltyStamps, 1);
+    expect(c.loyaltyPoints, 6); // 3 pts × 2 unidades
   });
 }

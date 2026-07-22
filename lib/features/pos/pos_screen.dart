@@ -59,8 +59,11 @@ class _PosScreenState extends ConsumerState<PosScreen> {
   Customer? _selectedCustomer;
   List<Customer> _customerSuggestions = const [];
   Timer? _customerSearchDebounce;
-  // El cajero decidió canjear la recompensa ganada — NUNCA automático.
-  bool _loyaltyRewardApplied = false;
+  // El cajero decidió canjear la recompensa ganada — NUNCA automático. Sellos
+  // y puntos son mecánicas independientes (ambas pueden estar activas a la
+  // vez), así que cada una tiene su propio toggle. `docs/fidelizacion.md`.
+  bool _stampsRewardApplied = false;
+  bool _pointsRewardApplied = false;
   // Datos de reparto: solo se usan cuando _orderType == 'delivery'.
   String? _customerPhone;
   String? _customerAddress;
@@ -85,6 +88,11 @@ class _PosScreenState extends ConsumerState<PosScreen> {
   // al tocar una, centrarla y revelar las vecinas escondidas en el kiosco.
   final _catScrollController = ScrollController();
   final Map<int?, GlobalKey> _catKeys = {};
+  // Barra de descuentos: mismo patrón de auto-scroll que la de categorías —
+  // con más de 3 descuentos activos, el elegido puede quedar fuera de vista.
+  // Key null = "Sin desc.". Feedback de sitio 2026-07-22.
+  final _discScrollController = ScrollController();
+  final Map<int?, GlobalKey> _discKeys = {};
 
   // Controllers
   final _customerController = TextEditingController();
@@ -104,6 +112,7 @@ class _PosScreenState extends ConsumerState<PosScreen> {
     _searchController.dispose();
     _deliveryCashController.dispose();
     _catScrollController.dispose();
+    _discScrollController.dispose();
     _customerSearchDebounce?.cancel();
     super.dispose();
   }
@@ -117,6 +126,22 @@ class _PosScreenState extends ConsumerState<PosScreen> {
     });
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final ctx = _catKeys[id]?.currentContext;
+      if (ctx != null) {
+        Scrollable.ensureVisible(
+          ctx,
+          alignment: 0.5,
+          duration: const Duration(milliseconds: 250),
+          curve: Curves.easeOut,
+        );
+      }
+    });
+  }
+
+  /// Centra suavemente el descuento [id] (null = "Sin desc.") en su barra —
+  /// mismo patrón que `_selectCategory`. Feedback de sitio 2026-07-22.
+  void _scrollToSelectedDiscount(int? id) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final ctx = _discKeys[id]?.currentContext;
       if (ctx != null) {
         Scrollable.ensureVisible(
           ctx,
@@ -145,7 +170,8 @@ class _PosScreenState extends ConsumerState<PosScreen> {
     if (_selectedCustomer != null && v != _selectedCustomer!.name) {
       setState(() {
         _selectedCustomer = null;
-        _loyaltyRewardApplied = false;
+        _stampsRewardApplied = false;
+        _pointsRewardApplied = false;
       });
     }
     _customerSearchDebounce?.cancel();
@@ -171,7 +197,8 @@ class _PosScreenState extends ConsumerState<PosScreen> {
       _customerName = c.name;
       _customerController.text = c.name;
       _customerSuggestions = const [];
-      _loyaltyRewardApplied = false;
+      _stampsRewardApplied = false;
+      _pointsRewardApplied = false;
     });
   }
 
@@ -196,25 +223,22 @@ class _PosScreenState extends ConsumerState<PosScreen> {
   }
 
   /// Cada línea del carrito para calcular promociones (precio, cantidad,
-  /// categoría) — igual patrón de resolución de categoría que `_addToCart`.
-  /// `docs/promociones.md`.
-  List<PromoLine> get _promoLines {
-    final cats = ref.read(categoriesProvider).valueOrNull ?? [];
-    final catNameById = {for (final c in cats) c.id: c.name};
-    return _cart
-        .map((item) => (
-              unitPrice: item.unitPrice,
-              quantity: item.quantity,
-              categoryName: catNameById[item.product.categoryId],
-            ))
-        .toList();
-  }
+  /// producto) — el alcance de promos/fidelización es por producto, no por
+  /// categoría. `docs/promociones.md`.
+  List<PromoLine> get _promoLines => _cart
+      .map((item) => (
+            unitPrice: item.unitPrice,
+            quantity: item.quantity,
+            productName: item.product.name,
+          ))
+      .toList();
 
-  /// La promoción elegida (si hay) + la recompensa de fidelización (si el
-  /// cajero la canjeó), ya resueltas a UN monto fijo en efectivo — se suman
-  /// porque son cosas distintas (una promo de horario y un premio por
-  /// lealtad pueden coexistir). Se pasa a `computeTaxedTotals` como 'fixed'
-  /// ya calculado — el prorrateo de IVA no cambia.
+  /// La promoción elegida (si hay) + la(s) recompensa(s) de fidelización que
+  /// el cajero canjeó (sellos y/o puntos, independientes entre sí), ya
+  /// resueltas a UN monto fijo en efectivo — se suman porque son cosas
+  /// distintas (una promo de horario y un premio por lealtad pueden
+  /// coexistir). Se pasa a `computeTaxedTotals` como 'fixed' ya calculado —
+  /// el prorrateo de IVA no cambia.
   /// `docs/promociones.md` + `docs/fidelizacion.md`.
   Discount? get _resolvedDiscount {
     var amount = 0.0;
@@ -224,10 +248,16 @@ class _PosScreenState extends ConsumerState<PosScreen> {
       amount += discountAmountForCart(d, _promoLines);
       label = d.name;
     }
-    if (_loyaltyRewardApplied) {
+    if (_stampsRewardApplied || _pointsRewardApplied) {
       final settings = ref.read(settingsProvider).valueOrNull ?? {};
-      final rewardCategory = settings['loyalty_reward_category'] ?? '';
-      amount += loyaltyRewardAmount(_promoLines, rewardCategory);
+      if (_stampsRewardApplied) {
+        final rewardProduct = settings['loyalty_stamps_reward_product'] ?? '';
+        amount += loyaltyRewardAmount(_promoLines, rewardProduct);
+      }
+      if (_pointsRewardApplied) {
+        final rewardProduct = settings['loyalty_points_reward_product'] ?? '';
+        amount += loyaltyRewardAmount(_promoLines, rewardProduct);
+      }
       label = label.isEmpty ? 'Recompensa' : '$label + Recompensa';
     }
     if (amount <= 0) return null;
@@ -401,6 +431,7 @@ class _PosScreenState extends ConsumerState<PosScreen> {
       if (!allowed) return;
     }
     if (mounted) setState(() => _selectedDiscount = discount);
+    _scrollToSelectedDiscount(discount.id);
   }
 
   void _clearCart() {
@@ -421,7 +452,8 @@ class _PosScreenState extends ConsumerState<PosScreen> {
       _deliveryCashController.clear();
       _selectedCustomer = null;
       _customerSuggestions = const [];
-      _loyaltyRewardApplied = false;
+      _stampsRewardApplied = false;
+      _pointsRewardApplied = false;
     });
   }
 
@@ -530,7 +562,10 @@ class _PosScreenState extends ConsumerState<PosScreen> {
   /// Disponible solo sin descuento/promo/combo/recompensa activos — prorratear
   /// eso por persona es ambiguo, mejor no adivinar. `docs/division-cuenta.md`.
   bool get _canSplitByItem =>
-      _cart.length >= 2 && _selectedDiscount == null && !_loyaltyRewardApplied;
+      _cart.length >= 2 &&
+      _selectedDiscount == null &&
+      !_stampsRewardApplied &&
+      !_pointsRewardApplied;
 
   /// Líneas de impuesto de un subconjunto del carrito (para calcular el total
   /// de un grupo al dividir por artículo). Mismo cálculo que `_taxLines`, pero
@@ -598,26 +633,50 @@ class _PosScreenState extends ConsumerState<PosScreen> {
     );
     if (groups == null) return;
 
-    for (final group in groups) {
+    // Solo se quitan del carrito las líneas de las personas que SÍ pagaron —
+    // si alguien cancela a medio split, sus artículos se quedan (no se pierde
+    // la orden completa). `docs/division-cuenta.md`.
+    final paidItems = <CartItem>[];
+    for (var i = 0; i < groups.length; i++) {
+      final group = groups[i];
       if (group.isEmpty) continue;
       if (!mounted) return;
-      final totals = computeTaxedTotals(lines: _taxLinesFor(group));
+      // Redondeado a centavos: el total que se muestra/compara en el modal
+      // debe ser el mismo número exacto, sin arrastrar el ruido de punto
+      // flotante de un precio prorrateado de combo. docs/division-cuenta.md.
+      final rawTotal = computeTaxedTotals(lines: _taxLinesFor(group)).total;
+      final total = (rawTotal * 100).round() / 100;
+      OrderWithItems? paid;
       await showDialog(
         context: context,
         barrierDismissible: false,
         builder: (_) => PaymentModal(
-          total: totals.total,
-          onCheckout: ({required payments}) => _checkoutGroup(group, payments),
+          total: total,
+          personLabel: 'Cuenta de la persona ${i + 1} de ${groups.length}',
+          onCheckout: ({required payments}) async {
+            paid = await _checkoutGroup(group, payments);
+            return paid;
+          },
         ),
       );
+      if (paid != null) paidItems.addAll(group);
     }
-    if (mounted) {
-      _clearCart();
-      setState(() => _selectedTableId = null);
+
+    if (mounted && paidItems.isNotEmpty) {
+      setState(() {
+        _cart.removeWhere(paidItems.contains);
+        if (_cart.isEmpty) {
+          _selectedTableId = null;
+          _selectedCustomer = null;
+          _customerSuggestions = const [];
+          _stampsRewardApplied = false;
+          _pointsRewardApplied = false;
+        }
+      });
     }
   }
 
-  void _openPayment() {
+  void _openPayment({bool autoStartEvenSplit = false}) {
     if (_cart.isEmpty) return;
     final employee = ref.read(sessionProvider);
     if (employee == null) {
@@ -637,8 +696,50 @@ class _PosScreenState extends ConsumerState<PosScreen> {
       builder: (_) => PaymentModal(
         total: _total,
         onCheckout: _checkout,
+        autoStartEvenSplit: autoStartEvenSplit,
       ),
     );
+  }
+
+  /// El botón "Dividir cuenta" del carrito ofrece las DOS mecánicas en un
+  /// solo lugar — antes "partes iguales" solo vivía escondida dentro del
+  /// `PaymentModal` y el cajero solo encontraba "por artículo" desde el
+  /// carrito (feedback de sitio 2026-07-22). `docs/division-cuenta.md`.
+  Future<void> _showSplitChoice() async {
+    final choice = await showDialog<String>(
+      context: context,
+      builder: (_) => SimpleDialog(
+        title: const Text('Dividir cuenta'),
+        children: [
+          SimpleDialogOption(
+            onPressed: () => Navigator.pop(context, 'partes_iguales'),
+            child: const ListTile(
+              leading: Icon(Icons.groups_outlined),
+              title: Text('Partes iguales'),
+              subtitle: Text('El total se reparte entre N personas.'),
+            ),
+          ),
+          SimpleDialogOption(
+            onPressed: _canSplitByItem
+                ? () => Navigator.pop(context, 'por_producto')
+                : null,
+            child: ListTile(
+              enabled: _canSplitByItem,
+              leading: const Icon(Icons.call_split),
+              title: const Text('Por producto'),
+              subtitle: Text(_canSplitByItem
+                  ? 'Cada persona paga solo lo que pidió.'
+                  : 'Quita el descuento/recompensa primero.'),
+            ),
+          ),
+        ],
+      ),
+    );
+    if (choice == 'partes_iguales') {
+      _openPayment(autoStartEvenSplit: true);
+    } else if (choice == 'por_producto') {
+      _startItemSplit();
+    }
   }
 
   // Crea y cobra la orden en una transacción atómica (CheckoutService) y
@@ -666,7 +767,8 @@ class _PosScreenState extends ConsumerState<PosScreen> {
           deliveryFee: _deliveryFee,
           total: _total,
           payments: payments,
-          redeemLoyalty: _loyaltyRewardApplied,
+          redeemStamps: _stampsRewardApplied,
+          redeemPoints: _pointsRewardApplied,
         );
 
     await ref.read(ordersProvider.notifier).loadActiveOrders();
@@ -926,32 +1028,74 @@ class _PosScreenState extends ConsumerState<PosScreen> {
   }
 
   /// Progreso de fidelización del cliente elegido + pill de recompensa (el
-  /// cajero decide si la aplica — nunca automático). `docs/fidelizacion.md`.
+  /// cajero decide si la aplica — nunca automático). Sellos y puntos son
+  /// mecánicas independientes: si ambas están activas, se muestran las DOS
+  /// filas de progreso a la vez. `docs/fidelizacion.md`.
   Widget _buildLoyaltyStatus() {
     final settings = ref.watch(settingsProvider).valueOrNull ?? {};
-    final loyaltyType = settings['loyalty_type'] ?? 'ninguno';
-    if (loyaltyType == 'ninguno') return const SizedBox.shrink();
+    final sellosOn = settings['loyalty_sellos_activo'] == 'true';
+    final puntosOn = settings['loyalty_puntos_activo'] == 'true';
+    if (!sellosOn && !puntosOn) return const SizedBox.shrink();
 
     final customer = _selectedCustomer!;
-    final stampsRequired =
-        int.tryParse(settings['loyalty_stamps_required'] ?? '') ?? 0;
-    final pointsRequired =
-        int.tryParse(settings['loyalty_points_required'] ?? '') ?? 0;
-    final rewardCategory = settings['loyalty_reward_category'] ?? '';
-    final eligible = rewardCategory.isNotEmpty &&
-        loyaltyRewardAvailable(
-          loyaltyType: loyaltyType,
-          stamps: customer.loyaltyStamps,
-          stampsRequired: stampsRequired,
-          points: customer.loyaltyPoints,
-          pointsRequired: pointsRequired,
-        );
-    final progress = loyaltyType == 'sellos'
-        ? '${customer.loyaltyStamps}/$stampsRequired sellos'
-        : '${customer.loyaltyPoints}/$pointsRequired puntos';
+    final rows = <Widget>[];
+
+    if (sellosOn) {
+      final stampsRequired =
+          int.tryParse(settings['loyalty_stamps_required'] ?? '') ?? 0;
+      final rewardProduct = settings['loyalty_stamps_reward_product'] ?? '';
+      final eligible = rewardProduct.isNotEmpty &&
+          loyaltyRewardAvailable(
+            loyaltyType: 'sellos',
+            stamps: customer.loyaltyStamps,
+            stampsRequired: stampsRequired,
+            points: 0,
+            pointsRequired: 0,
+          );
+      rows.add(_loyaltyRewardRow(
+        progress: '${customer.loyaltyStamps}/$stampsRequired sellos',
+        eligible: eligible,
+        applied: _stampsRewardApplied,
+        onToggle: () =>
+            setState(() => _stampsRewardApplied = !_stampsRewardApplied),
+      ));
+    }
+    if (puntosOn) {
+      final pointsRequired =
+          int.tryParse(settings['loyalty_points_required'] ?? '') ?? 0;
+      final rewardProduct = settings['loyalty_points_reward_product'] ?? '';
+      final eligible = rewardProduct.isNotEmpty &&
+          loyaltyRewardAvailable(
+            loyaltyType: 'puntos',
+            stamps: 0,
+            stampsRequired: 0,
+            points: customer.loyaltyPoints,
+            pointsRequired: pointsRequired,
+          );
+      rows.add(_loyaltyRewardRow(
+        progress: '${customer.loyaltyPoints}/$pointsRequired puntos',
+        eligible: eligible,
+        applied: _pointsRewardApplied,
+        onToggle: () =>
+            setState(() => _pointsRewardApplied = !_pointsRewardApplied),
+      ));
+    }
 
     return Padding(
       padding: const EdgeInsets.only(top: 8),
+      child:
+          Column(crossAxisAlignment: CrossAxisAlignment.start, children: rows),
+    );
+  }
+
+  Widget _loyaltyRewardRow({
+    required String progress,
+    required bool eligible,
+    required bool applied,
+    required VoidCallback onToggle,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 4),
       child: Row(
         children: [
           const Icon(Icons.loyalty, size: 14, color: LaTerciaColors.tan),
@@ -962,13 +1106,12 @@ class _PosScreenState extends ConsumerState<PosScreen> {
             const SizedBox(width: 8),
             InkWell(
               borderRadius: BorderRadius.circular(14),
-              onTap: () => setState(
-                  () => _loyaltyRewardApplied = !_loyaltyRewardApplied),
+              onTap: onToggle,
               child: Container(
                 padding:
                     const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
-                  color: _loyaltyRewardApplied
+                  color: applied
                       ? LaTerciaColors.success
                       : LaTerciaColors.successBg,
                   borderRadius: BorderRadius.circular(14),
@@ -979,20 +1122,14 @@ class _PosScreenState extends ConsumerState<PosScreen> {
                   children: [
                     Icon(Icons.card_giftcard,
                         size: 13,
-                        color: _loyaltyRewardApplied
-                            ? Colors.white
-                            : LaTerciaColors.success),
+                        color: applied ? Colors.white : LaTerciaColors.success),
                     const SizedBox(width: 4),
                     Text(
-                      _loyaltyRewardApplied
-                          ? 'Recompensa aplicada'
-                          : 'Recompensa disponible',
+                      applied ? 'Recompensa aplicada' : 'Recompensa disponible',
                       style: TextStyle(
                         fontSize: 11.5,
                         fontWeight: FontWeight.w700,
-                        color: _loyaltyRewardApplied
-                            ? Colors.white
-                            : LaTerciaColors.success,
+                        color: applied ? Colors.white : LaTerciaColors.success,
                       ),
                     ),
                   ],
@@ -1260,6 +1397,7 @@ class _PosScreenState extends ConsumerState<PosScreen> {
         final promo = scheduled.first;
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (mounted) setState(() => _selectedDiscount = promo);
+          _scrollToSelectedDiscount(promo.id);
         });
       }
     }
@@ -1399,19 +1537,26 @@ class _PosScreenState extends ConsumerState<PosScreen> {
                 SizedBox(
                   height: 34,
                   child: ListView(
+                    controller: _discScrollController,
                     scrollDirection: Axis.horizontal,
                     children: [
                       _DiscountPill(
+                        key: _discKeys.putIfAbsent(null, () => GlobalKey()),
                         label: 'Sin desc.',
                         selected: _selectedDiscount == null,
-                        onTap: () => setState(() {
-                          _selectedDiscount = null;
-                          _autoDismissed = true;
-                        }),
+                        onTap: () {
+                          setState(() {
+                            _selectedDiscount = null;
+                            _autoDismissed = true;
+                          });
+                          _scrollToSelectedDiscount(null);
+                        },
                       ),
                       ...activeDiscounts.map((d) => Padding(
                             padding: const EdgeInsets.only(left: 6),
                             child: _DiscountPill(
+                              key: _discKeys.putIfAbsent(
+                                  d.id, () => GlobalKey()),
                               label: switch (d.type) {
                                 'percentage' =>
                                   '${d.name} (${d.value.toInt()}%)',
@@ -1502,18 +1647,18 @@ class _PosScreenState extends ConsumerState<PosScreen> {
                     label: const Text('Cobrar'),
                   ),
                 ),
-                // División de cuenta por artículo (docs/division-cuenta.md).
-                // Partes iguales vive DENTRO del PaymentModal (botón "Cobrar").
+                // División de cuenta (docs/division-cuenta.md): un solo botón
+                // que ofrece las dos mecánicas (partes iguales / por
+                // producto) — antes partes iguales solo vivía escondida
+                // dentro del PaymentModal. Feedback de sitio 2026-07-22.
                 if (_cart.length >= 2) ...[
                   const SizedBox(height: 8),
                   SizedBox(
                     width: double.infinity,
                     child: TextButton.icon(
-                      onPressed: _canSplitByItem ? _startItemSplit : null,
+                      onPressed: _showSplitChoice,
                       icon: const Icon(Icons.call_split, size: 16),
-                      label: Text(_canSplitByItem
-                          ? 'Dividir por artículo'
-                          : 'Dividir por artículo (quita el descuento primero)'),
+                      label: const Text('Dividir cuenta'),
                     ),
                   ),
                 ],
@@ -1885,6 +2030,7 @@ class _DiscountPill extends StatelessWidget {
   // Ícono opcional (reloj = promoción programada). docs/promociones.md.
   final IconData? icon;
   const _DiscountPill({
+    super.key,
     required this.label,
     required this.selected,
     required this.onTap,
