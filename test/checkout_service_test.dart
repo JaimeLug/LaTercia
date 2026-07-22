@@ -635,4 +635,26 @@ void main() {
     final active = await db.ordersDao.getActiveOrders();
     expect(active, isEmpty);
   });
+
+  test(
+      '_assertCovers acepta un total crudo de combo (medio centavo por '
+      'encima de lo ya redondeado/cobrado) — bug reportado en sitio '
+      '2026-07-22: división de cuenta por artículo con un combo rechazaba '
+      'el cobro pese a que ambos montos se veían "35.59" en pantalla',
+      () async {
+    final product = await trackedProduct(stock: 10);
+    // 35.594 sin redondear (lo que da `computeTaxedTotals` crudo) vs 35.59
+    // ya redondeado a centavos (lo que se mostró/cobró en el PaymentModal).
+    final order = await checkout.checkout(
+      cartItems: [CartItem(product: product, quantity: 1)],
+      type: 'para_llevar',
+      employeeId: 1,
+      subtotal: 35.594,
+      total: 35.594,
+      payments: const [
+        PaymentDraft(method: 'efectivo', amountTendered: 35.59),
+      ],
+    );
+    expect(order.order.total, 35.594);
+  });
 }

@@ -592,6 +592,13 @@ class _PosScreenState extends ConsumerState<PosScreen> {
     final employee = ref.read(sessionProvider);
     if (employee == null) return null;
     final totals = computeTaxedTotals(lines: _taxLinesFor(items));
+    // Redondeado a centavos — el MISMO número que `_startItemSplit` calculó
+    // y mostró/cobró en el PaymentModal. Sin este redondeo, un total crudo
+    // de combo (ej. $35.594) puede quedar por encima de lo YA cobrado
+    // ($35.59) y `_assertCovers` lo rechaza con "los pagos no cubren el
+    // total" aunque ambos se vean idénticos redondeados a 2 decimales.
+    // `docs/division-cuenta.md`.
+    final total = (totals.total * 100).round() / 100;
     final order = await ref.read(checkoutServiceProvider).checkout(
           cartItems: items,
           type: _orderType,
@@ -600,7 +607,7 @@ class _PosScreenState extends ConsumerState<PosScreen> {
           customerName: _customerName,
           subtotal: totals.subtotal,
           taxAmount: totals.tax,
-          total: totals.total,
+          total: total,
           payments: payments,
         );
     await ref.read(ordersProvider.notifier).loadActiveOrders();

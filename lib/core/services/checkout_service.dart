@@ -57,12 +57,21 @@ class CheckoutService {
     ];
   }
 
-  /// Defensa en profundidad: los pagos deben cubrir el total.
-  /// `docs/ventas-cobro-turnos.md` §Pagos.
+  /// Defensa en profundidad: los pagos deben cubrir el total. Compara en
+  /// **centavos enteros** — una tolerancia fija en doubles (la que había
+  /// antes, 0.001) no basta contra un total crudo de combo prorrateado
+  /// (ej. $35.594 sin redondear): se ve idéntico a "35.59" en 2 decimales
+  /// pero es varias milésimas más alto que lo ya cobrado, y el pago
+  /// rechazaba con "no cubren el total" aunque en pantalla mostraran el
+  /// mismo número. Mismo criterio que `_reachesCents` en
+  /// `payment_modal.dart`. `docs/ventas-cobro-turnos.md` §Pagos,
+  /// `docs/division-cuenta.md`.
   void _assertCovers(List<PaymentDraft> drafts, double total) {
     final applied =
         drafts.fold(0.0, (a, d) => a + d.amountTendered - d.changeGiven);
-    if (applied + 0.001 < total) {
+    final appliedCents = (applied * 100).round();
+    final totalCents = (total * 100).round();
+    if (appliedCents < totalCents) {
       throw StateError(
           'Los pagos (${applied.toStringAsFixed(2)}) no cubren el total (${total.toStringAsFixed(2)}).');
     }

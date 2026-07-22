@@ -82,6 +82,19 @@ manejar una orden normal, sin importar que venga de un split.
   iguales" / "Por producto"); elegir "Partes iguales" abre el `PaymentModal`
   con `autoStartEvenSplit: true`, que dispara de inmediato el mismo diálogo
   "¿Entre cuántas personas?" que antes había que buscar adentro.
+- **Dividir por producto un combo seguía rechazando "Exacto"** incluso
+  después del fix de centavos de arriba: `_checkoutGroup` (en
+  `pos_screen.dart`) volvía a calcular el total del grupo **sin redondear**
+  y ESE era el que se mandaba a `CheckoutService.checkout()`, mientras que
+  el `PaymentModal` había mostrado/cobrado la versión YA redondeada a
+  centavos — un total crudo como `$35.594` se ve como "35.59" en pantalla
+  (igual que lo cobrado) pero es más alto que lo pagado, y `_assertCovers`
+  (con su tolerancia fija de 0.001, insuficiente) lo rechazaba con "los
+  pagos no cubren el total" aunque ambos números se vieran idénticos.
+  Arreglado en dos capas: `_checkoutGroup` ahora redondea a centavos antes
+  de pasar el total (igual que `_startItemSplit` ya hacía para mostrarlo), y
+  `_assertCovers` también pasó a comparar en centavos enteros (mismo
+  criterio que `_reachesCents` del `PaymentModal`) como defensa adicional.
 
 ## Dónde vive en la UI
 
