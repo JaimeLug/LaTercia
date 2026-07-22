@@ -1,4 +1,5 @@
 import '../database/database.dart';
+import '../models/order_with_items.dart' show CartItem;
 
 /// Aritmética pura de totales de una orden. Reglas: `docs/precios-e-iva.md`.
 
@@ -264,4 +265,28 @@ List<double> splitEvenly(double total, int parts) {
   return [
     for (var i = 0; i < parts; i++) (baseCents + (i < remainder ? 1 : 0)) / 100,
   ];
+}
+
+/// Agrupa [cart] en "unidades" asignables para dividir por artículo: una
+/// línea normal es su propia unidad; TODAS las líneas de un mismo combo se
+/// agrupan en una sola unidad — un combo no se reparte entre personas (un
+/// precio prorrateado por persona no corresponde a "lo que cada quien
+/// pidió", feedback de sitio 2026-07-22). Cada elemento devuelto es la lista
+/// de índices de [cart] que esa unidad agrupa, en el orden de aparición.
+/// `docs/division-cuenta.md`.
+List<List<int>> groupCartUnitsForSplit(List<CartItem> cart) {
+  final units = <List<int>>[];
+  final seenCombo = <String>{};
+  for (var i = 0; i < cart.length; i++) {
+    final comboId = cart[i].comboInstanceId;
+    if (comboId == null) {
+      units.add([i]);
+    } else if (seenCombo.add(comboId)) {
+      units.add([
+        for (var j = 0; j < cart.length; j++)
+          if (cart[j].comboInstanceId == comboId) j,
+      ]);
+    }
+  }
+  return units;
 }

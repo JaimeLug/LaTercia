@@ -39,7 +39,13 @@ manejar una orden normal, sin importar que venga de un split.
    COMPLETA a una persona (P1, P2, …) — **no se parte una línea por unidad**
    (ej. "2 cafés" no se puede repartir 1 y 1; si hace falta, se agregan como
    dos líneas separadas desde antes). Es la simplificación más barata que
-   sigue siendo honesta.
+   sigue siendo honesta. **Un combo es UNA sola unidad asignable, no varias**
+   (`groupCartUnitsForSplit`, pura, en `pricing.dart`): sus líneas
+   componentes SIEMPRE van juntas a la misma persona — prorratear el precio
+   de un combo entre dos personas daba montos que no correspondían a "lo que
+   cada quien pidió" (ej. $35.59 y $34.41 por un combo de $70, cuando en
+   realidad cada componente cuesta distinto por separado); feedback de
+   sitio 2026-07-22.
 3. Al confirmar, se abre el `PaymentModal` de siempre **una vez por persona**,
    en secuencia — cada uno cobra solo lo suyo (subtotal/IVA calculados con
    `computeTaxedTotals` sobre ese subconjunto, la misma función pura de
@@ -95,6 +101,17 @@ manejar una orden normal, sin importar que venga de un split.
   de pasar el total (igual que `_startItemSplit` ya hacía para mostrarlo), y
   `_assertCovers` también pasó a comparar en centavos enteros (mismo
   criterio que `_reachesCents` del `PaymentModal`) como defensa adicional.
+- **Los recibos en pantalla se amontonaban uno sobre otro** al dividir entre
+  3+ personas: `PaymentModal` mostraba su `ReceiptDialog` DESPUÉS de hacer
+  `Navigator.pop` de sí mismo, así que `_startItemSplit` ya había abierto el
+  `PaymentModal` de la siguiente persona antes de que el cajero alcanzara a
+  cerrar el recibo de la anterior (feedback de sitio 2026-07-22). Arreglado
+  quitándole a `PaymentModal` la responsabilidad de mostrar su propio recibo
+  durante el split (`showReceiptOnConfirm: false`) — el ticket físico se
+  sigue imprimiendo igual (no depende de ese diálogo); al terminar con
+  TODAS las personas, `_startItemSplit` muestra un solo
+  `_SplitReceiptsSummaryDialog` con la lista de órdenes cobradas y un único
+  botón "Aceptar".
 
 ## Dónde vive en la UI
 

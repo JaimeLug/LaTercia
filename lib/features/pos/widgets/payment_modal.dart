@@ -53,6 +53,15 @@ class PaymentModal extends ConsumerStatefulWidget {
   /// botón "Dividir cuenta" de aquí adentro. `docs/division-cuenta.md`.
   final bool autoStartEvenSplit;
 
+  /// `false` en división por artículo: mostrar un `ReceiptDialog` POR
+  /// PERSONA hacía que se amontonaran uno sobre otro (el diálogo de pago de
+  /// la siguiente persona se abre en cuanto este se cierra, sin esperar a
+  /// que el cajero cierre el recibo de la anterior — feedback de sitio
+  /// 2026-07-22). El ticket físico se sigue imprimiendo igual (eso no
+  /// depende de este diálogo); el caller muestra UN resumen combinado al
+  /// final. `docs/division-cuenta.md`.
+  final bool showReceiptOnConfirm;
+
   const PaymentModal({
     super.key,
     required this.total,
@@ -60,6 +69,7 @@ class PaymentModal extends ConsumerStatefulWidget {
     this.printKitchenComanda = true,
     this.personLabel,
     this.autoStartEvenSplit = false,
+    this.showReceiptOnConfirm = true,
   });
 
   @override
@@ -329,19 +339,23 @@ class _PaymentModalState extends ConsumerState<PaymentModal> {
 
     if (mounted) {
       Navigator.pop(context);
-      await showDialog(
-        context: context,
-        builder: (_) => ReceiptDialog(
-          orderWithItems: order,
-          payment: payment,
-          settings: settings,
-          employee: employee!,
-        ),
-      );
-      // Re-bloqueo opcional tras la venta (`lock_tras_venta`), después del
-      // recibo para no interrumpir el cobro.
-      if (settings['lock_tras_venta'] == 'true' && mounted) {
-        ref.read(sessionProvider.notifier).state = null;
+      if (widget.showReceiptOnConfirm) {
+        await showDialog(
+          context: context,
+          builder: (_) => ReceiptDialog(
+            orderWithItems: order,
+            payment: payment,
+            settings: settings,
+            employee: employee!,
+          ),
+        );
+        // Re-bloqueo opcional tras la venta (`lock_tras_venta`), después del
+        // recibo para no interrumpir el cobro. En división por artículo el
+        // caller decide cuándo (una sola vez, al final de todas las
+        // personas — ver `showReceiptOnConfirm`).
+        if (settings['lock_tras_venta'] == 'true' && mounted) {
+          ref.read(sessionProvider.notifier).state = null;
+        }
       }
     }
   }

@@ -644,6 +644,12 @@ class _PosScreenState extends ConsumerState<PosScreen> {
     // si alguien cancela a medio split, sus artículos se quedan (no se pierde
     // la orden completa). `docs/division-cuenta.md`.
     final paidItems = <CartItem>[];
+    // Un recibo en pantalla POR PERSONA se amontonaba con el PaymentModal de
+    // la siguiente (que se abre en cuanto este se cierra, sin esperar a que
+    // el cajero cierre el recibo anterior) — feedback de sitio 2026-07-22.
+    // Se juntan aquí y se muestra UN resumen combinado al final.
+    // `docs/division-cuenta.md`.
+    final paidOrders = <OrderWithItems>[];
     for (var i = 0; i < groups.length; i++) {
       final group = groups[i];
       if (group.isEmpty) continue;
@@ -660,13 +666,17 @@ class _PosScreenState extends ConsumerState<PosScreen> {
         builder: (_) => PaymentModal(
           total: total,
           personLabel: 'Cuenta de la persona ${i + 1} de ${groups.length}',
+          showReceiptOnConfirm: false,
           onCheckout: ({required payments}) async {
             paid = await _checkoutGroup(group, payments);
             return paid;
           },
         ),
       );
-      if (paid != null) paidItems.addAll(group);
+      if (paid != null) {
+        paidItems.addAll(group);
+        paidOrders.add(paid!);
+      }
     }
 
     if (mounted && paidItems.isNotEmpty) {
@@ -680,6 +690,22 @@ class _PosScreenState extends ConsumerState<PosScreen> {
           _pointsRewardApplied = false;
         }
       });
+    }
+
+    if (mounted && paidOrders.isNotEmpty) {
+      final settings = ref.read(settingsProvider).valueOrNull ?? {};
+      final symbol = settings['currency_symbol'] ?? r'$';
+      await showDialog(
+        context: context,
+        builder: (_) =>
+            _SplitReceiptsSummaryDialog(orders: paidOrders, symbol: symbol),
+      );
+      // Re-bloqueo opcional tras la venta (`lock_tras_venta`) — UNA sola vez
+      // al final de todas las personas, no por cada una (el PaymentModal ya
+      // no lo dispara mientras showReceiptOnConfirm es false).
+      if (settings['lock_tras_venta'] == 'true' && mounted) {
+        ref.read(sessionProvider.notifier).state = null;
+      }
     }
   }
 
@@ -2030,6 +2056,78 @@ class _CategoryChip extends StatelessWidget {
   }
 }
 
+/// Resumen de las N órdenes de una división por artículo, con UN botón
+/// "Aceptar" — reemplaza mostrar un `ReceiptDialog` por persona (se
+/// amontonaban con el pago de la siguiente). `docs/division-cuenta.md`.
+class _SplitReceiptsSummaryDialog extends StatelessWidget {
+  final List<OrderWithItems> orders;
+  final String symbol;
+  const _SplitReceiptsSummaryDialog(
+      {required this.orders, required this.symbol});
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      backgroundColor: LaTerciaColors.creamAlt,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 400),
+        child: Padding(
+          padding: const EdgeInsets.all(28),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.check_circle,
+                  color: LaTerciaColors.success, size: 40),
+              const SizedBox(height: 12),
+              Text(
+                '${orders.length} cuenta${orders.length == 1 ? '' : 's'} cobrada${orders.length == 1 ? '' : 's'}',
+                style: const TextStyle(
+                  fontFamily: 'DM Serif Display',
+                  fontSize: 20,
+                  color: LaTerciaColors.darkBrown,
+                ),
+              ),
+              const SizedBox(height: 4),
+              const Text(
+                'Cada una ya imprimió su propio ticket.',
+                style: TextStyle(fontSize: 12, color: LaTerciaColors.tan),
+              ),
+              const SizedBox(height: 16),
+              for (final o in orders)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text('Orden #${o.order.orderNumber}',
+                          style: const TextStyle(color: LaTerciaColors.cocoa)),
+                      Text(
+                        formatCurrency(o.order.total, symbol),
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w700,
+                          color: LaTerciaColors.burntOrange,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Aceptar'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _DiscountPill extends StatelessWidget {
   final String label;
   final bool selected;
@@ -2100,9 +2198,14 @@ class _SplitByItemDialog extends StatefulWidget {
 
 class _SplitByItemDialogState extends State<_SplitByItemDialog> {
   int _people = 2;
-  // Índice de línea del carrito → índice de persona (null = sin asignar).
-  late final List<int?> _assignment =
-      List<int?>.filled(widget.cart.length, null);
+  // Un combo no se puede repartir entre varias personas — cada "unidad"
+  // asignable es UNA línea normal, o TODAS las líneas de un mismo combo
+  // juntas (`groupCartUnitsForSplit`, pura, en pricing.dart). Cada elemento
+  // de `_units` es la lista de índices de `widget.cart` que esa unidad
+  // agrupa. `docs/division-cuenta.md`.
+  late final List<List<int>> _units = groupCartUnitsForSplit(widget.cart);
+  // Índice de unidad → índice de persona (null = sin asignar).
+  late final List<int?> _assignment = List<int?>.filled(_units.length, null);
 
   bool get _allAssigned => !_assignment.contains(null);
 
@@ -2129,7 +2232,8 @@ class _SplitByItemDialogState extends State<_SplitByItemDialog> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              'Toca a quién le toca cada línea. Todas deben quedar asignadas.',
+              'Toca a quién le toca cada línea. Todas deben quedar asignadas. '
+              'Un combo se asigna completo a una sola persona.',
               style: TextStyle(fontSize: 12.5, color: LaTerciaColors.tan),
             ),
             const SizedBox(height: 12),
@@ -2165,15 +2269,14 @@ class _SplitByItemDialogState extends State<_SplitByItemDialog> {
               child: SingleChildScrollView(
                 child: Column(
                   children: [
-                    for (var i = 0; i < widget.cart.length; i++)
+                    for (var u = 0; u < _units.length; u++)
                       Padding(
                         padding: const EdgeInsets.symmetric(vertical: 6),
                         child: Row(
                           children: [
                             Expanded(
                               child: Text(
-                                '${widget.cart[i].quantity}× '
-                                '${widget.cart[i].product.name}',
+                                _unitLabel(_units[u]),
                                 style: const TextStyle(fontSize: 13),
                               ),
                             ),
@@ -2185,9 +2288,9 @@ class _SplitByItemDialogState extends State<_SplitByItemDialog> {
                                     label: Text('P${p + 1}'),
                                     labelStyle: const TextStyle(fontSize: 11.5),
                                     visualDensity: VisualDensity.compact,
-                                    selected: _assignment[i] == p,
+                                    selected: _assignment[u] == p,
                                     onSelected: (_) =>
-                                        setState(() => _assignment[i] = p),
+                                        setState(() => _assignment[u] = p),
                                   ),
                               ],
                             ),
@@ -2209,8 +2312,10 @@ class _SplitByItemDialogState extends State<_SplitByItemDialog> {
           onPressed: _allAssigned
               ? () {
                   final groups = List.generate(_people, (_) => <CartItem>[]);
-                  for (var i = 0; i < widget.cart.length; i++) {
-                    groups[_assignment[i]!].add(widget.cart[i]);
+                  for (var u = 0; u < _units.length; u++) {
+                    for (final i in _units[u]) {
+                      groups[_assignment[u]!].add(widget.cart[i]);
+                    }
                   }
                   Navigator.pop(context, groups);
                 }
@@ -2219,5 +2324,16 @@ class _SplitByItemDialogState extends State<_SplitByItemDialog> {
         ),
       ],
     );
+  }
+
+  /// "2× Café" para una línea normal; "Combo: Combo 1 (completo)" para un
+  /// combo — no muestra sus componentes por separado porque van juntos a la
+  /// misma persona. `docs/division-cuenta.md`.
+  String _unitLabel(List<int> unit) {
+    final first = widget.cart[unit.first];
+    if (first.comboInstanceId == null) {
+      return '${first.quantity}× ${first.product.name}';
+    }
+    return '${first.comboName ?? 'Combo'} (completo)';
   }
 }
