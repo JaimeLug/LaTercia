@@ -35,6 +35,18 @@ código (es el mejor lugar para esa nota). Puntos notables:
   el arranque).
 - **v7:** insumos y recetas (activable, default OFF). **v8:** envío por zona.
   **v9:** teléfono/dirección del cliente para la comanda de reparto.
+- **v16:** primera migración defensiva/idempotente — cada `ALTER TABLE`
+  checa con `PRAGMA table_info` si la columna YA existe antes de agregarla.
+  Motivo (sitio 2026-07-22): con POS+KDS multiproceso sobre el mismo
+  archivo, dos instancias pueden abrir la base casi al mismo tiempo (ej.
+  `flutter run` sin cerrar + el `.exe` recién compilado corriendo a la par)
+  — ambas leen `user_version` antes de que la primera termine de
+  escribirlo, así que las dos intentan correr la misma migración, y la
+  segunda revienta con "duplicate column name" al querer agregar una
+  columna que la primera ya agregó. Sin el checkeo, ese choque deja la base
+  sin terminar de abrir (ni el login carga). **Regla desde v16: cualquier
+  `ALTER TABLE` nuevo debe checar primero si la columna ya existe** — ver el
+  patrón en el bloque `if (from < 16)`.
 
 Las migraciones de datos corren solas al abrir; el módulo de actualizaciones
 (`docs/actualizaciones.md`) no toca los datos.

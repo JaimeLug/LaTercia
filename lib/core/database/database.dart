@@ -636,9 +636,29 @@ class AppDatabase extends _$AppDatabase {
             // dato: significaba "categoría", no "producto", así que
             // copiarlo tal cual daría un alcance que no matchea nada; mejor
             // que el cajero/dueño lo vuelva a configurar por producto.
+            //
+            // Defensivo (idempotente): antes de cada ALTER se checa si la
+            // columna YA existe. La app corre multiproceso (POS+KDS sobre el
+            // mismo archivo, docs/base-de-datos.md §"Acceso multiproceso") y
+            // en sitio ya se vio DOS instancias abrir la base casi a la vez
+            // (`flutter run` sin cerrar + el .exe recién compilado) — ambas
+            // leen `user_version` ANTES de que la primera termine de
+            // escribirlo, así que las dos intentan correr v16, y la segunda
+            // revienta con "duplicate column name" al querer agregar una
+            // columna que la primera ya agregó. Sin este checkeo, un choque
+            // así deja la base sin terminar de abrir — ni el login carga.
             // docs/promociones.md, docs/fidelizacion.md.
-            await m.addColumn(discounts, discounts.productScope);
-            await m.addColumn(products, products.loyaltyPointsValue);
+            final discountCols =
+                await customSelect('PRAGMA table_info(discounts)').get();
+            if (!discountCols.any((r) => r.data['name'] == 'product_scope')) {
+              await m.addColumn(discounts, discounts.productScope);
+            }
+            final productCols =
+                await customSelect('PRAGMA table_info(products)').get();
+            if (!productCols
+                .any((r) => r.data['name'] == 'loyalty_points_value')) {
+              await m.addColumn(products, products.loyaltyPointsValue);
+            }
           }
         },
       );
