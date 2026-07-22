@@ -9,6 +9,9 @@ import '../../../core/providers/settings_provider.dart';
 import '../widgets/admin_panel.dart';
 import '../widgets/category_scope_picker.dart';
 
+/// Productos → pestaña "Modificadores". Sin AppBar propio: vive embebida
+/// dentro del `TabBarView` de `ProductsScreen`, cuyo `TabBar` ya muestra el
+/// título.
 class ModifiersScreen extends ConsumerStatefulWidget {
   const ModifiersScreen({super.key});
 
@@ -49,7 +52,6 @@ class _ModifiersScreenState extends ConsumerState<ModifiersScreen> {
 
     return Scaffold(
       backgroundColor: LaTerciaColors.appBg,
-      appBar: adminAppBar('Modificadores'),
       floatingActionButton: FloatingActionButton(
         backgroundColor: LaTerciaColors.burntOrange,
         onPressed: () => _showForm(context, null),

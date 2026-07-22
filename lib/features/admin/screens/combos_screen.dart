@@ -10,8 +10,10 @@ import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/formatters.dart';
 import '../widgets/admin_panel.dart';
 
-/// Configuración → Combos: paquetes de productos a precio especial. Se
-/// EXPANDEN a sus productos reales al vender — ver `docs/combos.md`.
+/// Productos → pestaña "Combos": paquetes de productos a precio especial. Se
+/// EXPANDEN a sus productos reales al vender — ver `docs/combos.md`. Sin
+/// AppBar propio: vive embebida dentro del `TabBarView` de `ProductsScreen`,
+/// cuyo `TabBar` ya muestra el título.
 class CombosScreen extends ConsumerStatefulWidget {
   const CombosScreen({super.key});
 
@@ -28,7 +30,6 @@ class _CombosScreenState extends ConsumerState<CombosScreen> {
 
     return Scaffold(
       backgroundColor: LaTerciaColors.appBg,
-      appBar: adminAppBar('Combos'),
       floatingActionButton: FloatingActionButton(
         backgroundColor: LaTerciaColors.burntOrange,
         onPressed: () => _showForm(context, null),

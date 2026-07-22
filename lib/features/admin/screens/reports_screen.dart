@@ -8,20 +8,7 @@ import '../../../core/providers/settings_provider.dart';
 import '../../../core/services/permission_service.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/formatters.dart';
-
-/// Paleta categórica de la marca para las gráficas — reemplaza los
-/// `Colors.blue/red/...` genéricos por los tonos de La Tercia, en un orden con
-/// buen contraste entre vecinos.
-const _chartColors = <Color>[
-  LaTerciaColors.burntOrange,
-  LaTerciaColors.gold,
-  LaTerciaColors.catFria,
-  LaTerciaColors.catExtra,
-  LaTerciaColors.catPostre,
-  LaTerciaColors.delivery,
-  LaTerciaColors.goldDark,
-  LaTerciaColors.cocoa,
-];
+import '../widgets/report_charts.dart';
 
 class ReportsScreen extends ConsumerStatefulWidget {
   const ReportsScreen({super.key});
@@ -98,186 +85,6 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
   }
 }
 
-// ─── Widgets reutilizables de la marca ───────────────────────────────────────
-
-/// Envoltura de panel: card cremita con borde suave y padding consistente.
-class _Panel extends StatelessWidget {
-  final Widget child;
-  const _Panel({required this.child});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: LaTerciaColors.creamAlt,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: LaTerciaColors.border),
-      ),
-      child: child,
-    );
-  }
-}
-
-class _PanelTitle extends StatelessWidget {
-  final String title;
-  final String? subtitle;
-  const _PanelTitle(this.title, {this.subtitle});
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(title,
-            style: const TextStyle(
-                fontSize: 17,
-                fontWeight: FontWeight.w700,
-                color: LaTerciaColors.darkBrown)),
-        if (subtitle != null) ...[
-          const SizedBox(height: 2),
-          Text(subtitle!,
-              style:
-                  const TextStyle(fontSize: 12.5, color: LaTerciaColors.tan)),
-        ],
-      ],
-    );
-  }
-}
-
-/// Tarjeta KPI: etiqueta en mayúsculas + valor grande en serif.
-class _StatCard extends StatelessWidget {
-  final String label;
-  final String value;
-  final IconData icon;
-  final Color accent;
-  const _StatCard({
-    required this.label,
-    required this.value,
-    required this.icon,
-    this.accent = LaTerciaColors.burntOrange,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 200,
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: LaTerciaColors.creamAlt,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: LaTerciaColors.border),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: 38,
-            height: 38,
-            decoration: BoxDecoration(
-              color: accent.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(11),
-            ),
-            child: Icon(icon, size: 20, color: accent),
-          ),
-          const SizedBox(height: 14),
-          Text(label.toUpperCase(),
-              style: const TextStyle(
-                  fontSize: 10.5,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 0.8,
-                  color: LaTerciaColors.tan)),
-          const SizedBox(height: 4),
-          Text(value,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                  fontFamily: 'DM Serif Display',
-                  fontSize: 26,
-                  color: LaTerciaColors.darkBrown)),
-        ],
-      ),
-    );
-  }
-}
-
-/// Fila de desglose con barra de proporción — reemplaza los DataTable pelados.
-class _BreakdownRow extends StatelessWidget {
-  final String label;
-  final String valueText;
-  final double fraction; // 0..1 respecto al máximo
-  final Color color;
-  const _BreakdownRow({
-    required this.label,
-    required this.valueText,
-    required this.fraction,
-    required this.color,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Column(
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 9,
-                height: 9,
-                decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-              ),
-              const SizedBox(width: 9),
-              Expanded(
-                child: Text(label,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: LaTerciaColors.cocoa)),
-              ),
-              Text(valueText,
-                  style: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w700,
-                      color: LaTerciaColors.darkBrown,
-                      fontFeatures: [FontFeature.tabularFigures()])),
-            ],
-          ),
-          const SizedBox(height: 7),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(100),
-            child: LinearProgressIndicator(
-              value: fraction.clamp(0.0, 1.0),
-              minHeight: 6,
-              backgroundColor: LaTerciaColors.surfaceVariant,
-              valueColor: AlwaysStoppedAnimation(color),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-Widget _loading() =>
-    const Center(child: CircularProgressIndicator(color: LaTerciaColors.gold));
-
-Widget _empty(String msg) => Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Icon(Icons.bar_chart_rounded,
-              size: 44, color: LaTerciaColors.tanLight),
-          const SizedBox(height: 10),
-          Text(msg,
-              style: const TextStyle(color: LaTerciaColors.tan, fontSize: 15)),
-        ],
-      ),
-    );
-
 /// Leyenda + donut para las gráficas de proporción.
 class _Donut extends StatelessWidget {
   final List<MapEntry<String, double>> entries;
@@ -301,7 +108,7 @@ class _Donut extends StatelessWidget {
             return PieChartSectionData(
               value: e.value.value,
               title: '',
-              color: _chartColors[e.key % _chartColors.length],
+              color: chartColors[e.key % chartColors.length],
               radius: 34,
             );
           }).toList(),
@@ -313,12 +120,12 @@ class _Donut extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: entries.asMap().entries.map((e) {
         final pct = total > 0 ? (e.value.value / total * 100) : 0;
-        return _BreakdownRow(
+        return BreakdownRow(
           label: e.value.key,
           valueText:
               '${formatCurrency(e.value.value, symbol)} · ${pct.toStringAsFixed(0)}%',
           fraction: maxV > 0 ? e.value.value / maxV : 0,
-          color: _chartColors[e.key % _chartColors.length],
+          color: chartColors[e.key % chartColors.length],
         );
       }).toList(),
     );
@@ -391,21 +198,21 @@ class _DailyTabState extends ConsumerState<_DailyTab> {
               spacing: 14,
               runSpacing: 14,
               children: [
-                _StatCard(
+                StatCard(
                     label: 'Ingresos',
                     value: formatCurrency(d['revenue'], widget.symbol),
                     icon: Icons.payments_outlined),
-                _StatCard(
+                StatCard(
                     label: 'Órdenes',
                     value: '${d['orders']}',
                     icon: Icons.receipt_long_outlined,
                     accent: LaTerciaColors.catFria),
-                _StatCard(
+                StatCard(
                     label: 'Ticket promedio',
                     value: formatCurrency(d['avg'], widget.symbol),
                     icon: Icons.trending_up,
                     accent: LaTerciaColors.catExtra),
-                _StatCard(
+                StatCard(
                     label: 'Producto estrella',
                     value: d['top'] as String,
                     icon: Icons.star_outline,
@@ -435,7 +242,7 @@ class _DailyTabState extends ConsumerState<_DailyTab> {
 class _LoadingBox extends StatelessWidget {
   const _LoadingBox();
   @override
-  Widget build(BuildContext context) => _loading();
+  Widget build(BuildContext context) => loadingChart();
 }
 
 // ─── Tab: Semanal ────────────────────────────────────────────────────────────
@@ -449,19 +256,19 @@ class _WeeklyTab extends ConsumerWidget {
     return FutureBuilder<Map<String, double>>(
       future: ref.read(databaseProvider).reportsDao.getDailyRevenueLast7Days(),
       builder: (ctx, snapshot) {
-        if (!snapshot.hasData) return _loading();
+        if (!snapshot.hasData) return loadingChart();
         final entries = snapshot.data!.entries.toList();
         return Padding(
           padding: const EdgeInsets.all(20),
-          child: _Panel(
+          child: Panel(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const _PanelTitle('Ingresos últimos 7 días'),
+                const PanelTitle('Ingresos últimos 7 días'),
                 const SizedBox(height: 20),
                 SizedBox(
                   height: 260,
-                  child: _brandBarChart(
+                  child: brandBarChart(
                     context,
                     entries,
                     color: LaTerciaColors.burntOrange,
@@ -489,20 +296,20 @@ class _MonthlyTab extends ConsumerWidget {
     return FutureBuilder<Map<String, double>>(
       future: _loadMonthly(ref),
       builder: (ctx, snapshot) {
-        if (!snapshot.hasData) return _loading();
+        if (!snapshot.hasData) return loadingChart();
         final entries = snapshot.data!.entries.toList();
         return Padding(
           padding: const EdgeInsets.all(20),
-          child: _Panel(
+          child: Panel(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _PanelTitle('Ingresos mensuales',
+                PanelTitle('Ingresos mensuales',
                     subtitle: '${DateTime.now().year}'),
                 const SizedBox(height: 20),
                 SizedBox(
                   height: 260,
-                  child: _brandBarChart(
+                  child: brandBarChart(
                     context,
                     entries,
                     color: LaTerciaColors.goldDark,
@@ -546,86 +353,6 @@ class _MonthlyTab extends ConsumerWidget {
   }
 }
 
-/// Gráfica de barras con el estilo de la marca (barras redondeadas, grid tenue).
-Widget _brandBarChart(
-  BuildContext context,
-  List<MapEntry<String, double>> entries, {
-  required Color color,
-  required String symbol,
-  required String Function(int) bottomLabel,
-}) {
-  if (entries.isEmpty) return _empty('Sin datos en el periodo');
-  final maxV = entries.map((e) => e.value).fold(0.0, (a, b) => a > b ? a : b);
-  return BarChart(
-    BarChartData(
-      alignment: BarChartAlignment.spaceAround,
-      maxY: maxV == 0 ? 1 : maxV * 1.2,
-      barGroups: entries
-          .asMap()
-          .entries
-          .map((e) => BarChartGroupData(x: e.key, barRods: [
-                BarChartRodData(
-                  toY: e.value.value,
-                  color: color,
-                  width: 22,
-                  borderRadius:
-                      const BorderRadius.vertical(top: Radius.circular(6)),
-                ),
-              ]))
-          .toList(),
-      titlesData: FlTitlesData(
-        bottomTitles: AxisTitles(
-          sideTitles: SideTitles(
-            showTitles: true,
-            reservedSize: 26,
-            getTitlesWidget: (v, _) {
-              final i = v.toInt();
-              if (i < 0 || i >= entries.length) return const SizedBox();
-              return Padding(
-                padding: const EdgeInsets.only(top: 6),
-                child: Text(bottomLabel(i),
-                    style: const TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                        color: LaTerciaColors.tan)),
-              );
-            },
-          ),
-        ),
-        leftTitles: AxisTitles(
-          sideTitles: SideTitles(
-            showTitles: true,
-            reservedSize: 52,
-            getTitlesWidget: (v, _) => Text(
-                formatCurrency(v, symbol, decimals: 0),
-                style: const TextStyle(
-                    fontSize: 10, color: LaTerciaColors.tanLight)),
-          ),
-        ),
-        topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-        rightTitles:
-            const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-      ),
-      gridData: FlGridData(
-        show: true,
-        drawVerticalLine: false,
-        getDrawingHorizontalLine: (_) =>
-            const FlLine(color: LaTerciaColors.border, strokeWidth: 1),
-      ),
-      borderData: FlBorderData(show: false),
-      barTouchData: BarTouchData(
-        touchTooltipData: BarTouchTooltipData(
-          getTooltipColor: (_) => LaTerciaColors.darkBrown,
-          getTooltipItem: (group, _, rod, __) => BarTooltipItem(
-            formatCurrency(rod.toY, symbol),
-            const TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
-          ),
-        ),
-      ),
-    ),
-  );
-}
-
 // ─── Tab: Por categoría ──────────────────────────────────────────────────────
 
 class _CategoryTab extends ConsumerWidget {
@@ -638,19 +365,19 @@ class _CategoryTab extends ConsumerWidget {
       future: ref.read(databaseProvider).reportsDao.getSalesByCategory(
           DateTime.now().subtract(const Duration(days: 30)), DateTime.now()),
       builder: (ctx, snapshot) {
-        if (!snapshot.hasData) return _loading();
+        if (!snapshot.hasData) return loadingChart();
         final data = snapshot.data!;
-        if (data.isEmpty) return _empty('Sin ventas en los últimos 30 días');
+        if (data.isEmpty) return emptyChart('Sin ventas en los últimos 30 días');
         final entries = data.entries.toList()
           ..sort((a, b) => b.value.compareTo(a.value));
         return ListView(
           padding: const EdgeInsets.all(20),
           children: [
-            _Panel(
+            Panel(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const _PanelTitle('Ventas por categoría',
+                  const PanelTitle('Ventas por categoría',
                       subtitle: 'Últimos 30 días'),
                   const SizedBox(height: 18),
                   _Donut(entries: entries, symbol: symbol),
@@ -676,27 +403,27 @@ class _EmployeeTab extends ConsumerWidget {
       future: ref.read(databaseProvider).reportsDao.getSalesByEmployee(
           DateTime.now().subtract(const Duration(days: 30)), DateTime.now()),
       builder: (ctx, snapshot) {
-        if (!snapshot.hasData) return _loading();
+        if (!snapshot.hasData) return loadingChart();
         final data = snapshot.data!;
-        if (data.isEmpty) return _empty('Sin ventas en los últimos 30 días');
+        if (data.isEmpty) return emptyChart('Sin ventas en los últimos 30 días');
         final entries = data.entries.toList()
           ..sort((a, b) => b.value.compareTo(a.value));
         final maxV = entries.first.value;
         return ListView(
           padding: const EdgeInsets.all(20),
           children: [
-            _Panel(
+            Panel(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const _PanelTitle('Ventas por empleado',
+                  const PanelTitle('Ventas por empleado',
                       subtitle: 'Últimos 30 días'),
                   const SizedBox(height: 6),
-                  ...entries.asMap().entries.map((e) => _BreakdownRow(
+                  ...entries.asMap().entries.map((e) => BreakdownRow(
                         label: e.value.key,
                         valueText: formatCurrency(e.value.value, symbol),
                         fraction: maxV > 0 ? e.value.value / maxV : 0,
-                        color: _chartColors[e.key % _chartColors.length],
+                        color: chartColors[e.key % chartColors.length],
                       )),
                 ],
               ),
@@ -720,19 +447,19 @@ class _PaymentMethodTab extends ConsumerWidget {
       future: ref.read(databaseProvider).reportsDao.getSalesByPaymentMethod(
           DateTime.now().subtract(const Duration(days: 30)), DateTime.now()),
       builder: (ctx, snapshot) {
-        if (!snapshot.hasData) return _loading();
+        if (!snapshot.hasData) return loadingChart();
         final data = snapshot.data!;
-        if (data.isEmpty) return _empty('Sin ventas en los últimos 30 días');
+        if (data.isEmpty) return emptyChart('Sin ventas en los últimos 30 días');
         final entries = data.entries.toList()
           ..sort((a, b) => b.value.compareTo(a.value));
         return ListView(
           padding: const EdgeInsets.all(20),
           children: [
-            _Panel(
+            Panel(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const _PanelTitle('Ventas por método de pago',
+                  const PanelTitle('Ventas por método de pago',
                       subtitle: 'Últimos 30 días'),
                   const SizedBox(height: 18),
                   _Donut(entries: entries, symbol: symbol),
@@ -757,26 +484,26 @@ class _TopProductsTab extends ConsumerWidget {
     return FutureBuilder<Map<String, int>>(
       future: ref.read(databaseProvider).reportsDao.getTopProductsToday(),
       builder: (ctx, snapshot) {
-        if (!snapshot.hasData) return _loading();
+        if (!snapshot.hasData) return loadingChart();
         final entries = snapshot.data!.entries.toList();
-        if (entries.isEmpty) return _empty('Sin ventas hoy');
+        if (entries.isEmpty) return emptyChart('Sin ventas hoy');
         final maxV =
             entries.map((e) => e.value).reduce((a, b) => a > b ? a : b);
         return ListView(
           padding: const EdgeInsets.all(20),
           children: [
-            _Panel(
+            Panel(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const _PanelTitle('Productos más vendidos',
+                  const PanelTitle('Productos más vendidos',
                       subtitle: 'Hoy · por unidades'),
                   const SizedBox(height: 6),
-                  ...entries.asMap().entries.map((e) => _BreakdownRow(
+                  ...entries.asMap().entries.map((e) => BreakdownRow(
                         label: e.value.key,
                         valueText: '${e.value.value} u',
                         fraction: maxV > 0 ? e.value.value / maxV : 0,
-                        color: _chartColors[e.key % _chartColors.length],
+                        color: chartColors[e.key % chartColors.length],
                       )),
                 ],
               ),
@@ -812,7 +539,7 @@ class _AntifraudTab extends ConsumerWidget {
             .getByAction(PermissionAction.abrirGavetaSinVenta.key, limit: 1000),
       ]),
       builder: (ctx, snapshot) {
-        if (!snapshot.hasData) return _loading();
+        if (!snapshot.hasData) return loadingChart();
         final cancellations = snapshot.data![0];
         final drawerOpens = snapshot.data![1];
 
@@ -829,11 +556,11 @@ class _AntifraudTab extends ConsumerWidget {
         return ListView(
           padding: const EdgeInsets.all(20),
           children: [
-            _Panel(
+            Panel(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const _PanelTitle('Anulaciones por empleado',
+                  const PanelTitle('Anulaciones por empleado',
                       subtitle: 'Órdenes canceladas registradas en auditoría'),
                   const SizedBox(height: 6),
                   if (sorted.isEmpty)
@@ -843,7 +570,7 @@ class _AntifraudTab extends ConsumerWidget {
                           style: TextStyle(color: LaTerciaColors.tan)),
                     )
                   else
-                    ...sorted.asMap().entries.map((e) => _BreakdownRow(
+                    ...sorted.asMap().entries.map((e) => BreakdownRow(
                           label: e.value.key == null
                               ? 'Desconocido'
                               : (empMap[e.value.key] ??
@@ -856,11 +583,11 @@ class _AntifraudTab extends ConsumerWidget {
               ),
             ),
             const SizedBox(height: 16),
-            _Panel(
+            Panel(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const _PanelTitle('Aperturas de gaveta sin venta'),
+                  const PanelTitle('Aperturas de gaveta sin venta'),
                   const SizedBox(height: 10),
                   if (drawerOpens.isEmpty)
                     const Text('Sin registros.',

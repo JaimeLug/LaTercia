@@ -11,8 +11,13 @@ import '../widgets/admin_panel.dart';
 /// Configuración → Monitores: ver los monitores conectados (nombre real,
 /// resolución, principal/secundario) y ponerles un nombre amigable que se
 /// reutiliza en el selector de la Cocina. `docs/monitores.md`.
+///
+/// Se embebe DENTRO del layout de `SettingsScreen` (cambio de estado, no
+/// `Navigator.push`) para que el sidebar y el header de arriba sigan
+/// visibles — [onBack] regresa a la cuadrícula de Configuración.
 class MonitoresScreen extends ConsumerStatefulWidget {
-  const MonitoresScreen({super.key});
+  final VoidCallback onBack;
+  const MonitoresScreen({super.key, required this.onBack});
 
   @override
   ConsumerState<MonitoresScreen> createState() => _MonitoresScreenState();
@@ -113,18 +118,25 @@ class _MonitoresScreenState extends ConsumerState<MonitoresScreen> {
     final monitors = _monitors;
     return Scaffold(
       backgroundColor: LaTerciaColors.appBg,
-      appBar: adminAppBar('Monitores', actions: [
-        Padding(
-          padding: const EdgeInsets.only(right: 12),
-          child: TextButton.icon(
-            icon: const Icon(Icons.refresh, size: 18),
-            label: const Text('Actualizar'),
-            style: TextButton.styleFrom(
-                foregroundColor: LaTerciaColors.burntOrange),
-            onPressed: _saving ? null : _load,
-          ),
+      appBar: adminAppBar(
+        'Monitores',
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: LaTerciaColors.darkBrown),
+          onPressed: widget.onBack,
         ),
-      ]),
+        actions: [
+          Padding(
+            padding: const EdgeInsets.only(right: 12),
+            child: TextButton.icon(
+              icon: const Icon(Icons.refresh, size: 18),
+              label: const Text('Actualizar'),
+              style: TextButton.styleFrom(
+                  foregroundColor: LaTerciaColors.burntOrange),
+              onPressed: _saving ? null : _load,
+            ),
+          ),
+        ],
+      ),
       body: monitors == null
           ? adminLoading()
           : SingleChildScrollView(

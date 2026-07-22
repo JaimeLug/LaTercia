@@ -6,11 +6,14 @@ import '../../../core/theme/app_theme.dart';
 import '../widgets/admin_panel.dart';
 import '../widgets/botonera_status_card.dart';
 
-/// FASE 3.5 — Pantalla dedicada a la botonera de cocina (ESP32 por WiFi), como
-/// su propia sección del menú (no un apartado dentro de Configuración): activar,
-/// puerto del servidor, IP de esta máquina y el panel de prueba en vivo.
+/// Configuración → Botonera: la botonera de cocina (ESP32 por WiFi) —
+/// activar, puerto del servidor, IP de esta máquina y el panel de prueba en
+/// vivo. Se embebe dentro del layout de `SettingsScreen` (cambio de estado,
+/// no `Navigator.push`) para que el sidebar y el header sigan visibles;
+/// [onBack] regresa a la cuadrícula de Configuración.
 class BotoneraScreen extends ConsumerStatefulWidget {
-  const BotoneraScreen({super.key});
+  final VoidCallback onBack;
+  const BotoneraScreen({super.key, required this.onBack});
 
   @override
   ConsumerState<BotoneraScreen> createState() => _BotoneraScreenState();
@@ -62,7 +65,13 @@ class _BotoneraScreenState extends ConsumerState<BotoneraScreen> {
 
     return Scaffold(
       backgroundColor: LaTerciaColors.appBg,
-      appBar: adminAppBar('Botonera · Cocina'),
+      appBar: adminAppBar(
+        'Botonera · Cocina',
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: LaTerciaColors.darkBrown),
+          onPressed: widget.onBack,
+        ),
+      ),
       body: ListView(
         padding: const EdgeInsets.all(20),
         children: [

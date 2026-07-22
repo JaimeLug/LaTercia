@@ -79,52 +79,59 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> {
       ]),
       body: Column(
         children: [
-          // Filter bar
+          // Filter bar. El buscador va en su propia línea, a todo lo ancho
+          // (antes compartía Wrap con los demás filtros en un SizedBox fijo
+          // de 240px — al bajar de línea en ventanas angostas se veía
+          // truncado, ej. "Buscar # orden o cli..."). Feedback de sitio
+          // 2026-07-22.
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
-            child: Wrap(
-              spacing: 10,
-              runSpacing: 10,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                OutlinedButton.icon(
-                  icon: const Icon(Icons.calendar_today, size: 16),
-                  label: Text(
-                      '${formatDate(_dateRange.start)} — ${formatDate(_dateRange.end)}'),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: LaTerciaColors.cocoa,
-                    side: const BorderSide(color: LaTerciaColors.border),
-                    backgroundColor: LaTerciaColors.creamAlt,
-                  ),
-                  onPressed: _pickDateRange,
-                ),
-                _FilterDropdown<String>(
-                  value: _statusFilter,
-                  items: const [
-                    'Todos',
-                    'pendiente',
-                    'en_preparacion',
-                    'listo',
-                    'entregado',
-                    'cancelado'
+                Wrap(
+                  spacing: 10,
+                  runSpacing: 10,
+                  children: [
+                    OutlinedButton.icon(
+                      icon: const Icon(Icons.calendar_today, size: 16),
+                      label: Text(
+                          '${formatDate(_dateRange.start)} — ${formatDate(_dateRange.end)}'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: LaTerciaColors.cocoa,
+                        side: const BorderSide(color: LaTerciaColors.border),
+                        backgroundColor: LaTerciaColors.creamAlt,
+                      ),
+                      onPressed: _pickDateRange,
+                    ),
+                    _FilterDropdown<String>(
+                      value: _statusFilter,
+                      items: const [
+                        'Todos',
+                        'pendiente',
+                        'en_preparacion',
+                        'listo',
+                        'entregado',
+                        'cancelado'
+                      ],
+                      labelOf: (s) => s,
+                      onChanged: (v) => setState(() => _statusFilter = v!),
+                    ),
+                    _FilterDropdown<int?>(
+                      value: _employeeFilter,
+                      items: [null, ...employees.map((e) => e.id)],
+                      labelOf: (id) => id == null
+                          ? 'Todos los empleados'
+                          : employees.firstWhere((e) => e.id == id).name,
+                      onChanged: (v) => setState(() => _employeeFilter = v),
+                    ),
                   ],
-                  labelOf: (s) => s,
-                  onChanged: (v) => setState(() => _statusFilter = v!),
                 ),
-                _FilterDropdown<int?>(
-                  value: _employeeFilter,
-                  items: [null, ...employees.map((e) => e.id)],
-                  labelOf: (id) => id == null
-                      ? 'Todos los empleados'
-                      : employees.firstWhere((e) => e.id == id).name,
-                  onChanged: (v) => setState(() => _employeeFilter = v),
-                ),
-                SizedBox(
-                  width: 240,
-                  child: AdminSearchField(
-                    controller: _searchCtrl,
-                    hintText: 'Buscar # orden o cliente...',
-                    onChanged: (v) => setState(() => _search = v),
-                  ),
+                const SizedBox(height: 10),
+                AdminSearchField(
+                  controller: _searchCtrl,
+                  hintText: 'Buscar # orden o cliente...',
+                  onChanged: (v) => setState(() => _search = v),
                 ),
               ],
             ),

@@ -15,12 +15,15 @@ import '../../../core/utils/network_info.dart';
 import '../../../core/utils/power_service.dart';
 import '../widgets/admin_panel.dart';
 
-/// FASE 6 — Pantalla dedicada al equipo/quiosko (antes un par de secciones
-/// sueltas dentro de Configuración): modo kiosko, información del sistema
-/// (útil sobre todo en Linux sin escritorio a la vista) y las acciones de
-/// energía. Todo lo relacionado con "esta computadora" en un solo lugar.
+/// Configuración → Quiosco: modo kiosko, información del sistema (útil sobre
+/// todo en Linux sin escritorio a la vista) y las acciones de energía. Todo
+/// lo relacionado con "esta computadora" en un solo lugar. Se embebe dentro
+/// del layout de `SettingsScreen` (cambio de estado, no `Navigator.push`)
+/// para que el sidebar y el header sigan visibles; [onBack] regresa a la
+/// cuadrícula de Configuración.
 class KioskScreen extends ConsumerStatefulWidget {
-  const KioskScreen({super.key});
+  final VoidCallback onBack;
+  const KioskScreen({super.key, required this.onBack});
 
   @override
   ConsumerState<KioskScreen> createState() => _KioskScreenState();
@@ -217,7 +220,13 @@ class _KioskScreenState extends ConsumerState<KioskScreen> {
 
     return Scaffold(
       backgroundColor: LaTerciaColors.appBg,
-      appBar: adminAppBar('Quiosco'),
+      appBar: adminAppBar(
+        'Quiosco',
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: LaTerciaColors.darkBrown),
+          onPressed: widget.onBack,
+        ),
+      ),
       body: ListView(
         padding: const EdgeInsets.all(20),
         children: [

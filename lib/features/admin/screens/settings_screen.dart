@@ -9,11 +9,24 @@ import '../../../core/providers/settings_provider.dart';
 import '../../../core/services/print_service.dart';
 import '../../../core/theme/app_theme.dart';
 import '../widgets/admin_panel.dart';
+import 'backups_screen.dart';
+import 'botonera_screen.dart';
+import 'delivery_zones_screen.dart';
+import 'kiosk_screen.dart';
 import 'monitores_screen.dart';
 
 /// Metadatos de cada categoría de Configuración, para la vista de tarjetas de
 /// entrada — reemplaza la única página larga de scroll infinito por un menú
 /// tipo Ajustes de Windows/macOS: entras, ves temas, tocas uno, ves solo eso.
+///
+/// Reestructuración de navegación 2026-07-22: de 12 a 17 cards. Las últimas
+/// 5 (envio/botonera/quiosco/monitores/backups) vivían como items propios
+/// del sidebar — se movieron aquí porque son "ajustar una vez" del equipo/
+/// negocio, no trabajo operativo del día a día (a diferencia de Órdenes,
+/// Reportes, Facturación, que sí se quedaron en el sidebar). Se renderizan
+/// distinto a las primeras 12: en vez del panel de campos + "Guardar
+/// cambios" (`_categoryFields`), embeben su pantalla completa de siempre
+/// (ver `_screenCategoryKeys` y `_buildScreenCategory`).
 typedef _SettingsCategory = ({
   String key,
   IconData icon,
@@ -71,12 +84,6 @@ const _settingsCategories = <_SettingsCategory>[
     subtitle: 'Propinas'
   ),
   (
-    key: 'fidelizacion',
-    icon: Icons.card_giftcard_outlined,
-    title: 'Fidelización',
-    subtitle: 'Sellos o puntos por cliente'
-  ),
-  (
     key: 'moneda',
     icon: Icons.attach_money,
     title: 'Moneda',
@@ -94,7 +101,47 @@ const _settingsCategories = <_SettingsCategory>[
     title: 'Facturación (emisor)',
     subtitle: 'Datos fiscales del negocio'
   ),
+  (
+    key: 'fidelizacion',
+    icon: Icons.card_giftcard_outlined,
+    title: 'Fidelización',
+    subtitle: 'Sellos o puntos por cliente'
+  ),
+  (
+    key: 'envio',
+    icon: Icons.delivery_dining_outlined,
+    title: 'Envío',
+    subtitle: 'Zonas y cargo de entrega'
+  ),
+  (
+    key: 'botonera',
+    icon: Icons.gamepad_outlined,
+    title: 'Botonera',
+    subtitle: 'Botonera física de Cocina (ESP32)'
+  ),
+  (
+    key: 'quiosco',
+    icon: Icons.dvr_outlined,
+    title: 'Quiosco',
+    subtitle: 'Equipo, actualizaciones y energía'
+  ),
+  (
+    key: 'monitores',
+    icon: Icons.desktop_windows_outlined,
+    title: 'Monitores',
+    subtitle: 'Nombres de las pantallas'
+  ),
+  (
+    key: 'backups',
+    icon: Icons.backup_outlined,
+    title: 'Backups',
+    subtitle: 'Respaldo, restauración y export'
+  ),
 ];
+
+/// Categorías que embeben una pantalla completa propia en vez del panel de
+/// campos + "Guardar cambios" — ver `_buildScreenCategory`.
+const _screenCategoryKeys = {'envio', 'botonera', 'quiosco', 'monitores', 'backups'};
 
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
@@ -329,29 +376,40 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
   Widget _buildBody(BuildContext context) {
     final active = _activeCategory;
+    final isScreenCategory = active != null &&
+        _screenCategoryKeys.contains(active);
     return Scaffold(
       backgroundColor: LaTerciaColors.appBg,
+      // Las categorías "pantalla completa" (Envío/Botonera/Quiosco/
+      // Monitores/Backups) traen su propio AppBar con botón de regreso —
+      // mostrar OTRO aquí encima se vería duplicado. Las demás (Negocio,
+      // Apariencia, etc.) siguen usando este AppBar compartido.
       appBar: active == null
           ? adminAppBar('Configuración')
-          : AppBar(
-              backgroundColor: LaTerciaColors.cream,
-              surfaceTintColor: Colors.transparent,
-              elevation: 0,
-              leading: IconButton(
-                icon: const Icon(Icons.arrow_back,
-                    color: LaTerciaColors.darkBrown),
-                onPressed: () => setState(() => _activeCategory = null),
-              ),
-              title: Text(
-                _settingsCategories.firstWhere((c) => c.key == active).title,
-                style: const TextStyle(
-                    fontFamily: 'DM Serif Display',
-                    fontSize: 22,
-                    color: LaTerciaColors.darkBrown),
-              ),
-            ),
-      body:
-          active == null ? _buildCategoryGrid() : _buildCategoryDetail(active),
+          : isScreenCategory
+              ? null
+              : AppBar(
+                  backgroundColor: LaTerciaColors.cream,
+                  surfaceTintColor: Colors.transparent,
+                  elevation: 0,
+                  leading: IconButton(
+                    icon: const Icon(Icons.arrow_back,
+                        color: LaTerciaColors.darkBrown),
+                    onPressed: () => setState(() => _activeCategory = null),
+                  ),
+                  title: Text(
+                    _settingsCategories.firstWhere((c) => c.key == active).title,
+                    style: const TextStyle(
+                        fontFamily: 'DM Serif Display',
+                        fontSize: 22,
+                        color: LaTerciaColors.darkBrown),
+                  ),
+                ),
+      body: active == null
+          ? _buildCategoryGrid()
+          : isScreenCategory
+              ? _buildScreenCategory(active)
+              : _buildCategoryDetail(active),
     );
   }
 
@@ -361,9 +419,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   Widget _buildCategoryGrid() {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(20),
-      child: Wrap(
-        spacing: 14,
-        runSpacing: 14,
+      child: CategoryCardGrid(
         children: [
           for (final cat in _settingsCategories)
             CategoryCard(
@@ -372,19 +428,33 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               subtitle: cat.subtitle,
               onTap: () => setState(() => _activeCategory = cat.key),
             ),
-          // Monitores es una pantalla aparte (contenido dinámico: lista los
-          // monitores conectados), no una categoría de settings. docs/monitores.md.
-          CategoryCard(
-            icon: Icons.desktop_windows_outlined,
-            title: 'Monitores',
-            subtitle: 'Nombres de las pantallas',
-            onTap: () => Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => const MonitoresScreen()),
-            ),
-          ),
         ],
       ),
     );
+  }
+
+  /// Las 5 categorías que embeben su pantalla completa de siempre (antes
+  /// vivían como items propios del sidebar, o —Monitores— como un
+  /// `Navigator.push` que tapaba el sidebar y el header de arriba). Un
+  /// cambio de estado (`_activeCategory`), no un push, así que el sidebar y
+  /// el header del shell general siguen visibles — igual que "Negocio".
+  /// `onBack` vuelve a la cuadrícula de Configuración.
+  Widget _buildScreenCategory(String key) {
+    void onBack() => setState(() => _activeCategory = null);
+    switch (key) {
+      case 'envio':
+        return DeliveryZonesScreen(onBack: onBack);
+      case 'botonera':
+        return BotoneraScreen(onBack: onBack);
+      case 'quiosco':
+        return KioskScreen(onBack: onBack);
+      case 'monitores':
+        return MonitoresScreen(onBack: onBack);
+      case 'backups':
+        return BackupsScreen(onBack: onBack);
+      default:
+        return const SizedBox.shrink();
+    }
   }
 
   /// Detalle de una categoría: solo sus controles + Guardar. `_save()` sigue

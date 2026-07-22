@@ -62,7 +62,7 @@ void main() {
             databaseProvider.overrideWithValue(db),
             backupServiceProvider.overrideWithValue(backup),
           ],
-          child: const MaterialApp(home: BackupsScreen()),
+          child: MaterialApp(home: BackupsScreen(onBack: () {})),
         ),
       );
       await Future<void>.delayed(const Duration(milliseconds: 100));

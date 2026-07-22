@@ -95,9 +95,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
   Widget _buildGrid() {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(20),
-      child: Wrap(
-        spacing: 14,
-        runSpacing: 14,
+      child: CategoryCardGrid(
         children: [
           for (final cat in _categories)
             CategoryCard(

@@ -9,10 +9,13 @@ import '../../../core/utils/formatters.dart';
 import '../widgets/admin_panel.dart';
 
 /// FASE 8 — Zonas de envío: cargo fijo por zona para órdenes `delivery`
-/// (Chicxulub, Progreso 1, Progreso 2...). Pantalla propia de nivel superior
-/// (no es inventario ni configuración de dispositivo).
+/// (Chicxulub, Progreso 1, Progreso 2...). Configuración → Envío — se embebe
+/// dentro del layout de `SettingsScreen` (cambio de estado, no
+/// `Navigator.push`) para que el sidebar y el header sigan visibles;
+/// [onBack] regresa a la cuadrícula de Configuración.
 class DeliveryZonesScreen extends ConsumerStatefulWidget {
-  const DeliveryZonesScreen({super.key});
+  final VoidCallback onBack;
+  const DeliveryZonesScreen({super.key, required this.onBack});
 
   @override
   ConsumerState<DeliveryZonesScreen> createState() =>
@@ -27,7 +30,13 @@ class _DeliveryZonesScreenState extends ConsumerState<DeliveryZonesScreen> {
 
     return Scaffold(
       backgroundColor: LaTerciaColors.appBg,
-      appBar: adminAppBar('Envío'),
+      appBar: adminAppBar(
+        'Envío',
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: LaTerciaColors.darkBrown),
+          onPressed: widget.onBack,
+        ),
+      ),
       floatingActionButton: FloatingActionButton(
         backgroundColor: LaTerciaColors.burntOrange,
         onPressed: () => _showForm(context, null),

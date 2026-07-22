@@ -17,14 +17,17 @@ import '../widgets/admin_panel.dart';
 const _panelTitleStyle = TextStyle(
     fontWeight: FontWeight.w700, fontSize: 15, color: LaTerciaColors.darkBrown);
 
-/// Pantalla dedicada al dueño (no a los cajeros) para manejar la base de
-/// datos por completo desde la app: respaldo/restauración `.db` (el único
-/// formato de restauración real — ver `PLAN_ACTUALIZACION_GRANDE_2026-07.md`),
-/// más exportación de tablas elegidas a `.sql`/`.xlsx` para reportes o
-/// revisar datos específicos. Antes el backup automático vivía en
-/// Configuración → Respaldo; se mudó aquí para que todo esté en un solo lugar.
+/// Configuración → Backups: dedicada al dueño (no a los cajeros) para
+/// manejar la base de datos por completo desde la app: respaldo/restauración
+/// `.db` (el único formato de restauración real — ver
+/// `PLAN_ACTUALIZACION_GRANDE_2026-07.md`), más exportación de tablas
+/// elegidas a `.sql`/`.xlsx` para reportes o revisar datos específicos. Se
+/// embebe dentro del layout de `SettingsScreen` (cambio de estado, no
+/// `Navigator.push`) para que el sidebar y el header sigan visibles;
+/// [onBack] regresa a la cuadrícula de Configuración.
 class BackupsScreen extends ConsumerStatefulWidget {
-  const BackupsScreen({super.key});
+  final VoidCallback onBack;
+  const BackupsScreen({super.key, required this.onBack});
 
   @override
   ConsumerState<BackupsScreen> createState() => _BackupsScreenState();
@@ -178,7 +181,13 @@ class _BackupsScreenState extends ConsumerState<BackupsScreen> {
 
     return Scaffold(
       backgroundColor: LaTerciaColors.appBg,
-      appBar: adminAppBar('Backups'),
+      appBar: adminAppBar(
+        'Backups',
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: LaTerciaColors.darkBrown),
+          onPressed: widget.onBack,
+        ),
+      ),
       body: ListView(
         padding: const EdgeInsets.all(20),
         children: [

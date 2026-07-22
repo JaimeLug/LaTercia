@@ -7,13 +7,19 @@ import '../../../core/theme/app_theme.dart';
 /// pelado sobre fondo blanco) por el mismo lenguaje visual del POS/KDS/Reportes.
 
 /// AppBar consistente para las pantallas de Admin: fondo cream, título en
-/// serif, opcionalmente con acciones a la derecha.
-PreferredSizeWidget adminAppBar(String title, {List<Widget>? actions}) {
+/// serif, opcionalmente con acciones a la derecha. [leading] es para las
+/// pantallas embebidas dentro de Configuración (Envío, Botonera, Quiosco,
+/// Monitores, Backups): como se muestran con un cambio de estado (no un
+/// `Navigator.push`), el botón "atrás" automático de Flutter no aparece solo
+/// — hay que pasarlo explícito para volver a la cuadrícula de Configuración.
+PreferredSizeWidget adminAppBar(String title,
+    {List<Widget>? actions, Widget? leading}) {
   return AppBar(
     backgroundColor: LaTerciaColors.cream,
     surfaceTintColor: Colors.transparent,
     elevation: 0,
     titleSpacing: 20,
+    leading: leading,
     title: Text(title,
         style: const TextStyle(
             fontFamily: 'DM Serif Display',
@@ -284,5 +290,43 @@ class CategoryCard extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+/// Grid responsivo de [CategoryCard]s (Configuración, Inventario): **mínimo 3
+/// columnas siempre** — en vez de un `Wrap` libre de cards a ancho fijo
+/// (230px), que en una ventana angosta puede caer a solo 2 por fila. Aquí las
+/// cards se ACHICAN antes de bajar de 3 columnas, y se SUMAN columnas (4, 5,
+/// 6…) conforme la ventana crece, en vez de dejarlas crecer sin límite.
+/// Feedback de sitio 2026-07-22.
+class CategoryCardGrid extends StatelessWidget {
+  final List<Widget> children;
+  const CategoryCardGrid({super.key, required this.children});
+
+  static const _spacing = 14.0;
+  static const _idealWidth = 230.0;
+  static const _minColumns = 3;
+
+  @override
+  Widget build(BuildContext context) {
+    if (children.isEmpty) return const SizedBox.shrink();
+    return LayoutBuilder(builder: (context, constraints) {
+      final fitting =
+          ((constraints.maxWidth + _spacing) / (_idealWidth + _spacing))
+              .floor();
+      final columns = children.length < _minColumns
+          ? children.length
+          : fitting.clamp(_minColumns, children.length);
+      final cardWidth =
+          (constraints.maxWidth - _spacing * (columns - 1)) / columns;
+      return Wrap(
+        spacing: _spacing,
+        runSpacing: _spacing,
+        children: [
+          for (final child in children)
+            SizedBox(width: cardWidth, child: child),
+        ],
+      );
+    });
   }
 }

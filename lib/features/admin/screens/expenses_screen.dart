@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/database/database.dart';
 import '../../../core/providers/database_provider.dart';
 import '../../../core/providers/settings_provider.dart';
+import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/formatters.dart';
 
 class ExpensesScreen extends ConsumerStatefulWidget {
@@ -60,9 +61,17 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
                       style:
                           TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
                   const SizedBox(height: 12),
-                  Row(
+                  // `Wrap` en vez de `Row`: con la ventana angosta (o el
+                  // sidebar extendido) los 5 controles no cabían en una sola
+                  // línea y se salían por la derecha — aquí simplemente
+                  // bajan a otra línea. Feedback de sitio 2026-07-22.
+                  Wrap(
+                    spacing: 12,
+                    runSpacing: 12,
+                    crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
-                      Expanded(
+                      SizedBox(
+                        width: 160,
                         child: DropdownButtonFormField<String>(
                           value: _selectedCategory,
                           decoration: const InputDecoration(
@@ -77,17 +86,16 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
                               setState(() => _selectedCategory = v!),
                         ),
                       ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        flex: 2,
+                      SizedBox(
+                        width: 220,
                         child: TextField(
                           controller: _descCtrl,
                           decoration: const InputDecoration(
                               labelText: 'Descripción', isDense: true),
                         ),
                       ),
-                      const SizedBox(width: 12),
-                      Expanded(
+                      SizedBox(
+                        width: 140,
                         child: TextField(
                           controller: _amountCtrl,
                           decoration: InputDecoration(
@@ -95,13 +103,11 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
                           keyboardType: TextInputType.number,
                         ),
                       ),
-                      const SizedBox(width: 12),
                       OutlinedButton.icon(
                         icon: const Icon(Icons.calendar_today, size: 16),
                         label: Text(formatDate(_date)),
                         onPressed: _pickDate,
                       ),
-                      const SizedBox(width: 12),
                       FilledButton(
                         onPressed: _addExpense,
                         child: const Text('Agregar'),
@@ -112,10 +118,15 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
               ),
             ),
           ),
-          // Filter
+          // Filtro de fecha del historial de abajo — separado del formulario
+          // de arriba con su propio espacio (antes se sentían pegados) y en
+          // un `Wrap` por si la ventana queda angosta. Feedback de sitio
+          // 2026-07-22.
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            child: Row(
+            padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+            child: Wrap(
+              spacing: 10,
+              runSpacing: 10,
               children: [
                 OutlinedButton.icon(
                   icon: const Icon(Icons.calendar_today, size: 16),
@@ -162,23 +173,34 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
                     ),
                     Padding(
                       padding: const EdgeInsets.all(12),
-                      child: Card(
-                        color: Theme.of(context).colorScheme.primaryContainer,
-                        child: Padding(
-                          padding: const EdgeInsets.all(12),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              const Text('Total del período:',
-                                  style:
-                                      TextStyle(fontWeight: FontWeight.bold)),
-                              Text(
-                                formatCurrency(total, symbol),
-                                style: const TextStyle(
-                                    fontWeight: FontWeight.bold, fontSize: 18),
-                              ),
-                            ],
-                          ),
+                      child: Container(
+                        // Antes usaba el color de Material default
+                        // (colorScheme.primaryContainer) sin fijar el color
+                        // del texto — con ciertos acentos personalizados el
+                        // contraste era malo y "no se lograba ver". Colores
+                        // fijos de marca, igual que el resto del Admin.
+                        // Feedback de sitio 2026-07-22.
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: LaTerciaColors.surfaceVariant,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: LaTerciaColors.border),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text('Total del período:',
+                                style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color: LaTerciaColors.darkBrown)),
+                            Text(
+                              formatCurrency(total, symbol),
+                              style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 18,
+                                  color: LaTerciaColors.burntOrange),
+                            ),
+                          ],
                         ),
                       ),
                     ),
@@ -214,7 +236,15 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
 
   Future<void> _addExpense() async {
     final amount = double.tryParse(_amountCtrl.text);
-    if (amount == null || _descCtrl.text.isEmpty) return;
+    // Antes fallaba en silencio (parecía que el botón "no hacía nada") —
+    // feedback de sitio 2026-07-22.
+    if (_descCtrl.text.trim().isEmpty || amount == null || amount <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+            content: Text('Ingresa una descripción y un monto válido.')),
+      );
+      return;
+    }
 
     await ref.read(databaseProvider).expensesDao.insertExpense(
           ExpensesCompanion.insert(

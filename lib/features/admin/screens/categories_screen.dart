@@ -6,10 +6,13 @@ import 'package:sqlite3/sqlite3.dart' show SqliteException;
 import '../../../core/database/database.dart';
 import '../../../core/providers/categories_provider.dart';
 import '../../../core/providers/database_provider.dart';
+import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/category_icons.dart';
 import '../../../core/utils/app_logger.dart';
 import '../widgets/icon_picker.dart';
 
+/// Productos → pestaña "Categorías". Sin AppBar propio: vive embebida dentro
+/// del `TabBarView` de `ProductsScreen`, cuyo `TabBar` ya muestra el título.
 class CategoriesScreen extends ConsumerWidget {
   const CategoriesScreen({super.key});
 
@@ -18,10 +21,10 @@ class CategoriesScreen extends ConsumerWidget {
     final categoriesAsync = ref.watch(categoriesProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Categorías')),
       floatingActionButton: FloatingActionButton(
+        backgroundColor: LaTerciaColors.burntOrange,
         onPressed: () => _showForm(context, ref, null),
-        child: const Icon(Icons.add),
+        child: const Icon(Icons.add, color: Colors.white),
       ),
       body: categoriesAsync.when(
         data: (cats) => GridView.builder(

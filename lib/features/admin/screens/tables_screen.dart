@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/database/database.dart';
 import '../../../core/providers/database_provider.dart';
 import '../../../core/providers/tables_provider.dart';
+import '../../../core/theme/app_theme.dart';
 
 class TablesScreen extends ConsumerWidget {
   const TablesScreen({super.key});
@@ -15,15 +16,20 @@ class TablesScreen extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(title: const Text('Mesas')),
       floatingActionButton: FloatingActionButton(
+        backgroundColor: LaTerciaColors.burntOrange,
         onPressed: () => _showForm(context, ref, null),
-        child: const Icon(Icons.add),
+        child: const Icon(Icons.add, color: Colors.white),
       ),
       body: tablesAsync.when(
         data: (tables) => GridView.builder(
           padding: const EdgeInsets.all(16),
           gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
             maxCrossAxisExtent: 220,
-            childAspectRatio: 1.2,
+            // 1.2 dejaba el contenido de la tarjeta (nombre + capacidad +
+            // chip + "Editar") apenas más alto que la celda — un overflow de
+            // fracción de pixel en ciertos anchos de ventana. Feedback de
+            // sitio 2026-07-22.
+            childAspectRatio: 1.0,
             crossAxisSpacing: 12,
             mainAxisSpacing: 12,
           ),

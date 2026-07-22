@@ -6,6 +6,7 @@ import '../../../core/providers/customers_provider.dart';
 import '../../../core/providers/database_provider.dart';
 import '../../../core/providers/settings_provider.dart';
 import '../../../core/services/sat_catalog_service.dart';
+import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/formatters.dart';
 
 class CustomersScreen extends ConsumerStatefulWidget {
@@ -34,8 +35,9 @@ class _CustomersScreenState extends ConsumerState<CustomersScreen> {
     return Scaffold(
       appBar: AppBar(title: const Text('Clientes')),
       floatingActionButton: FloatingActionButton(
+        backgroundColor: LaTerciaColors.burntOrange,
         onPressed: () => _showForm(context, null),
-        child: const Icon(Icons.add),
+        child: const Icon(Icons.add, color: Colors.white),
       ),
       body: Column(
         children: [

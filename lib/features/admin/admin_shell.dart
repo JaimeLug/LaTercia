@@ -4,23 +4,16 @@ import '../../core/providers/session_provider.dart';
 import '../auth/session_guard.dart';
 import 'screens/dashboard_screen.dart';
 import 'screens/products_screen.dart';
-import 'screens/categories_screen.dart';
-import 'screens/modifiers_screen.dart';
 import 'screens/tables_screen.dart';
 import 'screens/employees_screen.dart';
 import 'screens/customers_screen.dart';
 import 'screens/discounts_screen.dart';
-import 'screens/combos_screen.dart';
 import 'screens/orders_screen.dart';
 import 'screens/expenses_screen.dart';
 import 'screens/inventory_screen.dart';
 import 'screens/reports_screen.dart';
 import 'screens/settings_screen.dart';
 import 'screens/shifts_screen.dart';
-import 'screens/botonera_screen.dart';
-import 'screens/kiosk_screen.dart';
-import 'screens/delivery_zones_screen.dart';
-import 'screens/backups_screen.dart';
 import 'screens/facturacion_screen.dart';
 
 class AdminShell extends ConsumerStatefulWidget {
@@ -34,6 +27,13 @@ class _AdminShellState extends ConsumerState<AdminShell> {
   int _selectedIndex = 0;
   bool _extended = true;
 
+  // Reestructuración de navegación 2026-07-22: de 19 a 13 items (+ 6 menos).
+  // Categorías/Modificadores/Combos pasaron a ser pestañas DENTRO de
+  // Productos (ver `products_screen.dart`); Envío/Botonera/Quiosco/Backups
+  // se movieron a Configuración (ver `settings_screen.dart`). Facturación
+  // (el flujo de generar/exportar CFDI) se quedó en el sidebar — es un
+  // trabajo periódico como Reportes u Órdenes, no una pantalla de "ajustar
+  // una vez" como el resto de lo que vive en Configuración.
   static const _destinations = [
     NavigationRailDestination(
         icon: Icon(Icons.home_outlined),
@@ -44,21 +44,13 @@ class _AdminShellState extends ConsumerState<AdminShell> {
         selectedIcon: Icon(Icons.inventory_2),
         label: Text('Productos')),
     NavigationRailDestination(
-        icon: Icon(Icons.category_outlined),
-        selectedIcon: Icon(Icons.category),
-        label: Text('Categorías')),
-    NavigationRailDestination(
-        icon: Icon(Icons.tune_outlined),
-        selectedIcon: Icon(Icons.tune),
-        label: Text('Modificadores')),
-    NavigationRailDestination(
         icon: Icon(Icons.table_restaurant_outlined),
         selectedIcon: Icon(Icons.table_restaurant),
         label: Text('Mesas')),
     NavigationRailDestination(
-        icon: Icon(Icons.badge_outlined),
-        selectedIcon: Icon(Icons.badge),
-        label: Text('Empleados')),
+        icon: Icon(Icons.receipt_long_outlined),
+        selectedIcon: Icon(Icons.receipt_long),
+        label: Text('Órdenes')),
     NavigationRailDestination(
         icon: Icon(Icons.people_outlined),
         selectedIcon: Icon(Icons.people),
@@ -68,49 +60,29 @@ class _AdminShellState extends ConsumerState<AdminShell> {
         selectedIcon: Icon(Icons.local_offer),
         label: Text('Descuentos')),
     NavigationRailDestination(
-        icon: Icon(Icons.fastfood_outlined),
-        selectedIcon: Icon(Icons.fastfood),
-        label: Text('Combos')),
-    NavigationRailDestination(
-        icon: Icon(Icons.receipt_long_outlined),
-        selectedIcon: Icon(Icons.receipt_long),
-        label: Text('Órdenes')),
+        icon: Icon(Icons.warehouse_outlined),
+        selectedIcon: Icon(Icons.warehouse),
+        label: Text('Inventario')),
     NavigationRailDestination(
         icon: Icon(Icons.money_off_outlined),
         selectedIcon: Icon(Icons.money_off),
         label: Text('Gastos')),
     NavigationRailDestination(
-        icon: Icon(Icons.warehouse_outlined),
-        selectedIcon: Icon(Icons.warehouse),
-        label: Text('Inventario')),
-    NavigationRailDestination(
-        icon: Icon(Icons.bar_chart_outlined),
-        selectedIcon: Icon(Icons.bar_chart),
-        label: Text('Reportes')),
+        icon: Icon(Icons.badge_outlined),
+        selectedIcon: Icon(Icons.badge),
+        label: Text('Empleados')),
     NavigationRailDestination(
         icon: Icon(Icons.point_of_sale_outlined),
         selectedIcon: Icon(Icons.point_of_sale),
         label: Text('Turnos')),
     NavigationRailDestination(
-        icon: Icon(Icons.delivery_dining_outlined),
-        selectedIcon: Icon(Icons.delivery_dining),
-        label: Text('Envío')),
-    NavigationRailDestination(
-        icon: Icon(Icons.gamepad_outlined),
-        selectedIcon: Icon(Icons.gamepad),
-        label: Text('Botonera')),
-    NavigationRailDestination(
-        icon: Icon(Icons.dvr_outlined),
-        selectedIcon: Icon(Icons.dvr),
-        label: Text('Quiosco')),
+        icon: Icon(Icons.bar_chart_outlined),
+        selectedIcon: Icon(Icons.bar_chart),
+        label: Text('Reportes')),
     NavigationRailDestination(
         icon: Icon(Icons.request_quote_outlined),
         selectedIcon: Icon(Icons.request_quote),
         label: Text('Facturación')),
-    NavigationRailDestination(
-        icon: Icon(Icons.backup_outlined),
-        selectedIcon: Icon(Icons.backup),
-        label: Text('Backups')),
     NavigationRailDestination(
         icon: Icon(Icons.settings_outlined),
         selectedIcon: Icon(Icons.settings),
@@ -120,23 +92,16 @@ class _AdminShellState extends ConsumerState<AdminShell> {
   final _screens = const [
     DashboardScreen(),
     ProductsScreen(),
-    CategoriesScreen(),
-    ModifiersScreen(),
     TablesScreen(),
-    EmployeesScreen(),
+    OrdersScreen(),
     CustomersScreen(),
     DiscountsScreen(),
-    CombosScreen(),
-    OrdersScreen(),
-    ExpensesScreen(),
     InventoryScreen(),
-    ReportsScreen(),
+    ExpensesScreen(),
+    EmployeesScreen(),
     ShiftsScreen(),
-    DeliveryZonesScreen(),
-    BotoneraScreen(),
-    KioskScreen(),
+    ReportsScreen(),
     FacturacionScreen(),
-    BackupsScreen(),
     SettingsScreen(),
   ];
 

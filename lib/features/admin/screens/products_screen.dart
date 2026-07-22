@@ -16,15 +16,88 @@ import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/formatters.dart';
 import '../widgets/admin_panel.dart';
 import '../widgets/sat_clave_picker.dart';
+import 'categories_screen.dart';
+import 'combos_screen.dart';
+import 'modifiers_screen.dart';
 
-class ProductsScreen extends ConsumerStatefulWidget {
+/// Sidebar → "Productos": contenedor con 4 pestañas (Productos, Combos,
+/// Categorías, Modificadores) — antes eran 3 items independientes del
+/// sidebar (Categorías, Modificadores) más Combos; se consolidaron aquí
+/// porque las tres son distintas vistas del mismo catálogo, no secciones
+/// separadas del negocio. Reestructuración de navegación 2026-07-22 — sin
+/// cambios de funcionalidad, cada pestaña es la pantalla de siempre.
+class ProductsScreen extends StatefulWidget {
   const ProductsScreen({super.key});
 
   @override
-  ConsumerState<ProductsScreen> createState() => _ProductsScreenState();
+  State<ProductsScreen> createState() => _ProductsScreenState();
 }
 
-class _ProductsScreenState extends ConsumerState<ProductsScreen> {
+class _ProductsScreenState extends State<ProductsScreen>
+    with SingleTickerProviderStateMixin {
+  late final TabController _tabController =
+      TabController(length: 4, vsync: this);
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: LaTerciaColors.appBg,
+      appBar: AppBar(
+        backgroundColor: LaTerciaColors.cream,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
+        titleSpacing: 20,
+        title: const Text('Productos',
+            style: TextStyle(
+                fontFamily: 'DM Serif Display',
+                fontSize: 24,
+                color: LaTerciaColors.darkBrown)),
+        bottom: TabBar(
+          controller: _tabController,
+          isScrollable: true,
+          labelColor: LaTerciaColors.burntOrange,
+          unselectedLabelColor: LaTerciaColors.tan,
+          indicatorColor: LaTerciaColors.burntOrange,
+          tabs: const [
+            Tab(text: 'Productos'),
+            Tab(text: 'Combos'),
+            Tab(text: 'Categorías'),
+            Tab(text: 'Modificadores'),
+          ],
+        ),
+      ),
+      body: TabBarView(
+        controller: _tabController,
+        children: const [
+          ProductsCatalogTab(),
+          CombosScreen(),
+          CategoriesScreen(),
+          ModifiersScreen(),
+        ],
+      ),
+    );
+  }
+}
+
+/// Pestaña "Productos" — la lista/alta/edición de productos de siempre
+/// (antes era el `ProductsScreen` de nivel superior; renombrada al
+/// consolidar Categorías/Modificadores/Combos como pestañas). Sin AppBar
+/// propio: el `TabBar` de `ProductsScreen` ya muestra el título.
+class ProductsCatalogTab extends ConsumerStatefulWidget {
+  const ProductsCatalogTab({super.key});
+
+  @override
+  ConsumerState<ProductsCatalogTab> createState() =>
+      _ProductsCatalogTabState();
+}
+
+class _ProductsCatalogTabState extends ConsumerState<ProductsCatalogTab> {
   String _search = '';
   int? _filterCategoryId;
   final _searchController = TextEditingController();
@@ -44,7 +117,6 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
 
     return Scaffold(
       backgroundColor: LaTerciaColors.appBg,
-      appBar: adminAppBar('Productos'),
       floatingActionButton: FloatingActionButton(
         backgroundColor: LaTerciaColors.burntOrange,
         onPressed: () => _showProductForm(context, null),
@@ -763,6 +835,7 @@ class _ProductFormDialogState extends ConsumerState<_ProductFormDialog> {
         const SizedBox(height: 8),
         DropdownButtonFormField<String?>(
           value: _objetoImp,
+          isExpanded: true,
           decoration: const InputDecoration(labelText: 'Objeto de impuesto'),
           items: [
             const DropdownMenuItem(value: null, child: Text('—')),
