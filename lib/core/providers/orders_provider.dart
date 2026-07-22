@@ -151,6 +151,8 @@ class OrdersNotifier extends StateNotifier<List<OrderWithItems>> {
           unitPrice: ci.unitPrice,
           modifiersJson: Value(ci.modifiers.isEmpty ? null : modJson),
           itemNote: Value(ci.note),
+          comboInstanceId: Value(ci.comboInstanceId),
+          comboName: Value(ci.comboName),
         );
       }).toList();
 

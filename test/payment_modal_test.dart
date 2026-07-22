@@ -54,6 +54,9 @@ void main() {
     await tester.enterText(find.byType(TextField).first, '150');
     await tester.pumpAndSettle();
 
+    // El modal es scrollable; con el botón "Dividir cuenta" arriba, el botón
+    // de confirmar puede quedar fuera del viewport del test.
+    await tester.ensureVisible(find.text('Confirmar pago'));
     await tester.tap(find.text('Confirmar pago'));
     await tester.pumpAndSettle();
 
@@ -102,5 +105,51 @@ void main() {
     final applied =
         captured!.fold(0.0, (a, d) => a + d.amountTendered - d.changeGiven);
     expect(applied, 100);
+  });
+
+  testWidgets(
+      'dividir cuenta: precarga cada tramo con su parte y suman el total '
+      '(docs/division-cuenta.md)', (tester) async {
+    List<PaymentDraft>? captured;
+    await pumpModal(tester, total: 100, onPayments: (p) => captured = p);
+
+    await tester.ensureVisible(find.text('Dividir cuenta'));
+    await tester.tap(find.text('Dividir cuenta'));
+    await tester.pumpAndSettle();
+
+    // Diálogo "¿Entre cuántas personas?" — sube de 2 a 3 con el "+".
+    await tester.tap(find.byIcon(Icons.add));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Dividir'));
+    await tester.pumpAndSettle();
+
+    // 100/3 → 33.34, 33.33, 33.33 (splitEvenly, el sobrante a la primera).
+    expect(find.text('Dividido entre 3 — parte 1 de 3'), findsOneWidget);
+    final firstField = tester.widget<TextField>(find.byType(TextField).first);
+    expect(firstField.controller!.text, '33.34');
+
+    // Tramo 1: acepta el monto precargado (parcial, no cierra el saldo).
+    await tester.ensureVisible(find.textContaining('Agregar'));
+    await tester.tap(find.textContaining('Agregar'));
+    await tester.pumpAndSettle();
+    expect(find.text('Dividido entre 3 — parte 2 de 3'), findsOneWidget);
+    expect(
+        tester.widget<TextField>(find.byType(TextField).first).controller!.text,
+        '33.33');
+
+    // Tramo 2: igual, parcial.
+    await tester.ensureVisible(find.textContaining('Agregar'));
+    await tester.tap(find.textContaining('Agregar'));
+    await tester.pumpAndSettle();
+    expect(find.text('Dividido entre 3 — parte 3 de 3'), findsOneWidget);
+
+    // Tramo 3 (último): cierra el saldo con el "Cobrar resto".
+    await tester.ensureVisible(find.textContaining('Cobrar resto'));
+    await tester.tap(find.textContaining('Cobrar resto'));
+    await tester.pumpAndSettle();
+
+    expect(captured, hasLength(3));
+    final sum = captured!.fold(0.0, (a, d) => a + d.amountTendered);
+    expect(sum, closeTo(100, 0.001));
   });
 }

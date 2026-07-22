@@ -194,3 +194,74 @@ double discountAmountForCart(Discount d, List<PromoLine> lines) {
       scoped.fold(0.0, (sum, l) => sum + l.unitPrice * l.quantity);
   return discountAmountFor(d, scopedSubtotal);
 }
+
+// ─── Combos (docs/combos.md) ──────────────────────────────────────────────
+
+/// Reparte el precio fijo de un combo entre sus [components], proporcional al
+/// precio normal de cada uno (× su cantidad) — la suma de los precios
+/// devueltos (× cantidad) da exactamente [comboPrice]. Si la suma de precios
+/// normales es 0, reparte en partes iguales (evita dividir entre cero).
+/// Devuelve un precio POR UNIDAD, alineado 1:1 con [components].
+/// `docs/combos.md`.
+List<double> proratedComboPrices(
+  double comboPrice,
+  List<({double basePrice, int quantity})> components,
+) {
+  if (components.isEmpty) return const [];
+  final totalRegular =
+      components.fold(0.0, (s, c) => s + c.basePrice * c.quantity);
+  if (totalRegular <= 0) {
+    final equalShare = comboPrice / components.length;
+    return List.filled(components.length, equalShare);
+  }
+  final factor = comboPrice / totalRegular;
+  return [for (final c in components) c.basePrice * factor];
+}
+
+// ─── Fidelización (docs/fidelizacion.md) ──────────────────────────────────
+
+/// `true` si el cliente ya junta lo suficiente para canjear, según la
+/// mecánica activa (`loyaltyType`: 'sellos' | 'puntos' | 'ninguno').
+/// `docs/fidelizacion.md`.
+bool loyaltyRewardAvailable({
+  required String loyaltyType,
+  required int stamps,
+  required int stampsRequired,
+  required int points,
+  required int pointsRequired,
+}) {
+  if (loyaltyType == 'sellos') {
+    return stampsRequired > 0 && stamps >= stampsRequired;
+  }
+  if (loyaltyType == 'puntos') {
+    return pointsRequired > 0 && points >= pointsRequired;
+  }
+  return false;
+}
+
+/// Precio del producto MÁS CARO de [category] entre [lines] — lo que se hace
+/// gratis al canjear. 0 si el carrito no tiene nada de esa categoría (no hay
+/// nada que regalar todavía). `docs/fidelizacion.md`.
+double loyaltyRewardAmount(List<PromoLine> lines, String category) {
+  final cat = category.trim().toLowerCase();
+  final scoped =
+      lines.where((l) => (l.categoryName ?? '').trim().toLowerCase() == cat);
+  if (scoped.isEmpty) return 0;
+  return scoped.map((l) => l.unitPrice).reduce((a, b) => a > b ? a : b);
+}
+
+// ─── División de cuenta (docs/division-cuenta.md) ─────────────────────────
+
+/// Reparte [total] en [parts] montos que SUMAN exactamente el total a los
+/// centavos (el sobrante de redondeo va a las primeras partes). Trabaja en
+/// centavos enteros para no arrastrar error de punto flotante.
+/// `docs/division-cuenta.md`.
+List<double> splitEvenly(double total, int parts) {
+  if (parts <= 0) return const [];
+  final totalCents = (total * 100).round();
+  final baseCents = totalCents ~/ parts;
+  final remainder = totalCents % parts;
+  return [
+    for (var i = 0; i < parts; i++) (baseCents + (i < remainder ? 1 : 0)) / 100,
+  ];
+}

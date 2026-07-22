@@ -1,9 +1,11 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:uuid/uuid.dart';
 import '../../core/database/database.dart';
 import '../../core/models/order_with_items.dart';
 import '../../core/providers/categories_provider.dart';
+import '../../core/providers/combos_provider.dart';
 import '../../core/providers/database_provider.dart';
 import '../../core/providers/delivery_zones_provider.dart';
 import '../../core/providers/discounts_provider.dart';
@@ -52,6 +54,13 @@ class _PosScreenState extends ConsumerState<PosScreen> {
   // Zona de envío obligatoria cuando _orderType == 'delivery'.
   int? _selectedZoneId;
   String? _customerName;
+  // Fidelización (docs/fidelizacion.md): cliente real vinculado a la venta
+  // (antes el campo de arriba era solo texto libre, sin ligar a un Customer).
+  Customer? _selectedCustomer;
+  List<Customer> _customerSuggestions = const [];
+  Timer? _customerSearchDebounce;
+  // El cajero decidió canjear la recompensa ganada — NUNCA automático.
+  bool _loyaltyRewardApplied = false;
   // Datos de reparto: solo se usan cuando _orderType == 'delivery'.
   String? _customerPhone;
   String? _customerAddress;
@@ -67,6 +76,9 @@ class _PosScreenState extends ConsumerState<PosScreen> {
 
   // UI state
   int? _selectedCategoryId;
+  // Chip "Combos" en la barra de categorías: reemplaza la cuadrícula de
+  // productos por tarjetas de combo. docs/combos.md.
+  bool _showingCombos = false;
   String _searchQuery = '';
   Timer? _clockTimer;
   // Barra de categorías: controller + una key por chip (null = "Todos") para,
@@ -92,13 +104,17 @@ class _PosScreenState extends ConsumerState<PosScreen> {
     _searchController.dispose();
     _deliveryCashController.dispose();
     _catScrollController.dispose();
+    _customerSearchDebounce?.cancel();
     super.dispose();
   }
 
   /// Centra suavemente la categoría [id] en la barra para revelar las vecinas
   /// (en el kiosco no se puede arrastrar la barra a mano).
   void _selectCategory(int? id) {
-    setState(() => _selectedCategoryId = id);
+    setState(() {
+      _selectedCategoryId = id;
+      _showingCombos = false;
+    });
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final ctx = _catKeys[id]?.currentContext;
       if (ctx != null) {
@@ -109,6 +125,53 @@ class _PosScreenState extends ConsumerState<PosScreen> {
           curve: Curves.easeOut,
         );
       }
+    });
+  }
+
+  /// Cambia a la vista de Combos (reemplaza la cuadrícula de productos).
+  /// docs/combos.md.
+  void _selectCombosView() {
+    setState(() {
+      _showingCombos = true;
+      _selectedCategoryId = null;
+    });
+  }
+
+  /// El campo de cliente ahora también busca (debounce 250ms) — si el cajero
+  /// escribe algo distinto al cliente ya elegido, se pierde la selección (hay
+  /// que volver a elegir de las sugerencias). `docs/fidelizacion.md`.
+  void _onCustomerNameChanged(String v) {
+    _customerName = v.isEmpty ? null : v;
+    if (_selectedCustomer != null && v != _selectedCustomer!.name) {
+      setState(() {
+        _selectedCustomer = null;
+        _loyaltyRewardApplied = false;
+      });
+    }
+    _customerSearchDebounce?.cancel();
+    if (v.trim().length < 2) {
+      if (_customerSuggestions.isNotEmpty) {
+        setState(() => _customerSuggestions = const []);
+      }
+      return;
+    }
+    _customerSearchDebounce =
+        Timer(const Duration(milliseconds: 250), () async {
+      final results = await ref
+          .read(databaseProvider)
+          .customersDao
+          .searchCustomers(v.trim());
+      if (mounted) setState(() => _customerSuggestions = results);
+    });
+  }
+
+  void _selectCustomer(Customer c) {
+    setState(() {
+      _selectedCustomer = c;
+      _customerName = c.name;
+      _customerController.text = c.name;
+      _customerSuggestions = const [];
+      _loyaltyRewardApplied = false;
     });
   }
 
@@ -147,22 +210,35 @@ class _PosScreenState extends ConsumerState<PosScreen> {
         .toList();
   }
 
-  /// El descuento elegido, ya resuelto a un monto fijo en efectivo vía
-  /// `discountAmountForCart` (respeta alcance por categoría y 2x1). Se pasa a
-  /// `computeTaxedTotals` como 'fixed' ya calculado — el prorrateo de IVA no
-  /// cambia. `docs/promociones.md`.
+  /// La promoción elegida (si hay) + la recompensa de fidelización (si el
+  /// cajero la canjeó), ya resueltas a UN monto fijo en efectivo — se suman
+  /// porque son cosas distintas (una promo de horario y un premio por
+  /// lealtad pueden coexistir). Se pasa a `computeTaxedTotals` como 'fixed'
+  /// ya calculado — el prorrateo de IVA no cambia.
+  /// `docs/promociones.md` + `docs/fidelizacion.md`.
   Discount? get _resolvedDiscount {
+    var amount = 0.0;
+    var label = '';
     final d = _selectedDiscount;
-    if (d == null) return null;
-    final amount = discountAmountForCart(d, _promoLines);
+    if (d != null) {
+      amount += discountAmountForCart(d, _promoLines);
+      label = d.name;
+    }
+    if (_loyaltyRewardApplied) {
+      final settings = ref.read(settingsProvider).valueOrNull ?? {};
+      final rewardCategory = settings['loyalty_reward_category'] ?? '';
+      amount += loyaltyRewardAmount(_promoLines, rewardCategory);
+      label = label.isEmpty ? 'Recompensa' : '$label + Recompensa';
+    }
+    if (amount <= 0) return null;
     return Discount(
-      id: d.id,
-      name: d.name,
+      id: d?.id ?? -1,
+      name: label,
       type: 'fixed',
       value: amount,
       minOrderAmount: 0,
       active: true,
-      createdAt: d.createdAt,
+      createdAt: d?.createdAt ?? DateTime.now(),
     );
   }
 
@@ -249,6 +325,66 @@ class _PosScreenState extends ConsumerState<PosScreen> {
     setState(() => _cart[index].note = note);
   }
 
+  /// Agrega una instancia del [combo] al carrito: expande sus componentes en
+  /// líneas normales (precio prorrateado, mismo id de producto para
+  /// inventario/KDS), pidiendo modificadores por componente si aplica. Si se
+  /// cancela cualquier paso, NO se agrega nada parcial. `docs/combos.md`.
+  Future<void> _addComboToCart(Combo combo) async {
+    final db = ref.read(databaseProvider);
+    final components = await db.combosDao.getComboComponents(combo.id);
+    if (components.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Este combo no tiene productos configurados.')));
+      return;
+    }
+
+    final prorated = proratedComboPrices(combo.price, [
+      for (final c in components)
+        (basePrice: c.product.price, quantity: c.quantity),
+    ]);
+    final cats = ref.read(categoriesProvider).valueOrNull ?? [];
+    final catNameById = {for (final c in cats) c.id: c.name};
+    final instanceId = const Uuid().v4();
+
+    final lines = <CartItem>[];
+    for (var i = 0; i < components.length; i++) {
+      final comp = components[i];
+      final catName = catNameById[comp.product.categoryId];
+      final mods = await db.modifiersDao.getModifiersForCategoryName(catName);
+      List<Modifier> chosenMods = const [];
+      Set<int> includedIds = const {};
+      if (mods.isNotEmpty) {
+        if (!mounted) return;
+        final chosen = await showDialog<ModifierSelection>(
+          context: context,
+          builder: (_) =>
+              ModifierDialog(product: comp.product, modifiers: mods),
+        );
+        if (chosen == null) return; // canceló: se aborta el combo completo
+        chosenMods = chosen.modifiers;
+        includedIds = chosen.includedIds;
+      }
+      lines.add(CartItem(
+        product: comp.product.copyWith(price: prorated[i]),
+        modifiers: chosenMods,
+        includedModifierIds: includedIds,
+        quantity: comp.quantity,
+        comboInstanceId: instanceId,
+        comboName: combo.name,
+      ));
+    }
+
+    if (!mounted) return;
+    setState(() => _cart.addAll(lines));
+  }
+
+  /// Quita TODAS las líneas de una instancia de combo a la vez — nunca queda
+  /// un combo a medias. `docs/combos.md`.
+  void _removeComboGroup(String instanceId) {
+    setState(() => _cart.removeWhere((c) => c.comboInstanceId == instanceId));
+  }
+
   // Aplicar descuento es `descuento_manual` (pide PIN de supervisor al cajero);
   // quitarlo no está restringido. docs/permisos-y-auditoria.md.
   Future<void> _selectDiscount(Discount discount) async {
@@ -283,6 +419,9 @@ class _PosScreenState extends ConsumerState<PosScreen> {
       _customerAddress = null;
       _deliveryMethod = 'efectivo';
       _deliveryCashController.clear();
+      _selectedCustomer = null;
+      _customerSuggestions = const [];
+      _loyaltyRewardApplied = false;
     });
   }
 
@@ -329,6 +468,7 @@ class _PosScreenState extends ConsumerState<PosScreen> {
             employeeId: employee.id,
             tableId: _orderType == 'mesa' ? _selectedTableId : null,
             customerName: _customerName,
+            customerId: _selectedCustomer?.id,
             customerPhone: _orderType == 'delivery' ? _customerPhone : null,
             customerAddress: _orderType == 'delivery' ? _customerAddress : null,
             note: _orderNote,
@@ -387,6 +527,96 @@ class _PosScreenState extends ConsumerState<PosScreen> {
     }
   }
 
+  /// Disponible solo sin descuento/promo/combo/recompensa activos — prorratear
+  /// eso por persona es ambiguo, mejor no adivinar. `docs/division-cuenta.md`.
+  bool get _canSplitByItem =>
+      _cart.length >= 2 && _selectedDiscount == null && !_loyaltyRewardApplied;
+
+  /// Líneas de impuesto de un subconjunto del carrito (para calcular el total
+  /// de un grupo al dividir por artículo). Mismo cálculo que `_taxLines`, pero
+  /// sobre [items] en vez de todo `_cart`. `docs/division-cuenta.md`.
+  List<TaxLine> _taxLinesFor(List<CartItem> items) {
+    final settings = ref.read(settingsProvider).valueOrNull ?? {};
+    final globalRate = double.tryParse(settings['tax_rate'] ?? '0') ?? 0;
+    final globalIncluded = settings['tax_included'] != 'false';
+    return items
+        .map((item) => TaxLine(
+              lineTotal: item.lineTotal,
+              taxRate: effectiveTaxRate(item.product.taxRate, globalRate),
+              taxIncluded: effectiveTaxIncluded(
+                  item.product.taxIncluded, globalIncluded),
+            ))
+        .toList();
+  }
+
+  /// Cobra el subconjunto [items] de UNA persona como su propia orden
+  /// independiente (mismo `checkout()` de siempre) — no hay descuento porque
+  /// `_canSplitByItem` ya lo exige. `docs/division-cuenta.md`.
+  Future<OrderWithItems?> _checkoutGroup(
+      List<CartItem> items, List<PaymentDraft> payments) async {
+    final employee = ref.read(sessionProvider);
+    if (employee == null) return null;
+    final totals = computeTaxedTotals(lines: _taxLinesFor(items));
+    final order = await ref.read(checkoutServiceProvider).checkout(
+          cartItems: items,
+          type: _orderType,
+          employeeId: employee.id,
+          tableId: _orderType == 'mesa' ? _selectedTableId : null,
+          customerName: _customerName,
+          subtotal: totals.subtotal,
+          taxAmount: totals.tax,
+          total: totals.total,
+          payments: payments,
+        );
+    await ref.read(ordersProvider.notifier).loadActiveOrders();
+    return order;
+  }
+
+  /// Pide asignar cada línea del carrito a una persona y cobra a cada quien
+  /// por separado (un `PaymentModal` por persona, en secuencia) — cada uno
+  /// termina siendo su propia orden, con su propio ticket.
+  /// `docs/division-cuenta.md`.
+  Future<void> _startItemSplit() async {
+    if (!_canSplitByItem) return;
+    final employee = ref.read(sessionProvider);
+    if (employee == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Ingresa tu PIN primero.')),
+      );
+      return;
+    }
+    final missing = _missingDeliveryData();
+    if (missing != null) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(missing)));
+      return;
+    }
+
+    final groups = await showDialog<List<List<CartItem>>>(
+      context: context,
+      builder: (_) => _SplitByItemDialog(cart: List.of(_cart)),
+    );
+    if (groups == null) return;
+
+    for (final group in groups) {
+      if (group.isEmpty) continue;
+      if (!mounted) return;
+      final totals = computeTaxedTotals(lines: _taxLinesFor(group));
+      await showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => PaymentModal(
+          total: totals.total,
+          onCheckout: ({required payments}) => _checkoutGroup(group, payments),
+        ),
+      );
+    }
+    if (mounted) {
+      _clearCart();
+      setState(() => _selectedTableId = null);
+    }
+  }
+
   void _openPayment() {
     if (_cart.isEmpty) return;
     final employee = ref.read(sessionProvider);
@@ -425,6 +655,7 @@ class _PosScreenState extends ConsumerState<PosScreen> {
           employeeId: employee.id,
           tableId: _orderType == 'mesa' ? _selectedTableId : null,
           customerName: _customerName,
+          customerId: _selectedCustomer?.id,
           customerPhone: _orderType == 'delivery' ? _customerPhone : null,
           customerAddress: _orderType == 'delivery' ? _customerAddress : null,
           note: _orderNote,
@@ -435,6 +666,7 @@ class _PosScreenState extends ConsumerState<PosScreen> {
           deliveryFee: _deliveryFee,
           total: _total,
           payments: payments,
+          redeemLoyalty: _loyaltyRewardApplied,
         );
 
     await ref.read(ordersProvider.notifier).loadActiveOrders();
@@ -569,15 +801,40 @@ class _PosScreenState extends ConsumerState<PosScreen> {
                     decoration: InputDecoration(
                       hintText: _orderType == 'delivery'
                           ? 'Cliente *'
-                          : 'Cliente (opcional)',
+                          : 'Cliente (opcional, buscar...)',
                       isDense: true,
+                      suffixIcon: _selectedCustomer != null
+                          ? const Icon(Icons.check_circle,
+                              size: 16, color: LaTerciaColors.success)
+                          : null,
                     ),
-                    onChanged: (v) => _customerName = v.isEmpty ? null : v,
+                    onChanged: _onCustomerNameChanged,
                   ),
                 ),
               ],
             ],
           ),
+          // Sugerencias de clientes al buscar. docs/fidelizacion.md.
+          if (_customerSuggestions.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: [
+                  for (final c in _customerSuggestions)
+                    ActionChip(
+                      avatar: const Icon(Icons.person, size: 15),
+                      label: Text(c.phone != null && c.phone!.isNotEmpty
+                          ? '${c.name} · ${c.phone}'
+                          : c.name),
+                      onPressed: () => _selectCustomer(c),
+                    ),
+                ],
+              ),
+            ),
+          // Progreso de fidelización + pill de recompensa. docs/fidelizacion.md.
+          if (_selectedCustomer != null) _buildLoyaltyStatus(),
           // Datos de entrega (2026-07-20): solo para delivery — alimentan la
           // comanda de reparto (nombre + teléfono + dirección + zona), para
           // que el repartidor sepa a dónde y con quién.
@@ -668,12 +925,97 @@ class _PosScreenState extends ConsumerState<PosScreen> {
     );
   }
 
+  /// Progreso de fidelización del cliente elegido + pill de recompensa (el
+  /// cajero decide si la aplica — nunca automático). `docs/fidelizacion.md`.
+  Widget _buildLoyaltyStatus() {
+    final settings = ref.watch(settingsProvider).valueOrNull ?? {};
+    final loyaltyType = settings['loyalty_type'] ?? 'ninguno';
+    if (loyaltyType == 'ninguno') return const SizedBox.shrink();
+
+    final customer = _selectedCustomer!;
+    final stampsRequired =
+        int.tryParse(settings['loyalty_stamps_required'] ?? '') ?? 0;
+    final pointsRequired =
+        int.tryParse(settings['loyalty_points_required'] ?? '') ?? 0;
+    final rewardCategory = settings['loyalty_reward_category'] ?? '';
+    final eligible = rewardCategory.isNotEmpty &&
+        loyaltyRewardAvailable(
+          loyaltyType: loyaltyType,
+          stamps: customer.loyaltyStamps,
+          stampsRequired: stampsRequired,
+          points: customer.loyaltyPoints,
+          pointsRequired: pointsRequired,
+        );
+    final progress = loyaltyType == 'sellos'
+        ? '${customer.loyaltyStamps}/$stampsRequired sellos'
+        : '${customer.loyaltyPoints}/$pointsRequired puntos';
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Row(
+        children: [
+          const Icon(Icons.loyalty, size: 14, color: LaTerciaColors.tan),
+          const SizedBox(width: 6),
+          Text(progress,
+              style: const TextStyle(fontSize: 12, color: LaTerciaColors.tan)),
+          if (eligible) ...[
+            const SizedBox(width: 8),
+            InkWell(
+              borderRadius: BorderRadius.circular(14),
+              onTap: () => setState(
+                  () => _loyaltyRewardApplied = !_loyaltyRewardApplied),
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: _loyaltyRewardApplied
+                      ? LaTerciaColors.success
+                      : LaTerciaColors.successBg,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: LaTerciaColors.success),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.card_giftcard,
+                        size: 13,
+                        color: _loyaltyRewardApplied
+                            ? Colors.white
+                            : LaTerciaColors.success),
+                    const SizedBox(width: 4),
+                    Text(
+                      _loyaltyRewardApplied
+                          ? 'Recompensa aplicada'
+                          : 'Recompensa disponible',
+                      style: TextStyle(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w700,
+                        color: _loyaltyRewardApplied
+                            ? Colors.white
+                            : LaTerciaColors.success,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
   // ─── Product area ──────────────────────────────────────────────────────────
 
   Widget _buildProductArea(String symbol) {
     final categoriesAsync = ref.watch(categoriesProvider);
     final productsAsync = ref.watch(productsProvider);
     final modifiers = ref.watch(modifiersProvider).valueOrNull ?? [];
+    // Solo combos activos; el chip ni aparece si el dueño no configuró
+    // ninguno. docs/combos.md.
+    final activeCombos = (ref.watch(combosProvider).valueOrNull ?? [])
+        .where((c) => c.active)
+        .toList();
 
     return Column(
       children: [
@@ -689,16 +1031,27 @@ class _PosScreenState extends ConsumerState<PosScreen> {
                 _CategoryChip(
                   key: _catKeys.putIfAbsent(null, () => GlobalKey()),
                   label: 'Todos',
-                  selected: _selectedCategoryId == null,
+                  selected: _selectedCategoryId == null && !_showingCombos,
                   onTap: () => _selectCategory(null),
                 ),
+                if (activeCombos.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(left: 8),
+                    child: _CategoryChip(
+                      label: 'Combos',
+                      icon: Icons.fastfood_outlined,
+                      selected: _showingCombos,
+                      onTap: _selectCombosView,
+                    ),
+                  ),
                 ...cats.map((c) => Padding(
                       padding: const EdgeInsets.only(left: 8),
                       child: _CategoryChip(
                         key: _catKeys.putIfAbsent(c.id, () => GlobalKey()),
                         label: c.name,
                         dotColor: _parseColor(c.color),
-                        selected: _selectedCategoryId == c.id,
+                        selected:
+                            _selectedCategoryId == c.id && !_showingCombos,
                         onTap: () => _selectCategory(c.id),
                       ),
                     )),
@@ -725,64 +1078,96 @@ class _PosScreenState extends ConsumerState<PosScreen> {
             ),
           ),
         ),
-        // Product grid
+        // Product grid (o cuadrícula de Combos si _showingCombos).
+        // docs/combos.md.
         Expanded(
-          child: productsAsync.when(
-            data: (products) {
-              final cats = ref.watch(categoriesProvider).valueOrNull ?? [];
-              final catMap = {for (final c in cats) c.id: c};
+          child: _showingCombos
+              ? _buildComboGrid(activeCombos, symbol)
+              : productsAsync.when(
+                  data: (products) {
+                    final cats =
+                        ref.watch(categoriesProvider).valueOrNull ?? [];
+                    final catMap = {for (final c in cats) c.id: c};
 
-              var filtered = products.where((p) {
-                if (_selectedCategoryId != null &&
-                    p.categoryId != _selectedCategoryId) {
-                  return false;
-                }
-                if (_searchQuery.isNotEmpty &&
-                    !p.name
-                        .toLowerCase()
-                        .contains(_searchQuery.toLowerCase())) {
-                  return false;
-                }
-                return true;
-              }).toList();
+                    var filtered = products.where((p) {
+                      if (_selectedCategoryId != null &&
+                          p.categoryId != _selectedCategoryId) {
+                        return false;
+                      }
+                      if (_searchQuery.isNotEmpty &&
+                          !p.name
+                              .toLowerCase()
+                              .contains(_searchQuery.toLowerCase())) {
+                        return false;
+                      }
+                      return true;
+                    }).toList();
 
-              if (filtered.isEmpty) {
-                return const Center(
-                  child: Text('Sin productos',
-                      style: TextStyle(color: LaTerciaColors.tan)),
-                );
-              }
+                    if (filtered.isEmpty) {
+                      return const Center(
+                        child: Text('Sin productos',
+                            style: TextStyle(color: LaTerciaColors.tan)),
+                      );
+                    }
 
-              return GridView.builder(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-                  maxCrossAxisExtent: 210,
-                  childAspectRatio: 0.86,
-                  mainAxisSpacing: 14,
-                  crossAxisSpacing: 14,
+                    return GridView.builder(
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                      gridDelegate:
+                          const SliverGridDelegateWithMaxCrossAxisExtent(
+                        maxCrossAxisExtent: 210,
+                        childAspectRatio: 0.86,
+                        mainAxisSpacing: 14,
+                        crossAxisSpacing: 14,
+                      ),
+                      itemCount: filtered.length,
+                      itemBuilder: (ctx, i) {
+                        final product = filtered[i];
+                        final cat = catMap[product.categoryId];
+                        final hasMods =
+                            categoryHasModifiers(modifiers, cat?.name);
+
+                        return ProductCard(
+                          product: product,
+                          category: cat,
+                          currencySymbol: symbol,
+                          hasModifiers: hasMods,
+                          onTap: () => _addToCart(product),
+                          onLongPress: () => _showProductInfo(context, product),
+                        );
+                      },
+                    );
+                  },
+                  loading: () =>
+                      const Center(child: CircularProgressIndicator()),
+                  error: (e, _) => Center(child: Text('Error: $e')),
                 ),
-                itemCount: filtered.length,
-                itemBuilder: (ctx, i) {
-                  final product = filtered[i];
-                  final cat = catMap[product.categoryId];
-                  final hasMods = categoryHasModifiers(modifiers, cat?.name);
-
-                  return ProductCard(
-                    product: product,
-                    category: cat,
-                    currencySymbol: symbol,
-                    hasModifiers: hasMods,
-                    onTap: () => _addToCart(product),
-                    onLongPress: () => _showProductInfo(context, product),
-                  );
-                },
-              );
-            },
-            loading: () => const Center(child: CircularProgressIndicator()),
-            error: (e, _) => Center(child: Text('Error: $e')),
-          ),
         ),
       ],
+    );
+  }
+
+  /// Cuadrícula de combos activos. `docs/combos.md`.
+  Widget _buildComboGrid(List<Combo> combos, String symbol) {
+    if (combos.isEmpty) {
+      return const Center(
+        child: Text('Sin combos activos',
+            style: TextStyle(color: LaTerciaColors.tan)),
+      );
+    }
+    return GridView.builder(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+      gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+        maxCrossAxisExtent: 210,
+        childAspectRatio: 0.86,
+        mainAxisSpacing: 14,
+        crossAxisSpacing: 14,
+      ),
+      itemCount: combos.length,
+      itemBuilder: (ctx, i) => _ComboCard(
+        combo: combos[i],
+        currencySymbol: symbol,
+        onTap: () => _addComboToCart(combos[i]),
+      ),
     );
   }
 
@@ -811,6 +1196,42 @@ class _PosScreenState extends ConsumerState<PosScreen> {
   }
 
   // ─── Order sidebar (cart) ──────────────────────────────────────────────────
+
+  /// Filas del carrito: las líneas de combo salen agrupadas bajo un
+  /// encabezado (sin precio/cantidad por línea; el ✕ del grupo quita todas
+  /// juntas). El resto se ve igual que siempre. `docs/combos.md`.
+  List<Widget> _buildCartRows(String symbol) {
+    final widgets = <Widget>[];
+    final seenCombo = <String>{};
+    for (var i = 0; i < _cart.length; i++) {
+      final item = _cart[i];
+      final comboId = item.comboInstanceId;
+      if (comboId != null && seenCombo.add(comboId)) {
+        final groupTotal = _cart
+            .where((c) => c.comboInstanceId == comboId)
+            .fold(0.0, (s, c) => s + c.lineTotal);
+        widgets.add(_ComboGroupHeader(
+          name: item.comboName ?? 'Combo',
+          total: groupTotal,
+          symbol: symbol,
+          onRemove: () => _removeComboGroup(comboId),
+        ));
+      }
+      widgets.add(OrderItemRow(
+        key: ValueKey('cart-$i'),
+        item: item,
+        currencySymbol: symbol,
+        hidePrice: comboId != null,
+        hideQuantity: comboId != null,
+        onRemove: comboId != null
+            ? () => _removeComboGroup(comboId)
+            : () => _removeFromCart(i),
+        onQuantityChanged: (q) => _updateQuantity(i, q),
+        onNoteChanged: (n) => _updateItemNote(i, n),
+      ));
+    }
+    return widgets;
+  }
 
   Widget _buildOrderSidebar(String symbol, Map<String, String> settings) {
     final discountsAsync = ref.watch(discountsProvider);
@@ -949,16 +1370,9 @@ class _PosScreenState extends ConsumerState<PosScreen> {
                       ],
                     ),
                   )
-                : ListView.builder(
+                : ListView(
                     padding: const EdgeInsets.symmetric(horizontal: 16),
-                    itemCount: _cart.length,
-                    itemBuilder: (ctx, i) => OrderItemRow(
-                      item: _cart[i],
-                      currencySymbol: symbol,
-                      onRemove: () => _removeFromCart(i),
-                      onQuantityChanged: (q) => _updateQuantity(i, q),
-                      onNoteChanged: (n) => _updateItemNote(i, n),
-                    ),
+                    children: _buildCartRows(symbol),
                   ),
           ),
           // Summary
@@ -1088,6 +1502,21 @@ class _PosScreenState extends ConsumerState<PosScreen> {
                     label: const Text('Cobrar'),
                   ),
                 ),
+                // División de cuenta por artículo (docs/division-cuenta.md).
+                // Partes iguales vive DENTRO del PaymentModal (botón "Cobrar").
+                if (_cart.length >= 2) ...[
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    width: double.infinity,
+                    child: TextButton.icon(
+                      onPressed: _canSplitByItem ? _startItemSplit : null,
+                      icon: const Icon(Icons.call_split, size: 16),
+                      label: Text(_canSplitByItem
+                          ? 'Dividir por artículo'
+                          : 'Dividir por artículo (quita el descuento primero)'),
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
@@ -1219,17 +1648,184 @@ class _PillDropdown<T> extends StatelessWidget {
   }
 }
 
+/// Tarjeta de combo en la cuadrícula del POS — versión simplificada de
+/// `ProductCard` (sin imagen ni stock). `docs/combos.md`.
+class _ComboCard extends StatelessWidget {
+  final Combo combo;
+  final String currencySymbol;
+  final VoidCallback onTap;
+  const _ComboCard({
+    required this.combo,
+    required this.currencySymbol,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: LaTerciaColors.border),
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(18),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(
+                flex: 3,
+                child: Container(
+                  decoration: const BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        LaTerciaColors.burntOrange,
+                        LaTerciaColors.goldDark,
+                      ],
+                    ),
+                  ),
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      const Positioned(
+                        right: -6,
+                        top: -6,
+                        child: Icon(Icons.fastfood,
+                            size: 56, color: Colors.white24),
+                      ),
+                      Align(
+                        alignment: Alignment.bottomLeft,
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(10, 8, 8, 8),
+                          child: Text(
+                            combo.name,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontFamily: 'DM Serif Display',
+                              fontSize: 17,
+                              color: Colors.white,
+                              height: 1.1,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              Expanded(
+                flex: 2,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 8, 10, 10),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          formatCurrency(combo.price, currencySymbol),
+                          style: const TextStyle(
+                            fontFamily: 'DM Serif Display',
+                            fontSize: 19,
+                            color: LaTerciaColors.darkBrown,
+                          ),
+                        ),
+                      ),
+                      Container(
+                        width: 32,
+                        height: 32,
+                        decoration: const BoxDecoration(
+                          color: LaTerciaColors.burntOrange,
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(Icons.add,
+                            color: Colors.white, size: 18),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Encabezado de un grupo de líneas de combo en el carrito: nombre + precio
+/// total del paquete + botón para quitarlo completo. `docs/combos.md`.
+class _ComboGroupHeader extends StatelessWidget {
+  final String name;
+  final double total;
+  final String symbol;
+  final VoidCallback onRemove;
+  const _ComboGroupHeader({
+    required this.name,
+    required this.total,
+    required this.symbol,
+    required this.onRemove,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(top: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: LaTerciaColors.burntOrange.withValues(alpha: 0.1),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+        border: Border.all(
+            color: LaTerciaColors.burntOrange.withValues(alpha: 0.4)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.fastfood,
+              size: 15, color: LaTerciaColors.burntOrange),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text('Combo: $name',
+                style: const TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w700,
+                    color: LaTerciaColors.burntOrange)),
+          ),
+          Text(formatCurrency(total, symbol),
+              style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: LaTerciaColors.burntOrange)),
+          const SizedBox(width: 4),
+          InkWell(
+            onTap: onRemove,
+            child: const Icon(Icons.close,
+                size: 16, color: LaTerciaColors.burntOrange),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _CategoryChip extends StatelessWidget {
   final String label;
   final Color? dotColor;
   final bool selected;
   final VoidCallback onTap;
+  // Ícono en vez del punto de color (usado por el chip "Combos").
+  // docs/combos.md.
+  final IconData? icon;
   const _CategoryChip({
     super.key,
     required this.label,
     this.dotColor,
     required this.selected,
     required this.onTap,
+    this.icon,
   });
 
   @override
@@ -1252,14 +1848,19 @@ class _CategoryChip extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Container(
-                width: 8,
-                height: 8,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: dotColor ?? LaTerciaColors.gold,
+              if (icon != null)
+                Icon(icon,
+                    size: 15,
+                    color: selected ? Colors.white : LaTerciaColors.tan)
+              else
+                Container(
+                  width: 8,
+                  height: 8,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: dotColor ?? LaTerciaColors.gold,
+                  ),
                 ),
-              ),
               const SizedBox(width: 8),
               Text(
                 label,
@@ -1329,6 +1930,141 @@ class _DiscountPill extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// Asigna cada línea del carrito a una persona, para dividir la cuenta por
+/// artículo. Devuelve un grupo de [CartItem] por persona (`Navigator.pop`
+/// con la lista) o `null` si se cancela. `docs/division-cuenta.md`.
+class _SplitByItemDialog extends StatefulWidget {
+  final List<CartItem> cart;
+  const _SplitByItemDialog({required this.cart});
+
+  @override
+  State<_SplitByItemDialog> createState() => _SplitByItemDialogState();
+}
+
+class _SplitByItemDialogState extends State<_SplitByItemDialog> {
+  int _people = 2;
+  // Índice de línea del carrito → índice de persona (null = sin asignar).
+  late final List<int?> _assignment =
+      List<int?>.filled(widget.cart.length, null);
+
+  bool get _allAssigned => !_assignment.contains(null);
+
+  void _removePerson() {
+    setState(() {
+      _people--;
+      // Las líneas que apuntaban a la persona quitada vuelven a "sin asignar".
+      for (var i = 0; i < _assignment.length; i++) {
+        if (_assignment[i] != null && _assignment[i]! >= _people) {
+          _assignment[i] = null;
+        }
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Dividir por artículo'),
+      content: SizedBox(
+        width: 460,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Toca a quién le toca cada línea. Todas deben quedar asignadas.',
+              style: TextStyle(fontSize: 12.5, color: LaTerciaColors.tan),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                const Text('Personas',
+                    style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        color: LaTerciaColors.darkBrown)),
+                const Spacer(),
+                IconButton(
+                  onPressed: _people > 2 ? _removePerson : null,
+                  icon: const Icon(Icons.remove_circle_outline),
+                  visualDensity: VisualDensity.compact,
+                ),
+                SizedBox(
+                  width: 28,
+                  child: Text('$_people',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(fontWeight: FontWeight.w700)),
+                ),
+                IconButton(
+                  onPressed:
+                      _people < 10 ? () => setState(() => _people++) : null,
+                  icon: const Icon(Icons.add_circle_outline),
+                  visualDensity: VisualDensity.compact,
+                ),
+              ],
+            ),
+            const Divider(),
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 320),
+              child: SingleChildScrollView(
+                child: Column(
+                  children: [
+                    for (var i = 0; i < widget.cart.length; i++)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 6),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                '${widget.cart[i].quantity}× '
+                                '${widget.cart[i].product.name}',
+                                style: const TextStyle(fontSize: 13),
+                              ),
+                            ),
+                            Wrap(
+                              spacing: 4,
+                              children: [
+                                for (var p = 0; p < _people; p++)
+                                  ChoiceChip(
+                                    label: Text('P${p + 1}'),
+                                    labelStyle: const TextStyle(fontSize: 11.5),
+                                    visualDensity: VisualDensity.compact,
+                                    selected: _assignment[i] == p,
+                                    onSelected: (_) =>
+                                        setState(() => _assignment[i] = p),
+                                  ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancelar')),
+        FilledButton(
+          onPressed: _allAssigned
+              ? () {
+                  final groups = List.generate(_people, (_) => <CartItem>[]);
+                  for (var i = 0; i < widget.cart.length; i++) {
+                    groups[_assignment[i]!].add(widget.cart[i]);
+                  }
+                  Navigator.pop(context, groups);
+                }
+              : null,
+          child: const Text('Dividir'),
+        ),
+      ],
     );
   }
 }

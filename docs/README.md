@@ -46,5 +46,13 @@ explicación larga.
   orden o corte de listas/reportes sin borrarlo; con PIN de supervisor.
 - [Promociones programadas](promociones.md) — happy hour (día/hora) y 2x1 con
   alcance por categoría, auto-aplicados en el POS; extiende Descuentos.
+- [Combos / paquetes](combos.md) — paquetes de productos a precio especial;
+  se expanden a productos reales (inventario/KDS sin cambios), prorrateo,
+  agrupados en el carrito.
+- [Fidelización](fidelizacion.md) — sellos o puntos por cliente; buscador de
+  cliente en el POS (antes no existía), canje manual de una categoría premiada.
+- [División de cuenta](division-cuenta.md) — partes iguales (reusa el pago
+  mixto) o por artículo (cada persona = una orden independiente); sin
+  migración, sin tocar impresión/KDS.
 
 > Este índice crece conforme se van limpiando más archivos.

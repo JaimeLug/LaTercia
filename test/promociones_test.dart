@@ -104,9 +104,9 @@ void main() {
   });
 
   group('discountAmountForCart', () {
-    final cafe =
+    const cafe =
         (unitPrice: 35.0, quantity: 3, categoryName: 'Bebidas calientes');
-    final pan = (unitPrice: 20.0, quantity: 2, categoryName: 'Panadería');
+    const pan = (unitPrice: 20.0, quantity: 2, categoryName: 'Panadería');
 
     test('porcentaje sin alcance: igual que discountAmountFor de siempre', () {
       final d = _discount(type: 'percentage', value: 10);
@@ -138,7 +138,7 @@ void main() {
 
     test('2x1 con cantidad impar: redondea hacia abajo', () {
       final d = _discount(type: '2x1');
-      final linea = (unitPrice: 10.0, quantity: 5, categoryName: 'Bebidas');
+      const linea = (unitPrice: 10.0, quantity: 5, categoryName: 'Bebidas');
       // 5 ~/ 2 = 2 gratis.
       expect(discountAmountForCart(d, [linea]), closeTo(20, 0.001));
     });

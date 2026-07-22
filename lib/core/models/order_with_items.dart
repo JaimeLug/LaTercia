@@ -17,6 +17,11 @@ class CartItem {
   final Set<int> includedModifierIds;
   int quantity;
   String? note;
+  // Combos (docs/combos.md): las líneas de una misma compra de combo
+  // comparten [comboInstanceId] (para agruparlas en el carrito/ticket y
+  // quitarlas juntas); [comboName] es solo para mostrar. Null = no es combo.
+  final String? comboInstanceId;
+  final String? comboName;
 
   CartItem({
     required this.product,
@@ -24,6 +29,8 @@ class CartItem {
     this.includedModifierIds = const {},
     this.quantity = 1,
     this.note,
+    this.comboInstanceId,
+    this.comboName,
   });
 
   double get unitPrice =>

@@ -12,6 +12,7 @@ import '../../../core/services/checkout_service.dart';
 import '../../../core/services/print_service.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/formatters.dart';
+import '../../../core/utils/pricing.dart' show splitEvenly;
 import 'factura_capture_dialog.dart';
 import 'receipt_dialog.dart';
 
@@ -66,6 +67,11 @@ class _PaymentModalState extends ConsumerState<PaymentModal> {
   // Pagos parciales ya agregados (pago mixto, 4.2). El tramo en edición vive en
   // los controllers de arriba y se agrega/confirma con los botones.
   final List<PaymentDraft> _committed = [];
+  // División de cuenta en partes iguales (docs/division-cuenta.md): reusa
+  // exactamente el mecanismo de pago mixto de arriba — solo precarga cada
+  // tramo con el monto que le toca a esa persona.
+  List<double>? _evenSplit;
+  int _evenSplitCursor = 0;
 
   @override
   void dispose() {
@@ -151,6 +157,30 @@ class _PaymentModalState extends ConsumerState<PaymentModal> {
       _receivedController.clear();
       _referenceController.clear();
       _method = 'efectivo';
+      // Si venimos de "Dividir cuenta", precarga el monto de la siguiente
+      // parte. docs/division-cuenta.md.
+      final split = _evenSplit;
+      if (split != null && _evenSplitCursor < split.length - 1) {
+        _evenSplitCursor++;
+        _receivedController.text = split[_evenSplitCursor].toStringAsFixed(2);
+      }
+    });
+  }
+
+  /// Pide el número de personas y precarga el monto de la primera parte en el
+  /// campo de "Recibido" — el cajero sigue el flujo de pago mixto de siempre.
+  /// `docs/division-cuenta.md`.
+  Future<void> _startEvenSplit() async {
+    final parts = await showDialog<int>(
+      context: context,
+      builder: (_) => const _SplitPartsDialog(),
+    );
+    if (parts == null || parts < 2) return;
+    final shares = splitEvenly(_grandTotal, parts);
+    setState(() {
+      _evenSplit = shares;
+      _evenSplitCursor = 0;
+      _receivedController.text = shares.first.toStringAsFixed(2);
     });
   }
 
@@ -300,6 +330,18 @@ class _PaymentModalState extends ConsumerState<PaymentModal> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
+                // Dividir cuenta en partes iguales (docs/division-cuenta.md):
+                // solo antes de empezar a agregar tramos, para no mezclar con
+                // un pago mixto ya en curso.
+                if (_committed.isEmpty && _evenSplit == null)
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton.icon(
+                      onPressed: _processing ? null : _startEvenSplit,
+                      icon: const Icon(Icons.groups_outlined, size: 16),
+                      label: const Text('Dividir cuenta'),
+                    ),
+                  ),
                 Text(hasSplit ? 'SALDO PENDIENTE' : 'TOTAL A PAGAR',
                     style: const TextStyle(
                       fontSize: 11,
@@ -316,6 +358,16 @@ class _PaymentModalState extends ConsumerState<PaymentModal> {
                     color: LaTerciaColors.burntOrange,
                   ),
                 ),
+                if (_evenSplit != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Text(
+                      'Dividido entre ${_evenSplit!.length} — '
+                      'parte ${_evenSplitCursor + 1} de ${_evenSplit!.length}',
+                      style: const TextStyle(
+                          fontSize: 11.5, color: LaTerciaColors.tan),
+                    ),
+                  ),
                 if (tipsEnabled && !hasSplit && _tip > 0)
                   Text(
                       'Venta ${formatCurrency(widget.total, symbol)} + '
@@ -745,6 +797,65 @@ class _MethodTile extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// Pide el número de personas para dividir la cuenta en partes iguales.
+/// `docs/division-cuenta.md`.
+class _SplitPartsDialog extends StatefulWidget {
+  const _SplitPartsDialog();
+
+  @override
+  State<_SplitPartsDialog> createState() => _SplitPartsDialogState();
+}
+
+class _SplitPartsDialogState extends State<_SplitPartsDialog> {
+  int _parts = 2;
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Dividir cuenta'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Text('¿Entre cuántas personas?',
+              style: TextStyle(color: LaTerciaColors.tan)),
+          const SizedBox(height: 12),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              IconButton.filledTonal(
+                onPressed: _parts > 2 ? () => setState(() => _parts--) : null,
+                icon: const Icon(Icons.remove),
+              ),
+              SizedBox(
+                width: 64,
+                child: Text('$_parts',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                        fontFamily: 'DM Serif Display',
+                        fontSize: 28,
+                        color: LaTerciaColors.darkBrown)),
+              ),
+              IconButton.filledTonal(
+                onPressed: _parts < 20 ? () => setState(() => _parts++) : null,
+                icon: const Icon(Icons.add),
+              ),
+            ],
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancelar')),
+        FilledButton(
+          onPressed: () => Navigator.pop(context, _parts),
+          child: const Text('Dividir'),
+        ),
+      ],
     );
   }
 }

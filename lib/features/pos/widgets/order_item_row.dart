@@ -9,6 +9,11 @@ class OrderItemRow extends StatefulWidget {
   final VoidCallback onRemove;
   final ValueChanged<int> onQuantityChanged;
   final ValueChanged<String?> onNoteChanged;
+  // Líneas de combo (docs/combos.md): sin precio individual ni cantidad
+  // propia (la cantidad viene fija del combo; el precio se ve en el
+  // encabezado del grupo, no por línea).
+  final bool hidePrice;
+  final bool hideQuantity;
 
   const OrderItemRow({
     super.key,
@@ -17,6 +22,8 @@ class OrderItemRow extends StatefulWidget {
     required this.onRemove,
     required this.onQuantityChanged,
     required this.onNoteChanged,
+    this.hidePrice = false,
+    this.hideQuantity = false,
   });
 
   @override
@@ -85,36 +92,45 @@ class _OrderItemRowState extends State<OrderItemRow> {
                   ],
                 ),
               ),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text(
-                    formatCurrency(item.lineTotal, widget.currencySymbol),
-                    style: const TextStyle(
-                      fontFamily: 'DM Serif Display',
-                      fontSize: 16,
-                      color: LaTerciaColors.darkBrown,
+              if (!widget.hidePrice)
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      formatCurrency(item.lineTotal, widget.currencySymbol),
+                      style: const TextStyle(
+                        fontFamily: 'DM Serif Display',
+                        fontSize: 16,
+                        color: LaTerciaColors.darkBrown,
+                      ),
                     ),
-                  ),
-                  Text(
-                    '${formatCurrency(item.unitPrice, widget.currencySymbol)} c/u',
+                    Text(
+                      '${formatCurrency(item.unitPrice, widget.currencySymbol)} c/u',
+                      style: const TextStyle(
+                          fontSize: 10.5, color: LaTerciaColors.tan),
+                    ),
+                  ],
+                )
+              else
+                Text('${item.quantity}×',
                     style: const TextStyle(
-                        fontSize: 10.5, color: LaTerciaColors.tan),
-                  ),
-                ],
-              ),
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: LaTerciaColors.tan)),
             ],
           ),
           const SizedBox(height: 8),
           Row(
             children: [
-              _Stepper(
-                quantity: item.quantity,
-                onDecrement: item.quantity > 1
-                    ? () => widget.onQuantityChanged(item.quantity - 1)
-                    : null,
-                onIncrement: () => widget.onQuantityChanged(item.quantity + 1),
-              ),
+              if (!widget.hideQuantity)
+                _Stepper(
+                  quantity: item.quantity,
+                  onDecrement: item.quantity > 1
+                      ? () => widget.onQuantityChanged(item.quantity - 1)
+                      : null,
+                  onIncrement: () =>
+                      widget.onQuantityChanged(item.quantity + 1),
+                ),
               const Spacer(),
               IconButton(
                 icon: Icon(

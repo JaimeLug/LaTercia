@@ -10,6 +10,7 @@ import 'screens/tables_screen.dart';
 import 'screens/employees_screen.dart';
 import 'screens/customers_screen.dart';
 import 'screens/discounts_screen.dart';
+import 'screens/combos_screen.dart';
 import 'screens/orders_screen.dart';
 import 'screens/expenses_screen.dart';
 import 'screens/inventory_screen.dart';
@@ -67,6 +68,10 @@ class _AdminShellState extends ConsumerState<AdminShell> {
         selectedIcon: Icon(Icons.local_offer),
         label: Text('Descuentos')),
     NavigationRailDestination(
+        icon: Icon(Icons.fastfood_outlined),
+        selectedIcon: Icon(Icons.fastfood),
+        label: Text('Combos')),
+    NavigationRailDestination(
         icon: Icon(Icons.receipt_long_outlined),
         selectedIcon: Icon(Icons.receipt_long),
         label: Text('Órdenes')),
@@ -121,6 +126,7 @@ class _AdminShellState extends ConsumerState<AdminShell> {
     EmployeesScreen(),
     CustomersScreen(),
     DiscountsScreen(),
+    CombosScreen(),
     OrdersScreen(),
     ExpensesScreen(),
     InventoryScreen(),

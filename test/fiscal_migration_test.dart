@@ -148,6 +148,13 @@ void main() {
 /// Crea a mano una base con el esquema de v9 (sin las columnas/tablas de
 /// facturación) y `user_version = 9`, con una fila en products y otra en
 /// customers, para probar que la migración a v10 corre y no las borra.
+///
+/// OJO al agregar una migración nueva: `AppDatabase.forTesting` corre TODAS
+/// las migraciones desde v9 hasta la versión actual (no solo la v10 que da
+/// nombre a este test), así que si una migración nueva le agrega columnas a
+/// una tabla que este fixture no crea, revienta con "no such table: X" — hay
+/// que agregar aquí una versión mínima de esa tabla (ver shifts/discounts/
+/// order_items abajo, cada una añadida cuando una migración las tocó).
 void _buildV9Fixture(String path) {
   final db = sq.sqlite3.open(path);
   db.execute('PRAGMA user_version = 9');
@@ -194,6 +201,9 @@ void _buildV9Fixture(String path) {
   // columnas.
   db.execute(
       'CREATE TABLE discounts (id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT)');
+  // order_items idem — la migración v14 (combos) le agrega columnas.
+  db.execute(
+      'CREATE TABLE order_items (id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT)');
 
   final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
   db.execute(

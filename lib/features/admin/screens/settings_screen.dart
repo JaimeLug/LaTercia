@@ -3,6 +3,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flex_color_picker/flex_color_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../core/providers/categories_provider.dart';
 import '../../../core/providers/settings_provider.dart';
 import '../../../core/services/print_service.dart';
 import '../../../core/theme/app_theme.dart';
@@ -69,6 +70,12 @@ const _settingsCategories = <_SettingsCategory>[
     subtitle: 'Propinas'
   ),
   (
+    key: 'fidelizacion',
+    icon: Icons.card_giftcard_outlined,
+    title: 'Fidelización',
+    subtitle: 'Sellos o puntos por cliente'
+  ),
+  (
     key: 'moneda',
     icon: Icons.attach_money,
     title: 'Moneda',
@@ -123,6 +130,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
   // Ventas avanzadas (Fase 4)
   bool _propinasActivas = false;
+
+  // Fidelización. docs/fidelizacion.md.
+  String _loyaltyType = 'ninguno'; // 'ninguno' | 'sellos' | 'puntos'
+  late TextEditingController _loyaltyStampsRequired;
+  late TextEditingController _loyaltyPointsPerCurrency;
+  late TextEditingController _loyaltyPointsRequired;
+  String? _loyaltyRewardCategory;
 
   // Moneda
   late TextEditingController _currencySymbol;
@@ -183,6 +197,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     _razonEmisor = TextEditingController();
     _regimenEmisor = TextEditingController();
     _cpExpedicion = TextEditingController();
+    _loyaltyStampsRequired = TextEditingController();
+    _loyaltyPointsPerCurrency = TextEditingController();
+    _loyaltyPointsRequired = TextEditingController();
     _availablePrinters = listWindowsPrinters();
   }
 
@@ -214,6 +231,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     _razonEmisor.dispose();
     _regimenEmisor.dispose();
     _cpExpedicion.dispose();
+    _loyaltyStampsRequired.dispose();
+    _loyaltyPointsPerCurrency.dispose();
+    _loyaltyPointsRequired.dispose();
     super.dispose();
   }
 
@@ -254,6 +274,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     _razonEmisor.text = s['razon_social_emisor'] ?? '';
     _regimenEmisor.text = s['regimen_fiscal_emisor'] ?? '';
     _cpExpedicion.text = s['cp_lugar_expedicion'] ?? '';
+    _loyaltyType = s['loyalty_type'] ?? 'ninguno';
+    _loyaltyStampsRequired.text = s['loyalty_stamps_required'] ?? '10';
+    _loyaltyPointsPerCurrency.text = s['loyalty_points_per_currency'] ?? '10';
+    _loyaltyPointsRequired.text = s['loyalty_points_required'] ?? '100';
+    _loyaltyRewardCategory = s['loyalty_reward_category']?.isEmpty == true
+        ? null
+        : s['loyalty_reward_category'];
   }
 
   Color _parseColor(String hex) {
@@ -744,6 +771,74 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             contentPadding: EdgeInsets.zero,
           ),
         ];
+      case 'fidelizacion':
+        final cats = ref.watch(categoriesProvider).valueOrNull ?? [];
+        return [
+          const Text(
+            'Elige UNA mecánica (no las dos a la vez). El cliente se elige al '
+            'cobrar en el POS. docs/fidelizacion.md.',
+            style: TextStyle(fontSize: 12.5, color: LaTerciaColors.tan),
+          ),
+          const SizedBox(height: 12),
+          DropdownButtonFormField<String>(
+            value: _loyaltyType,
+            decoration: const InputDecoration(labelText: 'Programa'),
+            items: const [
+              DropdownMenuItem(value: 'ninguno', child: Text('Desactivado')),
+              DropdownMenuItem(
+                  value: 'sellos', child: Text('Sellos (tarjeta de puntos)')),
+              DropdownMenuItem(value: 'puntos', child: Text('Puntos')),
+            ],
+            onChanged: (v) => setState(() => _loyaltyType = v!),
+          ),
+          if (_loyaltyType == 'sellos') ...[
+            const SizedBox(height: 8),
+            TextField(
+              controller: _loyaltyStampsRequired,
+              decoration: const InputDecoration(
+                labelText: 'Sellos para ganar la recompensa',
+                helperText: 'Ej. 10 = la 11ª visita trae algo gratis',
+              ),
+              keyboardType: TextInputType.number,
+            ),
+          ],
+          if (_loyaltyType == 'puntos') ...[
+            const SizedBox(height: 8),
+            TextField(
+              controller: _loyaltyPointsPerCurrency,
+              decoration: const InputDecoration(
+                labelText: 'Pesos gastados por 1 punto',
+                helperText: 'Ej. 10 = 1 punto cada \$10',
+              ),
+              keyboardType: TextInputType.number,
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: _loyaltyPointsRequired,
+              decoration: const InputDecoration(
+                  labelText: 'Puntos necesarios para canjear'),
+              keyboardType: TextInputType.number,
+            ),
+          ],
+          if (_loyaltyType != 'ninguno') ...[
+            const SizedBox(height: 8),
+            DropdownButtonFormField<String?>(
+              value: cats.any((c) => c.name == _loyaltyRewardCategory)
+                  ? _loyaltyRewardCategory
+                  : null,
+              isExpanded: true,
+              decoration: const InputDecoration(
+                labelText: 'Categoría que se regala',
+                helperText: 'Se hace gratis el producto más caro de ahí',
+              ),
+              items: [
+                for (final c in cats)
+                  DropdownMenuItem(value: c.name, child: Text(c.name)),
+              ],
+              onChanged: (v) => setState(() => _loyaltyRewardCategory = v),
+            ),
+          ],
+        ];
       case 'moneda':
         return [
           TextField(
@@ -1040,6 +1135,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       'razon_social_emisor': _razonEmisor.text.trim(),
       'regimen_fiscal_emisor': _regimenEmisor.text.trim(),
       'cp_lugar_expedicion': _cpExpedicion.text.trim(),
+      'loyalty_type': _loyaltyType,
+      'loyalty_stamps_required': _loyaltyStampsRequired.text.trim(),
+      'loyalty_points_per_currency': _loyaltyPointsPerCurrency.text.trim(),
+      'loyalty_points_required': _loyaltyPointsRequired.text.trim(),
+      'loyalty_reward_category': _loyaltyRewardCategory ?? '',
     };
 
     await ref.read(settingsProvider.notifier).setSettings(settings);

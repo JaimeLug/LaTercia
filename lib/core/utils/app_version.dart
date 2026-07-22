@@ -1,6 +1,6 @@
 /// Versión instalada; fuente única de verdad. Subir a mano junto con `version:`
 /// en `pubspec.yaml` en cada release. `docs/actualizaciones.md`.
-const String appVersion = '1.1.1';
+const String appVersion = '1.2.0';
 
 /// Compara versiones tipo "1.2.0" componente a componente (no como texto).
 /// Devuelve <0/0/>0. `docs/actualizaciones.md` §"Comparar versiones".

@@ -92,6 +92,10 @@ class CheckoutService {
     double tipAmount = 0,
     String? reference,
     List<PaymentDraft>? payments,
+    // Fidelización: si esta venta consume la recompensa ganada del cliente
+    // (resetea sellos o resta puntos). Solo aplica en este cobro inmediato —
+    // no en "pagar después". docs/fidelizacion.md.
+    bool redeemLoyalty = false,
   }) {
     final drafts = _resolvePayments(payments, paymentMethod, amountTendered,
         changeGiven, tipAmount, reference);
@@ -148,6 +152,8 @@ class CheckoutService {
           unitPrice: ci.unitPrice,
           modifiersJson: Value(ci.modifiers.isEmpty ? null : modJson),
           itemNote: Value(ci.note),
+          comboInstanceId: Value(ci.comboInstanceId),
+          comboName: Value(ci.comboName),
         );
       }).toList();
       await _db.orderItemsDao.insertOrderItems(itemCompanions);
@@ -185,6 +191,10 @@ class CheckoutService {
 
       if (customerId != null) {
         await _db.customersDao.incrementVisits(customerId, total);
+        await _db.customersDao.earnLoyalty(customerId, total);
+        if (redeemLoyalty) {
+          await _db.customersDao.redeemLoyalty(customerId);
+        }
       }
 
       // Auditoría dentro de la misma transacción que la venta.

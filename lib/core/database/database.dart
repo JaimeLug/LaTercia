@@ -15,6 +15,7 @@ import 'daos/customers_dao.dart';
 import 'daos/employees_dao.dart';
 import 'daos/shifts_dao.dart';
 import 'daos/discounts_dao.dart';
+import 'daos/combos_dao.dart';
 import 'daos/expenses_dao.dart';
 import 'daos/inventory_dao.dart';
 import 'daos/settings_dao.dart';
@@ -104,6 +105,25 @@ class Discounts extends Table {
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
 }
 
+/// Paquetes de productos a precio especial (v14). Se EXPANDEN a sus productos
+/// reales al agregarse al carrito — no son un concepto nuevo en la orden.
+/// docs/combos.md.
+class Combos extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  TextColumn get name => text()();
+  RealColumn get price => real()(); // precio fijo del paquete
+  BoolColumn get active => boolean().withDefault(const Constant(true))();
+  DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
+}
+
+/// Componentes de un combo: qué producto y cuántas unidades. docs/combos.md.
+class ComboItems extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  IntColumn get comboId => integer().references(Combos, #id)();
+  IntColumn get productId => integer().references(Products, #id)();
+  IntColumn get quantity => integer().withDefault(const Constant(1))();
+}
+
 class TablesLayout extends Table {
   IntColumn get id => integer().autoIncrement()();
   TextColumn get name => text()();
@@ -129,6 +149,10 @@ class Customers extends Table {
   TextColumn get cpFiscal => text().nullable()();
   TextColumn get regimenFiscal => text().nullable()(); // c_RegimenFiscal
   TextColumn get usoCfdiPreferido => text().nullable()(); // c_UsoCFDI (def G03)
+  // Fidelización (v15): contadores propios, distintos de `visits` (que es un
+  // total histórico y nunca se resetea). docs/fidelizacion.md.
+  IntColumn get loyaltyStamps => integer().withDefault(const Constant(0))();
+  IntColumn get loyaltyPoints => integer().withDefault(const Constant(0))();
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
 }
 
@@ -212,6 +236,11 @@ class OrderItems extends Table {
   TextColumn get itemNote => text().nullable()();
   TextColumn get itemStatus => text()
       .withDefault(const Constant('pendiente'))(); // 'pendiente' | 'listo'
+  // Combos (v14): agrupa las líneas de una misma compra de combo (Uuid, el
+  // mismo combo pedido 2 veces en la orden usa dos ids distintos) + el nombre
+  // denormalizado para el ticket. docs/combos.md.
+  TextColumn get comboInstanceId => text().nullable()();
+  TextColumn get comboName => text().nullable()();
 }
 
 class Payments extends Table {
@@ -439,6 +468,8 @@ class FiscalDocItems extends Table {
   DeliveryZones,
   FiscalDocs,
   FiscalDocItems,
+  Combos,
+  ComboItems,
 ])
 
 /// Base de datos SQLite (Drift). `docs/base-de-datos.md`.
@@ -449,7 +480,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 13;
+  int get schemaVersion => 15;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -569,6 +600,18 @@ class AppDatabase extends _$AppDatabase {
             await m.addColumn(discounts, discounts.endTime);
             await m.addColumn(discounts, discounts.categoryScope);
           }
+          if (from < 14) {
+            // v14: combos/paquetes. docs/combos.md.
+            await m.createTable(combos);
+            await m.createTable(comboItems);
+            await m.addColumn(orderItems, orderItems.comboInstanceId);
+            await m.addColumn(orderItems, orderItems.comboName);
+          }
+          if (from < 15) {
+            // v15: fidelización (sellos/puntos). docs/fidelizacion.md.
+            await m.addColumn(customers, customers.loyaltyStamps);
+            await m.addColumn(customers, customers.loyaltyPoints);
+          }
         },
       );
 
@@ -584,6 +627,7 @@ class AppDatabase extends _$AppDatabase {
   late final EmployeesDao employeesDao = EmployeesDao(this);
   late final ShiftsDao shiftsDao = ShiftsDao(this);
   late final DiscountsDao discountsDao = DiscountsDao(this);
+  late final CombosDao combosDao = CombosDao(this);
   late final ExpensesDao expensesDao = ExpensesDao(this);
   late final InventoryDao inventoryDao = InventoryDao(this);
   late final SettingsDao settingsDao = SettingsDao(this);
