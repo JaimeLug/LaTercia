@@ -3546,6 +3546,12 @@ class $ShiftsTable extends Shifts with TableInfo<$ShiftsTable, Shift> {
   late final GeneratedColumn<int> zNumber = GeneratedColumn<int>(
       'z_number', aliasedName, true,
       type: DriftSqlType.int, requiredDuringInsert: false);
+  static const VerificationMeta _deletedAtMeta =
+      const VerificationMeta('deletedAt');
+  @override
+  late final GeneratedColumn<DateTime> deletedAt = GeneratedColumn<DateTime>(
+      'deleted_at', aliasedName, true,
+      type: DriftSqlType.dateTime, requiredDuringInsert: false);
   @override
   List<GeneratedColumn> get $columns => [
         id,
@@ -3556,7 +3562,8 @@ class $ShiftsTable extends Shifts with TableInfo<$ShiftsTable, Shift> {
         endingCash,
         totalSales,
         notes,
-        zNumber
+        zNumber,
+        deletedAt
       ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -3615,6 +3622,10 @@ class $ShiftsTable extends Shifts with TableInfo<$ShiftsTable, Shift> {
       context.handle(_zNumberMeta,
           zNumber.isAcceptableOrUnknown(data['z_number']!, _zNumberMeta));
     }
+    if (data.containsKey('deleted_at')) {
+      context.handle(_deletedAtMeta,
+          deletedAt.isAcceptableOrUnknown(data['deleted_at']!, _deletedAtMeta));
+    }
     return context;
   }
 
@@ -3642,6 +3653,8 @@ class $ShiftsTable extends Shifts with TableInfo<$ShiftsTable, Shift> {
           .read(DriftSqlType.string, data['${effectivePrefix}notes']),
       zNumber: attachedDatabase.typeMapping
           .read(DriftSqlType.int, data['${effectivePrefix}z_number']),
+      deletedAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.dateTime, data['${effectivePrefix}deleted_at']),
     );
   }
 
@@ -3661,6 +3674,7 @@ class Shift extends DataClass implements Insertable<Shift> {
   final double totalSales;
   final String? notes;
   final int? zNumber;
+  final DateTime? deletedAt;
   const Shift(
       {required this.id,
       required this.employeeId,
@@ -3670,7 +3684,8 @@ class Shift extends DataClass implements Insertable<Shift> {
       this.endingCash,
       required this.totalSales,
       this.notes,
-      this.zNumber});
+      this.zNumber,
+      this.deletedAt});
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
@@ -3690,6 +3705,9 @@ class Shift extends DataClass implements Insertable<Shift> {
     }
     if (!nullToAbsent || zNumber != null) {
       map['z_number'] = Variable<int>(zNumber);
+    }
+    if (!nullToAbsent || deletedAt != null) {
+      map['deleted_at'] = Variable<DateTime>(deletedAt);
     }
     return map;
   }
@@ -3712,6 +3730,9 @@ class Shift extends DataClass implements Insertable<Shift> {
       zNumber: zNumber == null && nullToAbsent
           ? const Value.absent()
           : Value(zNumber),
+      deletedAt: deletedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(deletedAt),
     );
   }
 
@@ -3728,6 +3749,7 @@ class Shift extends DataClass implements Insertable<Shift> {
       totalSales: serializer.fromJson<double>(json['totalSales']),
       notes: serializer.fromJson<String?>(json['notes']),
       zNumber: serializer.fromJson<int?>(json['zNumber']),
+      deletedAt: serializer.fromJson<DateTime?>(json['deletedAt']),
     );
   }
   @override
@@ -3743,6 +3765,7 @@ class Shift extends DataClass implements Insertable<Shift> {
       'totalSales': serializer.toJson<double>(totalSales),
       'notes': serializer.toJson<String?>(notes),
       'zNumber': serializer.toJson<int?>(zNumber),
+      'deletedAt': serializer.toJson<DateTime?>(deletedAt),
     };
   }
 
@@ -3755,7 +3778,8 @@ class Shift extends DataClass implements Insertable<Shift> {
           Value<double?> endingCash = const Value.absent(),
           double? totalSales,
           Value<String?> notes = const Value.absent(),
-          Value<int?> zNumber = const Value.absent()}) =>
+          Value<int?> zNumber = const Value.absent(),
+          Value<DateTime?> deletedAt = const Value.absent()}) =>
       Shift(
         id: id ?? this.id,
         employeeId: employeeId ?? this.employeeId,
@@ -3766,6 +3790,7 @@ class Shift extends DataClass implements Insertable<Shift> {
         totalSales: totalSales ?? this.totalSales,
         notes: notes.present ? notes.value : this.notes,
         zNumber: zNumber.present ? zNumber.value : this.zNumber,
+        deletedAt: deletedAt.present ? deletedAt.value : this.deletedAt,
       );
   Shift copyWithCompanion(ShiftsCompanion data) {
     return Shift(
@@ -3783,6 +3808,7 @@ class Shift extends DataClass implements Insertable<Shift> {
           data.totalSales.present ? data.totalSales.value : this.totalSales,
       notes: data.notes.present ? data.notes.value : this.notes,
       zNumber: data.zNumber.present ? data.zNumber.value : this.zNumber,
+      deletedAt: data.deletedAt.present ? data.deletedAt.value : this.deletedAt,
     );
   }
 
@@ -3797,14 +3823,15 @@ class Shift extends DataClass implements Insertable<Shift> {
           ..write('endingCash: $endingCash, ')
           ..write('totalSales: $totalSales, ')
           ..write('notes: $notes, ')
-          ..write('zNumber: $zNumber')
+          ..write('zNumber: $zNumber, ')
+          ..write('deletedAt: $deletedAt')
           ..write(')'))
         .toString();
   }
 
   @override
   int get hashCode => Object.hash(id, employeeId, startedAt, endedAt,
-      startingCash, endingCash, totalSales, notes, zNumber);
+      startingCash, endingCash, totalSales, notes, zNumber, deletedAt);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -3817,7 +3844,8 @@ class Shift extends DataClass implements Insertable<Shift> {
           other.endingCash == this.endingCash &&
           other.totalSales == this.totalSales &&
           other.notes == this.notes &&
-          other.zNumber == this.zNumber);
+          other.zNumber == this.zNumber &&
+          other.deletedAt == this.deletedAt);
 }
 
 class ShiftsCompanion extends UpdateCompanion<Shift> {
@@ -3830,6 +3858,7 @@ class ShiftsCompanion extends UpdateCompanion<Shift> {
   final Value<double> totalSales;
   final Value<String?> notes;
   final Value<int?> zNumber;
+  final Value<DateTime?> deletedAt;
   const ShiftsCompanion({
     this.id = const Value.absent(),
     this.employeeId = const Value.absent(),
@@ -3840,6 +3869,7 @@ class ShiftsCompanion extends UpdateCompanion<Shift> {
     this.totalSales = const Value.absent(),
     this.notes = const Value.absent(),
     this.zNumber = const Value.absent(),
+    this.deletedAt = const Value.absent(),
   });
   ShiftsCompanion.insert({
     this.id = const Value.absent(),
@@ -3851,6 +3881,7 @@ class ShiftsCompanion extends UpdateCompanion<Shift> {
     this.totalSales = const Value.absent(),
     this.notes = const Value.absent(),
     this.zNumber = const Value.absent(),
+    this.deletedAt = const Value.absent(),
   })  : employeeId = Value(employeeId),
         startedAt = Value(startedAt);
   static Insertable<Shift> custom({
@@ -3863,6 +3894,7 @@ class ShiftsCompanion extends UpdateCompanion<Shift> {
     Expression<double>? totalSales,
     Expression<String>? notes,
     Expression<int>? zNumber,
+    Expression<DateTime>? deletedAt,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
@@ -3874,6 +3906,7 @@ class ShiftsCompanion extends UpdateCompanion<Shift> {
       if (totalSales != null) 'total_sales': totalSales,
       if (notes != null) 'notes': notes,
       if (zNumber != null) 'z_number': zNumber,
+      if (deletedAt != null) 'deleted_at': deletedAt,
     });
   }
 
@@ -3886,7 +3919,8 @@ class ShiftsCompanion extends UpdateCompanion<Shift> {
       Value<double?>? endingCash,
       Value<double>? totalSales,
       Value<String?>? notes,
-      Value<int?>? zNumber}) {
+      Value<int?>? zNumber,
+      Value<DateTime?>? deletedAt}) {
     return ShiftsCompanion(
       id: id ?? this.id,
       employeeId: employeeId ?? this.employeeId,
@@ -3897,6 +3931,7 @@ class ShiftsCompanion extends UpdateCompanion<Shift> {
       totalSales: totalSales ?? this.totalSales,
       notes: notes ?? this.notes,
       zNumber: zNumber ?? this.zNumber,
+      deletedAt: deletedAt ?? this.deletedAt,
     );
   }
 
@@ -3930,6 +3965,9 @@ class ShiftsCompanion extends UpdateCompanion<Shift> {
     if (zNumber.present) {
       map['z_number'] = Variable<int>(zNumber.value);
     }
+    if (deletedAt.present) {
+      map['deleted_at'] = Variable<DateTime>(deletedAt.value);
+    }
     return map;
   }
 
@@ -3944,7 +3982,8 @@ class ShiftsCompanion extends UpdateCompanion<Shift> {
           ..write('endingCash: $endingCash, ')
           ..write('totalSales: $totalSales, ')
           ..write('notes: $notes, ')
-          ..write('zNumber: $zNumber')
+          ..write('zNumber: $zNumber, ')
+          ..write('deletedAt: $deletedAt')
           ..write(')'))
         .toString();
   }
@@ -4096,6 +4135,18 @@ class $OrdersTable extends Orders with TableInfo<$OrdersTable, Order> {
       type: DriftSqlType.double,
       requiredDuringInsert: false,
       defaultValue: const Constant(0));
+  static const VerificationMeta _deliveryPaymentMethodMeta =
+      const VerificationMeta('deliveryPaymentMethod');
+  @override
+  late final GeneratedColumn<String> deliveryPaymentMethod =
+      GeneratedColumn<String>('delivery_payment_method', aliasedName, true,
+          type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _deliveryCashAmountMeta =
+      const VerificationMeta('deliveryCashAmount');
+  @override
+  late final GeneratedColumn<double> deliveryCashAmount =
+      GeneratedColumn<double>('delivery_cash_amount', aliasedName, true,
+          type: DriftSqlType.double, requiredDuringInsert: false);
   static const VerificationMeta _cancelReasonMeta =
       const VerificationMeta('cancelReason');
   @override
@@ -4124,6 +4175,12 @@ class $OrdersTable extends Orders with TableInfo<$OrdersTable, Order> {
   late final GeneratedColumn<DateTime> completedAt = GeneratedColumn<DateTime>(
       'completed_at', aliasedName, true,
       type: DriftSqlType.dateTime, requiredDuringInsert: false);
+  static const VerificationMeta _deletedAtMeta =
+      const VerificationMeta('deletedAt');
+  @override
+  late final GeneratedColumn<DateTime> deletedAt = GeneratedColumn<DateTime>(
+      'deleted_at', aliasedName, true,
+      type: DriftSqlType.dateTime, requiredDuringInsert: false);
   @override
   List<GeneratedColumn> get $columns => [
         id,
@@ -4145,10 +4202,13 @@ class $OrdersTable extends Orders with TableInfo<$OrdersTable, Order> {
         total,
         deliveryZone,
         deliveryFee,
+        deliveryPaymentMethod,
+        deliveryCashAmount,
         cancelReason,
         createdAt,
         updatedAt,
-        completedAt
+        completedAt,
+        deletedAt
       ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -4261,6 +4321,18 @@ class $OrdersTable extends Orders with TableInfo<$OrdersTable, Order> {
           deliveryFee.isAcceptableOrUnknown(
               data['delivery_fee']!, _deliveryFeeMeta));
     }
+    if (data.containsKey('delivery_payment_method')) {
+      context.handle(
+          _deliveryPaymentMethodMeta,
+          deliveryPaymentMethod.isAcceptableOrUnknown(
+              data['delivery_payment_method']!, _deliveryPaymentMethodMeta));
+    }
+    if (data.containsKey('delivery_cash_amount')) {
+      context.handle(
+          _deliveryCashAmountMeta,
+          deliveryCashAmount.isAcceptableOrUnknown(
+              data['delivery_cash_amount']!, _deliveryCashAmountMeta));
+    }
     if (data.containsKey('cancel_reason')) {
       context.handle(
           _cancelReasonMeta,
@@ -4280,6 +4352,10 @@ class $OrdersTable extends Orders with TableInfo<$OrdersTable, Order> {
           _completedAtMeta,
           completedAt.isAcceptableOrUnknown(
               data['completed_at']!, _completedAtMeta));
+    }
+    if (data.containsKey('deleted_at')) {
+      context.handle(_deletedAtMeta,
+          deletedAt.isAcceptableOrUnknown(data['deleted_at']!, _deletedAtMeta));
     }
     return context;
   }
@@ -4328,6 +4404,11 @@ class $OrdersTable extends Orders with TableInfo<$OrdersTable, Order> {
           .read(DriftSqlType.string, data['${effectivePrefix}delivery_zone']),
       deliveryFee: attachedDatabase.typeMapping
           .read(DriftSqlType.double, data['${effectivePrefix}delivery_fee'])!,
+      deliveryPaymentMethod: attachedDatabase.typeMapping.read(
+          DriftSqlType.string,
+          data['${effectivePrefix}delivery_payment_method']),
+      deliveryCashAmount: attachedDatabase.typeMapping.read(
+          DriftSqlType.double, data['${effectivePrefix}delivery_cash_amount']),
       cancelReason: attachedDatabase.typeMapping
           .read(DriftSqlType.string, data['${effectivePrefix}cancel_reason']),
       createdAt: attachedDatabase.typeMapping
@@ -4336,6 +4417,8 @@ class $OrdersTable extends Orders with TableInfo<$OrdersTable, Order> {
           .read(DriftSqlType.dateTime, data['${effectivePrefix}updated_at'])!,
       completedAt: attachedDatabase.typeMapping
           .read(DriftSqlType.dateTime, data['${effectivePrefix}completed_at']),
+      deletedAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.dateTime, data['${effectivePrefix}deleted_at']),
     );
   }
 
@@ -4365,10 +4448,13 @@ class Order extends DataClass implements Insertable<Order> {
   final double total;
   final String? deliveryZone;
   final double deliveryFee;
+  final String? deliveryPaymentMethod;
+  final double? deliveryCashAmount;
   final String? cancelReason;
   final DateTime createdAt;
   final DateTime updatedAt;
   final DateTime? completedAt;
+  final DateTime? deletedAt;
   const Order(
       {required this.id,
       required this.orderNumber,
@@ -4389,10 +4475,13 @@ class Order extends DataClass implements Insertable<Order> {
       required this.total,
       this.deliveryZone,
       required this.deliveryFee,
+      this.deliveryPaymentMethod,
+      this.deliveryCashAmount,
       this.cancelReason,
       required this.createdAt,
       required this.updatedAt,
-      this.completedAt});
+      this.completedAt,
+      this.deletedAt});
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
@@ -4431,6 +4520,12 @@ class Order extends DataClass implements Insertable<Order> {
       map['delivery_zone'] = Variable<String>(deliveryZone);
     }
     map['delivery_fee'] = Variable<double>(deliveryFee);
+    if (!nullToAbsent || deliveryPaymentMethod != null) {
+      map['delivery_payment_method'] = Variable<String>(deliveryPaymentMethod);
+    }
+    if (!nullToAbsent || deliveryCashAmount != null) {
+      map['delivery_cash_amount'] = Variable<double>(deliveryCashAmount);
+    }
     if (!nullToAbsent || cancelReason != null) {
       map['cancel_reason'] = Variable<String>(cancelReason);
     }
@@ -4438,6 +4533,9 @@ class Order extends DataClass implements Insertable<Order> {
     map['updated_at'] = Variable<DateTime>(updatedAt);
     if (!nullToAbsent || completedAt != null) {
       map['completed_at'] = Variable<DateTime>(completedAt);
+    }
+    if (!nullToAbsent || deletedAt != null) {
+      map['deleted_at'] = Variable<DateTime>(deletedAt);
     }
     return map;
   }
@@ -4477,6 +4575,12 @@ class Order extends DataClass implements Insertable<Order> {
           ? const Value.absent()
           : Value(deliveryZone),
       deliveryFee: Value(deliveryFee),
+      deliveryPaymentMethod: deliveryPaymentMethod == null && nullToAbsent
+          ? const Value.absent()
+          : Value(deliveryPaymentMethod),
+      deliveryCashAmount: deliveryCashAmount == null && nullToAbsent
+          ? const Value.absent()
+          : Value(deliveryCashAmount),
       cancelReason: cancelReason == null && nullToAbsent
           ? const Value.absent()
           : Value(cancelReason),
@@ -4485,6 +4589,9 @@ class Order extends DataClass implements Insertable<Order> {
       completedAt: completedAt == null && nullToAbsent
           ? const Value.absent()
           : Value(completedAt),
+      deletedAt: deletedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(deletedAt),
     );
   }
 
@@ -4511,10 +4618,15 @@ class Order extends DataClass implements Insertable<Order> {
       total: serializer.fromJson<double>(json['total']),
       deliveryZone: serializer.fromJson<String?>(json['deliveryZone']),
       deliveryFee: serializer.fromJson<double>(json['deliveryFee']),
+      deliveryPaymentMethod:
+          serializer.fromJson<String?>(json['deliveryPaymentMethod']),
+      deliveryCashAmount:
+          serializer.fromJson<double?>(json['deliveryCashAmount']),
       cancelReason: serializer.fromJson<String?>(json['cancelReason']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
       updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
       completedAt: serializer.fromJson<DateTime?>(json['completedAt']),
+      deletedAt: serializer.fromJson<DateTime?>(json['deletedAt']),
     );
   }
   @override
@@ -4540,10 +4652,14 @@ class Order extends DataClass implements Insertable<Order> {
       'total': serializer.toJson<double>(total),
       'deliveryZone': serializer.toJson<String?>(deliveryZone),
       'deliveryFee': serializer.toJson<double>(deliveryFee),
+      'deliveryPaymentMethod':
+          serializer.toJson<String?>(deliveryPaymentMethod),
+      'deliveryCashAmount': serializer.toJson<double?>(deliveryCashAmount),
       'cancelReason': serializer.toJson<String?>(cancelReason),
       'createdAt': serializer.toJson<DateTime>(createdAt),
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
       'completedAt': serializer.toJson<DateTime?>(completedAt),
+      'deletedAt': serializer.toJson<DateTime?>(deletedAt),
     };
   }
 
@@ -4567,10 +4683,13 @@ class Order extends DataClass implements Insertable<Order> {
           double? total,
           Value<String?> deliveryZone = const Value.absent(),
           double? deliveryFee,
+          Value<String?> deliveryPaymentMethod = const Value.absent(),
+          Value<double?> deliveryCashAmount = const Value.absent(),
           Value<String?> cancelReason = const Value.absent(),
           DateTime? createdAt,
           DateTime? updatedAt,
-          Value<DateTime?> completedAt = const Value.absent()}) =>
+          Value<DateTime?> completedAt = const Value.absent(),
+          Value<DateTime?> deletedAt = const Value.absent()}) =>
       Order(
         id: id ?? this.id,
         orderNumber: orderNumber ?? this.orderNumber,
@@ -4596,11 +4715,18 @@ class Order extends DataClass implements Insertable<Order> {
         deliveryZone:
             deliveryZone.present ? deliveryZone.value : this.deliveryZone,
         deliveryFee: deliveryFee ?? this.deliveryFee,
+        deliveryPaymentMethod: deliveryPaymentMethod.present
+            ? deliveryPaymentMethod.value
+            : this.deliveryPaymentMethod,
+        deliveryCashAmount: deliveryCashAmount.present
+            ? deliveryCashAmount.value
+            : this.deliveryCashAmount,
         cancelReason:
             cancelReason.present ? cancelReason.value : this.cancelReason,
         createdAt: createdAt ?? this.createdAt,
         updatedAt: updatedAt ?? this.updatedAt,
         completedAt: completedAt.present ? completedAt.value : this.completedAt,
+        deletedAt: deletedAt.present ? deletedAt.value : this.deletedAt,
       );
   Order copyWithCompanion(OrdersCompanion data) {
     return Order(
@@ -4639,6 +4765,12 @@ class Order extends DataClass implements Insertable<Order> {
           : this.deliveryZone,
       deliveryFee:
           data.deliveryFee.present ? data.deliveryFee.value : this.deliveryFee,
+      deliveryPaymentMethod: data.deliveryPaymentMethod.present
+          ? data.deliveryPaymentMethod.value
+          : this.deliveryPaymentMethod,
+      deliveryCashAmount: data.deliveryCashAmount.present
+          ? data.deliveryCashAmount.value
+          : this.deliveryCashAmount,
       cancelReason: data.cancelReason.present
           ? data.cancelReason.value
           : this.cancelReason,
@@ -4646,6 +4778,7 @@ class Order extends DataClass implements Insertable<Order> {
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
       completedAt:
           data.completedAt.present ? data.completedAt.value : this.completedAt,
+      deletedAt: data.deletedAt.present ? data.deletedAt.value : this.deletedAt,
     );
   }
 
@@ -4671,10 +4804,13 @@ class Order extends DataClass implements Insertable<Order> {
           ..write('total: $total, ')
           ..write('deliveryZone: $deliveryZone, ')
           ..write('deliveryFee: $deliveryFee, ')
+          ..write('deliveryPaymentMethod: $deliveryPaymentMethod, ')
+          ..write('deliveryCashAmount: $deliveryCashAmount, ')
           ..write('cancelReason: $cancelReason, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
-          ..write('completedAt: $completedAt')
+          ..write('completedAt: $completedAt, ')
+          ..write('deletedAt: $deletedAt')
           ..write(')'))
         .toString();
   }
@@ -4700,10 +4836,13 @@ class Order extends DataClass implements Insertable<Order> {
         total,
         deliveryZone,
         deliveryFee,
+        deliveryPaymentMethod,
+        deliveryCashAmount,
         cancelReason,
         createdAt,
         updatedAt,
-        completedAt
+        completedAt,
+        deletedAt
       ]);
   @override
   bool operator ==(Object other) =>
@@ -4728,10 +4867,13 @@ class Order extends DataClass implements Insertable<Order> {
           other.total == this.total &&
           other.deliveryZone == this.deliveryZone &&
           other.deliveryFee == this.deliveryFee &&
+          other.deliveryPaymentMethod == this.deliveryPaymentMethod &&
+          other.deliveryCashAmount == this.deliveryCashAmount &&
           other.cancelReason == this.cancelReason &&
           other.createdAt == this.createdAt &&
           other.updatedAt == this.updatedAt &&
-          other.completedAt == this.completedAt);
+          other.completedAt == this.completedAt &&
+          other.deletedAt == this.deletedAt);
 }
 
 class OrdersCompanion extends UpdateCompanion<Order> {
@@ -4754,10 +4896,13 @@ class OrdersCompanion extends UpdateCompanion<Order> {
   final Value<double> total;
   final Value<String?> deliveryZone;
   final Value<double> deliveryFee;
+  final Value<String?> deliveryPaymentMethod;
+  final Value<double?> deliveryCashAmount;
   final Value<String?> cancelReason;
   final Value<DateTime> createdAt;
   final Value<DateTime> updatedAt;
   final Value<DateTime?> completedAt;
+  final Value<DateTime?> deletedAt;
   const OrdersCompanion({
     this.id = const Value.absent(),
     this.orderNumber = const Value.absent(),
@@ -4778,10 +4923,13 @@ class OrdersCompanion extends UpdateCompanion<Order> {
     this.total = const Value.absent(),
     this.deliveryZone = const Value.absent(),
     this.deliveryFee = const Value.absent(),
+    this.deliveryPaymentMethod = const Value.absent(),
+    this.deliveryCashAmount = const Value.absent(),
     this.cancelReason = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
     this.completedAt = const Value.absent(),
+    this.deletedAt = const Value.absent(),
   });
   OrdersCompanion.insert({
     this.id = const Value.absent(),
@@ -4803,10 +4951,13 @@ class OrdersCompanion extends UpdateCompanion<Order> {
     this.total = const Value.absent(),
     this.deliveryZone = const Value.absent(),
     this.deliveryFee = const Value.absent(),
+    this.deliveryPaymentMethod = const Value.absent(),
+    this.deliveryCashAmount = const Value.absent(),
     this.cancelReason = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
     this.completedAt = const Value.absent(),
+    this.deletedAt = const Value.absent(),
   })  : orderNumber = Value(orderNumber),
         type = Value(type),
         employeeId = Value(employeeId);
@@ -4830,10 +4981,13 @@ class OrdersCompanion extends UpdateCompanion<Order> {
     Expression<double>? total,
     Expression<String>? deliveryZone,
     Expression<double>? deliveryFee,
+    Expression<String>? deliveryPaymentMethod,
+    Expression<double>? deliveryCashAmount,
     Expression<String>? cancelReason,
     Expression<DateTime>? createdAt,
     Expression<DateTime>? updatedAt,
     Expression<DateTime>? completedAt,
+    Expression<DateTime>? deletedAt,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
@@ -4855,10 +5009,15 @@ class OrdersCompanion extends UpdateCompanion<Order> {
       if (total != null) 'total': total,
       if (deliveryZone != null) 'delivery_zone': deliveryZone,
       if (deliveryFee != null) 'delivery_fee': deliveryFee,
+      if (deliveryPaymentMethod != null)
+        'delivery_payment_method': deliveryPaymentMethod,
+      if (deliveryCashAmount != null)
+        'delivery_cash_amount': deliveryCashAmount,
       if (cancelReason != null) 'cancel_reason': cancelReason,
       if (createdAt != null) 'created_at': createdAt,
       if (updatedAt != null) 'updated_at': updatedAt,
       if (completedAt != null) 'completed_at': completedAt,
+      if (deletedAt != null) 'deleted_at': deletedAt,
     });
   }
 
@@ -4882,10 +5041,13 @@ class OrdersCompanion extends UpdateCompanion<Order> {
       Value<double>? total,
       Value<String?>? deliveryZone,
       Value<double>? deliveryFee,
+      Value<String?>? deliveryPaymentMethod,
+      Value<double?>? deliveryCashAmount,
       Value<String?>? cancelReason,
       Value<DateTime>? createdAt,
       Value<DateTime>? updatedAt,
-      Value<DateTime?>? completedAt}) {
+      Value<DateTime?>? completedAt,
+      Value<DateTime?>? deletedAt}) {
     return OrdersCompanion(
       id: id ?? this.id,
       orderNumber: orderNumber ?? this.orderNumber,
@@ -4906,10 +5068,14 @@ class OrdersCompanion extends UpdateCompanion<Order> {
       total: total ?? this.total,
       deliveryZone: deliveryZone ?? this.deliveryZone,
       deliveryFee: deliveryFee ?? this.deliveryFee,
+      deliveryPaymentMethod:
+          deliveryPaymentMethod ?? this.deliveryPaymentMethod,
+      deliveryCashAmount: deliveryCashAmount ?? this.deliveryCashAmount,
       cancelReason: cancelReason ?? this.cancelReason,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       completedAt: completedAt ?? this.completedAt,
+      deletedAt: deletedAt ?? this.deletedAt,
     );
   }
 
@@ -4973,6 +5139,13 @@ class OrdersCompanion extends UpdateCompanion<Order> {
     if (deliveryFee.present) {
       map['delivery_fee'] = Variable<double>(deliveryFee.value);
     }
+    if (deliveryPaymentMethod.present) {
+      map['delivery_payment_method'] =
+          Variable<String>(deliveryPaymentMethod.value);
+    }
+    if (deliveryCashAmount.present) {
+      map['delivery_cash_amount'] = Variable<double>(deliveryCashAmount.value);
+    }
     if (cancelReason.present) {
       map['cancel_reason'] = Variable<String>(cancelReason.value);
     }
@@ -4984,6 +5157,9 @@ class OrdersCompanion extends UpdateCompanion<Order> {
     }
     if (completedAt.present) {
       map['completed_at'] = Variable<DateTime>(completedAt.value);
+    }
+    if (deletedAt.present) {
+      map['deleted_at'] = Variable<DateTime>(deletedAt.value);
     }
     return map;
   }
@@ -5010,10 +5186,13 @@ class OrdersCompanion extends UpdateCompanion<Order> {
           ..write('total: $total, ')
           ..write('deliveryZone: $deliveryZone, ')
           ..write('deliveryFee: $deliveryFee, ')
+          ..write('deliveryPaymentMethod: $deliveryPaymentMethod, ')
+          ..write('deliveryCashAmount: $deliveryCashAmount, ')
           ..write('cancelReason: $cancelReason, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
-          ..write('completedAt: $completedAt')
+          ..write('completedAt: $completedAt, ')
+          ..write('deletedAt: $deletedAt')
           ..write(')'))
         .toString();
   }
@@ -14680,6 +14859,7 @@ typedef $$ShiftsTableCreateCompanionBuilder = ShiftsCompanion Function({
   Value<double> totalSales,
   Value<String?> notes,
   Value<int?> zNumber,
+  Value<DateTime?> deletedAt,
 });
 typedef $$ShiftsTableUpdateCompanionBuilder = ShiftsCompanion Function({
   Value<int> id,
@@ -14691,6 +14871,7 @@ typedef $$ShiftsTableUpdateCompanionBuilder = ShiftsCompanion Function({
   Value<double> totalSales,
   Value<String?> notes,
   Value<int?> zNumber,
+  Value<DateTime?> deletedAt,
 });
 
 final class $$ShiftsTableReferences
@@ -14801,6 +14982,9 @@ class $$ShiftsTableFilterComposer
 
   ColumnFilters<int> get zNumber => $composableBuilder(
       column: $table.zNumber, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<DateTime> get deletedAt => $composableBuilder(
+      column: $table.deletedAt, builder: (column) => ColumnFilters(column));
 
   $$EmployeesTableFilterComposer get employeeId {
     final $$EmployeesTableFilterComposer composer = $composerBuilder(
@@ -14941,6 +15125,9 @@ class $$ShiftsTableOrderingComposer
   ColumnOrderings<int> get zNumber => $composableBuilder(
       column: $table.zNumber, builder: (column) => ColumnOrderings(column));
 
+  ColumnOrderings<DateTime> get deletedAt => $composableBuilder(
+      column: $table.deletedAt, builder: (column) => ColumnOrderings(column));
+
   $$EmployeesTableOrderingComposer get employeeId {
     final $$EmployeesTableOrderingComposer composer = $composerBuilder(
         composer: this,
@@ -14994,6 +15181,9 @@ class $$ShiftsTableAnnotationComposer
 
   GeneratedColumn<int> get zNumber =>
       $composableBuilder(column: $table.zNumber, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get deletedAt =>
+      $composableBuilder(column: $table.deletedAt, builder: (column) => column);
 
   $$EmployeesTableAnnotationComposer get employeeId {
     final $$EmployeesTableAnnotationComposer composer = $composerBuilder(
@@ -15137,6 +15327,7 @@ class $$ShiftsTableTableManager extends RootTableManager<
             Value<double> totalSales = const Value.absent(),
             Value<String?> notes = const Value.absent(),
             Value<int?> zNumber = const Value.absent(),
+            Value<DateTime?> deletedAt = const Value.absent(),
           }) =>
               ShiftsCompanion(
             id: id,
@@ -15148,6 +15339,7 @@ class $$ShiftsTableTableManager extends RootTableManager<
             totalSales: totalSales,
             notes: notes,
             zNumber: zNumber,
+            deletedAt: deletedAt,
           ),
           createCompanionCallback: ({
             Value<int> id = const Value.absent(),
@@ -15159,6 +15351,7 @@ class $$ShiftsTableTableManager extends RootTableManager<
             Value<double> totalSales = const Value.absent(),
             Value<String?> notes = const Value.absent(),
             Value<int?> zNumber = const Value.absent(),
+            Value<DateTime?> deletedAt = const Value.absent(),
           }) =>
               ShiftsCompanion.insert(
             id: id,
@@ -15170,6 +15363,7 @@ class $$ShiftsTableTableManager extends RootTableManager<
             totalSales: totalSales,
             notes: notes,
             zNumber: zNumber,
+            deletedAt: deletedAt,
           ),
           withReferenceMapper: (p0) => p0
               .map((e) =>
@@ -15307,10 +15501,13 @@ typedef $$OrdersTableCreateCompanionBuilder = OrdersCompanion Function({
   Value<double> total,
   Value<String?> deliveryZone,
   Value<double> deliveryFee,
+  Value<String?> deliveryPaymentMethod,
+  Value<double?> deliveryCashAmount,
   Value<String?> cancelReason,
   Value<DateTime> createdAt,
   Value<DateTime> updatedAt,
   Value<DateTime?> completedAt,
+  Value<DateTime?> deletedAt,
 });
 typedef $$OrdersTableUpdateCompanionBuilder = OrdersCompanion Function({
   Value<int> id,
@@ -15332,10 +15529,13 @@ typedef $$OrdersTableUpdateCompanionBuilder = OrdersCompanion Function({
   Value<double> total,
   Value<String?> deliveryZone,
   Value<double> deliveryFee,
+  Value<String?> deliveryPaymentMethod,
+  Value<double?> deliveryCashAmount,
   Value<String?> cancelReason,
   Value<DateTime> createdAt,
   Value<DateTime> updatedAt,
   Value<DateTime?> completedAt,
+  Value<DateTime?> deletedAt,
 });
 
 final class $$OrdersTableReferences
@@ -15546,6 +15746,14 @@ class $$OrdersTableFilterComposer
   ColumnFilters<double> get deliveryFee => $composableBuilder(
       column: $table.deliveryFee, builder: (column) => ColumnFilters(column));
 
+  ColumnFilters<String> get deliveryPaymentMethod => $composableBuilder(
+      column: $table.deliveryPaymentMethod,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<double> get deliveryCashAmount => $composableBuilder(
+      column: $table.deliveryCashAmount,
+      builder: (column) => ColumnFilters(column));
+
   ColumnFilters<String> get cancelReason => $composableBuilder(
       column: $table.cancelReason, builder: (column) => ColumnFilters(column));
 
@@ -15557,6 +15765,9 @@ class $$OrdersTableFilterComposer
 
   ColumnFilters<DateTime> get completedAt => $composableBuilder(
       column: $table.completedAt, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<DateTime> get deletedAt => $composableBuilder(
+      column: $table.deletedAt, builder: (column) => ColumnFilters(column));
 
   $$TablesLayoutTableFilterComposer get tableId {
     final $$TablesLayoutTableFilterComposer composer = $composerBuilder(
@@ -15825,6 +16036,14 @@ class $$OrdersTableOrderingComposer
   ColumnOrderings<double> get deliveryFee => $composableBuilder(
       column: $table.deliveryFee, builder: (column) => ColumnOrderings(column));
 
+  ColumnOrderings<String> get deliveryPaymentMethod => $composableBuilder(
+      column: $table.deliveryPaymentMethod,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<double> get deliveryCashAmount => $composableBuilder(
+      column: $table.deliveryCashAmount,
+      builder: (column) => ColumnOrderings(column));
+
   ColumnOrderings<String> get cancelReason => $composableBuilder(
       column: $table.cancelReason,
       builder: (column) => ColumnOrderings(column));
@@ -15837,6 +16056,9 @@ class $$OrdersTableOrderingComposer
 
   ColumnOrderings<DateTime> get completedAt => $composableBuilder(
       column: $table.completedAt, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<DateTime> get deletedAt => $composableBuilder(
+      column: $table.deletedAt, builder: (column) => ColumnOrderings(column));
 
   $$TablesLayoutTableOrderingComposer get tableId {
     final $$TablesLayoutTableOrderingComposer composer = $composerBuilder(
@@ -15973,6 +16195,12 @@ class $$OrdersTableAnnotationComposer
   GeneratedColumn<double> get deliveryFee => $composableBuilder(
       column: $table.deliveryFee, builder: (column) => column);
 
+  GeneratedColumn<String> get deliveryPaymentMethod => $composableBuilder(
+      column: $table.deliveryPaymentMethod, builder: (column) => column);
+
+  GeneratedColumn<double> get deliveryCashAmount => $composableBuilder(
+      column: $table.deliveryCashAmount, builder: (column) => column);
+
   GeneratedColumn<String> get cancelReason => $composableBuilder(
       column: $table.cancelReason, builder: (column) => column);
 
@@ -15984,6 +16212,9 @@ class $$OrdersTableAnnotationComposer
 
   GeneratedColumn<DateTime> get completedAt => $composableBuilder(
       column: $table.completedAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get deletedAt =>
+      $composableBuilder(column: $table.deletedAt, builder: (column) => column);
 
   $$TablesLayoutTableAnnotationComposer get tableId {
     final $$TablesLayoutTableAnnotationComposer composer = $composerBuilder(
@@ -16247,10 +16478,13 @@ class $$OrdersTableTableManager extends RootTableManager<
             Value<double> total = const Value.absent(),
             Value<String?> deliveryZone = const Value.absent(),
             Value<double> deliveryFee = const Value.absent(),
+            Value<String?> deliveryPaymentMethod = const Value.absent(),
+            Value<double?> deliveryCashAmount = const Value.absent(),
             Value<String?> cancelReason = const Value.absent(),
             Value<DateTime> createdAt = const Value.absent(),
             Value<DateTime> updatedAt = const Value.absent(),
             Value<DateTime?> completedAt = const Value.absent(),
+            Value<DateTime?> deletedAt = const Value.absent(),
           }) =>
               OrdersCompanion(
             id: id,
@@ -16272,10 +16506,13 @@ class $$OrdersTableTableManager extends RootTableManager<
             total: total,
             deliveryZone: deliveryZone,
             deliveryFee: deliveryFee,
+            deliveryPaymentMethod: deliveryPaymentMethod,
+            deliveryCashAmount: deliveryCashAmount,
             cancelReason: cancelReason,
             createdAt: createdAt,
             updatedAt: updatedAt,
             completedAt: completedAt,
+            deletedAt: deletedAt,
           ),
           createCompanionCallback: ({
             Value<int> id = const Value.absent(),
@@ -16297,10 +16534,13 @@ class $$OrdersTableTableManager extends RootTableManager<
             Value<double> total = const Value.absent(),
             Value<String?> deliveryZone = const Value.absent(),
             Value<double> deliveryFee = const Value.absent(),
+            Value<String?> deliveryPaymentMethod = const Value.absent(),
+            Value<double?> deliveryCashAmount = const Value.absent(),
             Value<String?> cancelReason = const Value.absent(),
             Value<DateTime> createdAt = const Value.absent(),
             Value<DateTime> updatedAt = const Value.absent(),
             Value<DateTime?> completedAt = const Value.absent(),
+            Value<DateTime?> deletedAt = const Value.absent(),
           }) =>
               OrdersCompanion.insert(
             id: id,
@@ -16322,10 +16562,13 @@ class $$OrdersTableTableManager extends RootTableManager<
             total: total,
             deliveryZone: deliveryZone,
             deliveryFee: deliveryFee,
+            deliveryPaymentMethod: deliveryPaymentMethod,
+            deliveryCashAmount: deliveryCashAmount,
             cancelReason: cancelReason,
             createdAt: createdAt,
             updatedAt: updatedAt,
             completedAt: completedAt,
+            deletedAt: deletedAt,
           ),
           withReferenceMapper: (p0) => p0
               .map((e) =>

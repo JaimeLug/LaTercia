@@ -93,6 +93,8 @@ class OrdersNotifier extends StateNotifier<List<OrderWithItems>> {
     String? deliveryZone,
     double deliveryFee = 0,
     double total = 0,
+    String? deliveryPaymentMethod,
+    double? deliveryCashAmount,
   }) async {
     // Orden + items + inventario, all-or-nothing en una transacción.
     // docs/ordenes-y-cocina.md §"Enviar a cocina".
@@ -116,6 +118,8 @@ class OrdersNotifier extends StateNotifier<List<OrderWithItems>> {
           taxAmount: Value(taxAmount),
           deliveryZone: Value(deliveryZone),
           deliveryFee: Value(deliveryFee),
+          deliveryPaymentMethod: Value(deliveryPaymentMethod),
+          deliveryCashAmount: Value(deliveryCashAmount),
           total: Value(total),
           status: const Value('pendiente'),
           paymentStatus: const Value('pendiente'),

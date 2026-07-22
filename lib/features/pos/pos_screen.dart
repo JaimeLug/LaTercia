@@ -55,6 +55,9 @@ class _PosScreenState extends ConsumerState<PosScreen> {
   // Datos de reparto: solo se usan cuando _orderType == 'delivery'.
   String? _customerPhone;
   String? _customerAddress;
+  // Pago esperado del delivery: método + con cuánto paga en efectivo (para el
+  // cambio en la comanda de reparto). Transferencia marca la orden pagada.
+  String _deliveryMethod = 'efectivo';
   String? _orderNote;
   Discount? _selectedDiscount;
 
@@ -73,6 +76,7 @@ class _PosScreenState extends ConsumerState<PosScreen> {
   final _addressController = TextEditingController();
   final _noteController = TextEditingController();
   final _searchController = TextEditingController();
+  final _deliveryCashController = TextEditingController();
 
   @override
   void dispose() {
@@ -82,6 +86,7 @@ class _PosScreenState extends ConsumerState<PosScreen> {
     _addressController.dispose();
     _noteController.dispose();
     _searchController.dispose();
+    _deliveryCashController.dispose();
     _catScrollController.dispose();
     super.dispose();
   }
@@ -237,6 +242,8 @@ class _PosScreenState extends ConsumerState<PosScreen> {
       _customerName = null;
       _customerPhone = null;
       _customerAddress = null;
+      _deliveryMethod = 'efectivo';
+      _deliveryCashController.clear();
     });
   }
 
@@ -292,7 +299,26 @@ class _PosScreenState extends ConsumerState<PosScreen> {
             deliveryZone: _deliveryZoneName,
             deliveryFee: _deliveryFee,
             total: _total,
+            deliveryPaymentMethod:
+                _orderType == 'delivery' ? _deliveryMethod : null,
+            deliveryCashAmount:
+                (_orderType == 'delivery' && _deliveryMethod == 'efectivo')
+                    ? double.tryParse(
+                        _deliveryCashController.text.replaceAll(',', '.'))
+                    : null,
           );
+
+      // Delivery por transferencia: se cobra de una vez (el dinero ya cayó),
+      // para que la orden no quede "por cobrar". El efectivo queda pendiente y
+      // el repartidor cobra al entregar. docs/impresion.md §Reparto.
+      if (_orderType == 'delivery' && _deliveryMethod == 'transferencia') {
+        await ref.read(checkoutServiceProvider).chargeExistingOrder(
+              orderId: orderId,
+              employeeId: employee.id,
+              paymentMethod: 'transferencia',
+              amountTendered: _total,
+            );
+      }
 
       // Comanda de cocina best-effort tras el commit (detrás de
       // `impresion_activa`; no-op si está OFF). Nunca rompe el envío.
@@ -551,6 +577,50 @@ class _PosScreenState extends ConsumerState<PosScreen> {
                     ),
                   ),
                 ),
+              ],
+            ),
+            // Pago esperado del delivery: cómo va a pagar el cliente. En
+            // efectivo se captura con cuánto paga para calcular el cambio del
+            // repartidor. Transferencia marca la orden pagada.
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Expanded(
+                  child: SegmentedButton<String>(
+                    showSelectedIcon: false,
+                    segments: const [
+                      ButtonSegment(
+                          value: 'efectivo',
+                          label: Text('Efectivo'),
+                          icon: Icon(Icons.payments_outlined, size: 16)),
+                      ButtonSegment(
+                          value: 'transferencia',
+                          label: Text('Transferencia'),
+                          icon: Icon(Icons.swap_horiz, size: 16)),
+                    ],
+                    selected: {_deliveryMethod},
+                    onSelectionChanged: (s) =>
+                        setState(() => _deliveryMethod = s.first),
+                  ),
+                ),
+                if (_deliveryMethod == 'efectivo') ...[
+                  const SizedBox(width: 12),
+                  SizedBox(
+                    width: 190,
+                    height: 44,
+                    child: TextField(
+                      controller: _deliveryCashController,
+                      keyboardType:
+                          const TextInputType.numberWithOptions(decimal: true),
+                      style: const TextStyle(fontSize: 13.5),
+                      decoration: const InputDecoration(
+                        hintText: 'Paga con (opcional)',
+                        isDense: true,
+                        prefixIcon: Icon(Icons.attach_money, size: 18),
+                      ),
+                    ),
+                  ),
+                ],
               ],
             ),
           ],

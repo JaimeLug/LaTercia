@@ -12,7 +12,8 @@ enum PermissionAction {
   reimprimir('reimprimir'),
   editarCatalogo('editar_catalogo'),
   movimientoCaja('movimiento_caja'),
-  reembolso('reembolso');
+  reembolso('reembolso'),
+  eliminar('eliminar');
 
   final String key;
   const PermissionAction(this.key);

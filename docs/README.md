@@ -42,5 +42,7 @@ explicación larga.
   separación base/IVA, exportador.
 - [Monitores](monitores.md) — ver y nombrar las pantallas (xrandr/screen_retriever);
   los nombres se usan en el selector de la Cocina.
+- [Soft delete de órdenes y cortes](soft-delete.md) — eliminar (ocultar) una
+  orden o corte de listas/reportes sin borrarlo; con PIN de supervisor.
 
 > Este índice crece conforme se van limpiando más archivos.

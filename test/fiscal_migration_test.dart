@@ -186,6 +186,10 @@ void _buildV9Fixture(String path) {
     )''');
   db.execute(
       'CREATE TABLE orders (id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT)');
+  // shifts existe desde antes de v9; la migración v11 le agrega deleted_at, así
+  // que el fixture necesita la tabla (mínima) para poder correr el ALTER.
+  db.execute(
+      'CREATE TABLE shifts (id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT)');
 
   final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
   db.execute(

@@ -313,6 +313,12 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> {
                   foregroundColor: Theme.of(context).colorScheme.error),
               child: const Text('Cancelar orden'),
             ),
+          TextButton.icon(
+            icon: const Icon(Icons.delete_outline, size: 17),
+            label: const Text('Eliminar'),
+            style: TextButton.styleFrom(foregroundColor: LaTerciaColors.danger),
+            onPressed: () => _eliminarOrden(context, order),
+          ),
           FilledButton(
             onPressed: () => Navigator.pop(context),
             child: const Text('Cerrar'),
@@ -533,6 +539,62 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> {
         );
       }
     }
+  }
+
+  /// Soft delete de una orden, con PIN de supervisor. Se oculta de listas,
+  /// reportes y cortes, pero queda en la BD. Sirve para limpiar pruebas.
+  /// docs/soft-delete.md.
+  Future<void> _eliminarOrden(BuildContext context, Order order) async {
+    final actor = ref.read(sessionProvider);
+    if (actor == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Inicia sesión para eliminar.')));
+      return;
+    }
+    final confirmar = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: Text('¿Eliminar la orden ${order.orderNumber}?'),
+        content: const Text(
+          'Se ocultará de las listas, los reportes y los cortes. Queda en la '
+          'base de datos por si acaso. Úsalo para limpiar pruebas.',
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancelar')),
+          FilledButton(
+            style:
+                FilledButton.styleFrom(backgroundColor: LaTerciaColors.danger),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Eliminar'),
+          ),
+        ],
+      ),
+    );
+    if (confirmar != true) return;
+    if (!context.mounted) return;
+
+    final allowed = await SupervisorPinDialog.ensure(
+      context,
+      ref,
+      actor: actor,
+      action: PermissionAction.eliminar,
+      entity: 'order',
+      entityId: order.id,
+    );
+    if (!allowed) return;
+
+    await ref.read(databaseProvider).ordersDao.softDeleteOrder(order.id);
+    await ref.read(auditServiceProvider).log(
+      employeeId: actor.id,
+      action: PermissionAction.eliminar.key,
+      entity: 'order',
+      entityId: order.id,
+      detail: {'orderNumber': order.orderNumber, 'total': order.total},
+    );
+    if (context.mounted) Navigator.pop(context); // cierra el detalle
+    _reloadOrders();
   }
 
   Future<void> _showCancelDialog(BuildContext context, Order order) async {

@@ -98,3 +98,16 @@ Cada documento tiene su builder de **bytes ESC/POS** (`buildSalesTicket`,
 `buildKitchenTicket`, `buildDeliveryTicket`, `buildCutTicket`, `buildTestTicket`)
 y su equivalente **PDF** (`build*Pdf`) para el modo gráfico. El TOTAL se resalta
 en video inverso (ESC/POS) o caja negra (PDF). Los cortes X/Z incluyen folio.
+
+## Comanda de reparto (delivery)
+
+`buildDeliveryTicket` (y su PDF) arma la nota que se lleva el repartidor: datos
+del cliente (nombre, teléfono, zona, dirección) + lista corta de lo que lleva.
+El bloque de cobro depende del pago esperado, capturado en el POS al enviar el
+delivery a cocina (`deliveryPaymentMethod` + `deliveryCashAmount` en la orden):
+
+- **Transferencia:** la orden se cobra de una vez (`chargeExistingOrder`), queda
+  pagada, y la nota dice **"PAGADO POR TRANSFERENCIA — no cobrar"**.
+- **Efectivo:** la orden queda por cobrar; la nota dice **"COBRAR AL ENTREGAR"**,
+  el **TOTAL**, con cuánto paga el cliente (**"Paga con"**) y el **CAMBIO** a dar
+  (`deliveryChange`, función pura; nunca negativo).

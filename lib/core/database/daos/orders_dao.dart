@@ -9,7 +9,8 @@ class OrdersDao extends DatabaseAccessor<AppDatabase> with _$OrdersDaoMixin {
   OrdersDao(super.db);
 
   Future<List<Order>> getActiveOrders() => (select(orders)
-        ..where((o) => o.status.isNotIn(['entregado', 'cancelado']))
+        ..where((o) =>
+            o.status.isNotIn(['entregado', 'cancelado']) & o.deletedAt.isNull())
         ..orderBy([(o) => OrderingTerm.asc(o.createdAt)]))
       .get();
 
@@ -19,7 +20,8 @@ class OrdersDao extends DatabaseAccessor<AppDatabase> with _$OrdersDaoMixin {
     final query = select(orders).join([
       leftOuterJoin(orderItems, orderItems.orderId.equalsExp(orders.id)),
     ])
-      ..where(orders.status.isNotIn(['entregado', 'cancelado']))
+      ..where(orders.status.isNotIn(['entregado', 'cancelado']) &
+          orders.deletedAt.isNull())
       ..orderBy([OrderingTerm.asc(orders.createdAt)]);
 
     final rows = await query.get();
@@ -50,7 +52,8 @@ class OrdersDao extends DatabaseAccessor<AppDatabase> with _$OrdersDaoMixin {
   }
 
   Stream<List<Order>> watchActiveOrders() => (select(orders)
-        ..where((o) => o.status.isNotIn(['entregado', 'cancelado']))
+        ..where((o) =>
+            o.status.isNotIn(['entregado', 'cancelado']) & o.deletedAt.isNull())
         ..orderBy([(o) => OrderingTerm.asc(o.createdAt)]))
       .watch();
 
@@ -104,6 +107,17 @@ class OrdersDao extends DatabaseAccessor<AppDatabase> with _$OrdersDaoMixin {
         ),
       );
 
+  /// Soft delete: oculta la orden de listas, reportes y cortes sin borrarla de
+  /// la BD (queda para auditoría). Distinto de cancelar, que sí se muestra.
+  /// docs/soft-delete.md.
+  Future<void> softDeleteOrder(int orderId) =>
+      (update(orders)..where((o) => o.id.equals(orderId))).write(
+        OrdersCompanion(
+          deletedAt: Value(DateTime.now()),
+          updatedAt: Value(DateTime.now()),
+        ),
+      );
+
   /// Liga la orden a un turno. Usado al cobrar una orden diferida (creada con
   /// "Enviar a Cocina" sin turno) para que el corte Z cuente su venta (5.5).
   Future<void> updateOrderShift(int orderId, int? shiftId) =>
@@ -132,15 +146,17 @@ class OrdersDao extends DatabaseAccessor<AppDatabase> with _$OrdersDaoMixin {
 
   Future<List<Order>> getOrdersByDateRange(DateTime from, DateTime to) =>
       (select(orders)
-            ..where((o) => o.createdAt.isBetweenValues(from, to))
+            ..where((o) =>
+                o.createdAt.isBetweenValues(from, to) & o.deletedAt.isNull())
             ..orderBy([(o) => OrderingTerm.desc(o.createdAt)]))
           .get();
 
   Future<Order?> getOrderById(int id) =>
       (select(orders)..where((o) => o.id.equals(id))).getSingleOrNull();
 
-  Future<List<Order>> getOrdersByShift(int shiftId) =>
-      (select(orders)..where((o) => o.shiftId.equals(shiftId))).get();
+  Future<List<Order>> getOrdersByShift(int shiftId) => (select(orders)
+        ..where((o) => o.shiftId.equals(shiftId) & o.deletedAt.isNull()))
+      .get();
 
   /// Fija el número legible de la orden (derivado del id tras insertar).
   /// `docs/ordenes-y-cocina.md` §"Número de orden".

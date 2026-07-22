@@ -11,7 +11,8 @@ class ReportsDao extends DatabaseAccessor<AppDatabase> with _$ReportsDaoMixin {
     final paidOrders = await (select(orders)
           ..where((o) =>
               o.paymentStatus.equals('pagado') &
-              o.createdAt.isBetweenValues(from, to)))
+              o.createdAt.isBetweenValues(from, to) &
+              o.deletedAt.isNull()))
         .get();
     return paidOrders.fold<double>(0.0, (sum, o) => sum + o.total);
   }
@@ -20,7 +21,8 @@ class ReportsDao extends DatabaseAccessor<AppDatabase> with _$ReportsDaoMixin {
     final result = await (select(orders)
           ..where((o) =>
               o.paymentStatus.equals('pagado') &
-              o.createdAt.isBetweenValues(from, to)))
+              o.createdAt.isBetweenValues(from, to) &
+              o.deletedAt.isNull()))
         .get();
     return result.length;
   }
@@ -48,7 +50,8 @@ class ReportsDao extends DatabaseAccessor<AppDatabase> with _$ReportsDaoMixin {
       innerJoin(orders, orders.id.equalsExp(orderItems.orderId)),
     ])
       ..where(orders.paymentStatus.equals('pagado') &
-          orders.createdAt.isBetweenValues(start, end));
+          orders.createdAt.isBetweenValues(start, end) &
+          orders.deletedAt.isNull());
 
     final rows = await query.get();
 
@@ -70,7 +73,8 @@ class ReportsDao extends DatabaseAccessor<AppDatabase> with _$ReportsDaoMixin {
       innerJoin(orders, orders.id.equalsExp(orderItems.orderId)),
     ])
       ..where(orders.paymentStatus.equals('pagado') &
-          orders.createdAt.isBetweenValues(from, to));
+          orders.createdAt.isBetweenValues(from, to) &
+          orders.deletedAt.isNull());
 
     final rows = await query.get();
 
@@ -87,7 +91,8 @@ class ReportsDao extends DatabaseAccessor<AppDatabase> with _$ReportsDaoMixin {
     final paidOrders = await (select(orders)
           ..where((o) =>
               o.paymentStatus.equals('pagado') &
-              o.createdAt.isBetweenValues(from, to)))
+              o.createdAt.isBetweenValues(from, to) &
+              o.deletedAt.isNull()))
         .get();
 
     final result = <String, double>{};
@@ -103,11 +108,17 @@ class ReportsDao extends DatabaseAccessor<AppDatabase> with _$ReportsDaoMixin {
 
   Future<Map<String, double>> getSalesByPaymentMethod(
       DateTime from, DateTime to) async {
-    final allPayments = await (select(payments)
-          ..where((p) => p.createdAt.isBetweenValues(from, to)))
-        .get();
+    // JOIN con orders para excluir los pagos de órdenes eliminadas (soft
+    // delete). docs/soft-delete.md.
+    final query = select(payments).join([
+      innerJoin(orders, orders.id.equalsExp(payments.orderId)),
+    ])
+      ..where(payments.createdAt.isBetweenValues(from, to) &
+          orders.deletedAt.isNull());
+    final rows = await query.get();
     final result = <String, double>{};
-    for (final p in allPayments) {
+    for (final row in rows) {
+      final p = row.readTable(payments);
       result[p.method] = (result[p.method] ?? 0) + p.amountTendered;
     }
     return result;

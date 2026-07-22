@@ -383,6 +383,12 @@ List<String> kitchenTicketLines(Order order, List<OrderItem> items) {
   return lines;
 }
 
+/// Cambio a dar en un delivery de efectivo: con cuánto paga el cliente menos el
+/// total, nunca negativo. Pura/testeable. `docs/impresion.md` §"Comanda de
+/// reparto".
+double deliveryChange(double total, double? cashAmount) =>
+    cashAmount == null ? 0 : (cashAmount - total).clamp(0, double.infinity);
+
 // ─── Cola de impresión con reintento ─────────────────────────────────────────
 
 /// Cola FIFO de impresión con reintento + backoff. Nunca lanza hacia el caller
@@ -792,7 +798,14 @@ class PrintService {
 
     bytes.addAll(g.hr());
 
-    if (order.paymentStatus != 'pagado') {
+    if (order.paymentStatus == 'pagado') {
+      final porTransfer = order.deliveryPaymentMethod == 'transferencia';
+      bytes.addAll(g.text(
+          _san(porTransfer
+              ? 'PAGADO POR TRANSFERENCIA — no cobrar'
+              : 'YA PAGADO — no cobrar'),
+          styles: const PosStyles(align: PosAlign.center, bold: true)));
+    } else {
       bytes.addAll(g.text(_san('COBRAR AL ENTREGAR'),
           styles: const PosStyles(align: PosAlign.center, bold: true)));
       bytes.addAll(g.row([
@@ -807,9 +820,31 @@ class PrintService {
               bold: true, align: PosAlign.right, height: PosTextSize.size2),
         ),
       ]));
-    } else {
-      bytes.addAll(g.text(_san('YA PAGADO — no cobrar'),
-          styles: const PosStyles(align: PosAlign.center, bold: true)));
+      // Efectivo con "con cuánto paga": muestra el cambio para el repartidor.
+      if (order.deliveryCashAmount != null) {
+        bytes.addAll(g.row([
+          PosColumn(
+              text: 'Paga con', width: 6, styles: const PosStyles(bold: true)),
+          PosColumn(
+            text: _san(money(order.deliveryCashAmount!)),
+            width: 6,
+            styles: const PosStyles(bold: true, align: PosAlign.right),
+          ),
+        ]));
+        bytes.addAll(g.row([
+          PosColumn(
+              text: 'CAMBIO',
+              width: 6,
+              styles: const PosStyles(bold: true, height: PosTextSize.size2)),
+          PosColumn(
+            text: _san(
+                money(deliveryChange(order.total, order.deliveryCashAmount))),
+            width: 6,
+            styles: const PosStyles(
+                bold: true, align: PosAlign.right, height: PosTextSize.size2),
+          ),
+        ]));
+      }
     }
 
     bytes.addAll(g.cut());
@@ -1204,13 +1239,29 @@ class PrintService {
     }
 
     children.add(_hrPdf());
-    if (order.paymentStatus != 'pagado') {
+    if (order.paymentStatus == 'pagado') {
+      final porTransfer = order.deliveryPaymentMethod == 'transferencia';
+      children.add(_center(
+          porTransfer
+              ? 'PAGADO POR TRANSFERENCIA — no cobrar'
+              : 'YA PAGADO — no cobrar',
+          _monoBold));
+    } else {
       children
         ..add(_center('COBRAR AL ENTREGAR', _monoBold))
         ..add(pw.Text(sanitizeTicketText('TOTAL: ${money(order.total)}'),
             style: _monoBig));
-    } else {
-      children.add(_center('YA PAGADO — no cobrar', _monoBold));
+      if (order.deliveryCashAmount != null) {
+        children
+          ..add(pw.Text(
+              sanitizeTicketText(
+                  'Paga con: ${money(order.deliveryCashAmount!)}'),
+              style: _monoBold))
+          ..add(pw.Text(
+              sanitizeTicketText(
+                  'CAMBIO: ${money(deliveryChange(order.total, order.deliveryCashAmount))}'),
+              style: _monoBig));
+      }
     }
 
     final doc = pw.Document();
@@ -1423,38 +1474,63 @@ class PrintService {
         return;
       }
 
-      // Ruta térmica ESC/POS (sin cambios).
+      // Ruta térmica ESC/POS. Cada documento se genera y encola por separado
+      // (_printDoc): si uno falla, NO impide los demás y el log dice
+      // EXACTAMENTE cuál falló. docs/impresion.md.
       final transport = transportFor(settings);
-      final ticket = await buildSalesTicket(
-        order: order,
-        items: items,
-        payment: payment,
-        settings: settings,
-        employee: employee,
-        reprint: reprint,
-      );
-      await queue.enqueue(transport, ticket, 'Ticket ${order.orderNumber}');
+      await _printDoc(
+          transport,
+          'Ticket ${order.orderNumber}',
+          () => buildSalesTicket(
+                order: order,
+                items: items,
+                payment: payment,
+                settings: settings,
+                employee: employee,
+                reprint: reprint,
+              ));
 
       if (includeKitchen && !reprint) {
-        final kitchen = await buildKitchenTicket(
-          order: order,
-          items: items,
-          settings: settings,
-        );
-        await queue.enqueue(transport, kitchen, 'Comanda ${order.orderNumber}');
+        await _printDoc(
+            transport,
+            'Comanda ${order.orderNumber}',
+            () => buildKitchenTicket(
+                  order: order,
+                  items: items,
+                  settings: settings,
+                ));
 
         if (order.type == 'delivery') {
-          final delivery = await buildDeliveryTicket(
-            order: order,
-            items: items,
-            settings: settings,
-          );
-          await queue.enqueue(
-              transport, delivery, 'Reparto ${order.orderNumber}');
+          await _printDoc(
+              transport,
+              'Reparto ${order.orderNumber}',
+              () => buildDeliveryTicket(
+                    order: order,
+                    items: items,
+                    settings: settings,
+                  ));
         }
       }
     } catch (e, st) {
-      appLogger.warn('No se pudo construir el documento de impresión.', e, st);
+      appLogger.warn('Error inesperado en la impresión de venta.', e, st);
+    }
+  }
+
+  /// Genera un documento térmico y lo encola, **aislando su fallo**: si este
+  /// documento en particular falla (al construirlo o enviarlo), se registra con
+  /// su nombre y NO tumba los demás tickets del mismo cobro. Sirve para
+  /// diagnosticar (ej. delivery: saber si falla el ticket, la comanda o el
+  /// reparto). docs/impresion.md §Cola.
+  Future<void> _printDoc(
+    PrinterTransport? transport,
+    String desc,
+    Future<List<int>> Function() build,
+  ) async {
+    try {
+      final bytes = await build();
+      await queue.enqueue(transport, bytes, desc);
+    } catch (e, st) {
+      appLogger.warn('No se pudo generar/imprimir "$desc".', e, st);
     }
   }
 
@@ -1489,24 +1565,27 @@ class PrintService {
       }
 
       final transport = transportFor(settings);
-      final kitchen = await buildKitchenTicket(
-        order: order,
-        items: items,
-        settings: settings,
-      );
-      await queue.enqueue(transport, kitchen, 'Comanda ${order.orderNumber}');
+      await _printDoc(
+          transport,
+          'Comanda ${order.orderNumber}',
+          () => buildKitchenTicket(
+                order: order,
+                items: items,
+                settings: settings,
+              ));
 
       if (order.type == 'delivery') {
-        final delivery = await buildDeliveryTicket(
-          order: order,
-          items: items,
-          settings: settings,
-        );
-        await queue.enqueue(
-            transport, delivery, 'Reparto ${order.orderNumber}');
+        await _printDoc(
+            transport,
+            'Reparto ${order.orderNumber}',
+            () => buildDeliveryTicket(
+                  order: order,
+                  items: items,
+                  settings: settings,
+                ));
       }
     } catch (e, st) {
-      appLogger.warn('No se pudo construir la comanda de cocina.', e, st);
+      appLogger.warn('Error inesperado en la impresión de cocina.', e, st);
     }
   }
 

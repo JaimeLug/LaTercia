@@ -145,6 +145,9 @@ class Shifts extends Table {
   RealColumn get totalSales => real().withDefault(const Constant(0))();
   TextColumn get notes => text().nullable()();
   IntColumn get zNumber => integer().nullable()();
+  // Soft delete (v11): un corte "eliminado" queda en la BD pero se oculta del
+  // historial de cortes y de los reportes. docs/soft-delete.md.
+  DateTimeColumn get deletedAt => dateTime().nullable()();
 }
 
 class Orders extends Table {
@@ -176,10 +179,19 @@ class Orders extends Table {
   // columnas existen para desglosar la línea en ticket/recibo.
   TextColumn get deliveryZone => text().nullable()();
   RealColumn get deliveryFee => real().withDefault(const Constant(0))();
+  // Pago esperado del delivery (v12): método ('efectivo'|'transferencia') y, en
+  // efectivo, con cuánto paga el cliente — para el cambio en la comanda de
+  // reparto. Transferencia marca la orden pagada. docs/impresion.md §Reparto.
+  TextColumn get deliveryPaymentMethod => text().nullable()();
+  RealColumn get deliveryCashAmount => real().nullable()();
   TextColumn get cancelReason => text().nullable()();
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
   DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();
   DateTimeColumn get completedAt => dateTime().nullable()();
+  // Soft delete (v11): una orden "eliminada" queda en la BD pero se oculta de
+  // las listas, los reportes y los cortes. Distinto de 'cancelado' (que sí se
+  // muestra). docs/soft-delete.md.
+  DateTimeColumn get deletedAt => dateTime().nullable()();
 }
 
 class OrderItems extends Table {
@@ -430,7 +442,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 10;
+  int get schemaVersion => 12;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -530,6 +542,17 @@ class AppDatabase extends _$AppDatabase {
             await m.addColumn(customers, customers.usoCfdiPreferido);
             await m.createTable(fiscalDocs);
             await m.createTable(fiscalDocItems);
+          }
+          if (from < 11) {
+            // v11: soft delete de órdenes y cortes. docs/soft-delete.md.
+            await m.addColumn(orders, orders.deletedAt);
+            await m.addColumn(shifts, shifts.deletedAt);
+          }
+          if (from < 12) {
+            // v12: pago esperado del delivery (método + con cuánto paga).
+            // docs/impresion.md §"Comanda de reparto".
+            await m.addColumn(orders, orders.deliveryPaymentMethod);
+            await m.addColumn(orders, orders.deliveryCashAmount);
           }
         },
       );
