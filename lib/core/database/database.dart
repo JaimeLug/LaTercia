@@ -485,7 +485,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 15;
+  int get schemaVersion => 16;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -598,12 +598,14 @@ class AppDatabase extends _$AppDatabase {
             await m.addColumn(orders, orders.deliveryCashAmount);
           }
           if (from < 13) {
-            // v13: promociones programadas (día/hora + 2x1 + alcance por
-            // producto). docs/promociones.md.
+            // v13: promociones programadas (día/hora + 2x1). El alcance
+            // (`productScope`) NO se agrega aquí — se movió a v16 para no
+            // duplicar la columna en instalaciones que ya habían corrido
+            // esta migración con el nombre viejo `categoryScope` (ver v16).
+            // docs/promociones.md.
             await m.addColumn(discounts, discounts.daysOfWeek);
             await m.addColumn(discounts, discounts.startTime);
             await m.addColumn(discounts, discounts.endTime);
-            await m.addColumn(discounts, discounts.productScope);
           }
           if (from < 14) {
             // v14: combos/paquetes. docs/combos.md.
@@ -613,10 +615,29 @@ class AppDatabase extends _$AppDatabase {
             await m.addColumn(orderItems, orderItems.comboName);
           }
           if (from < 15) {
-            // v15: fidelización (sellos/puntos, ambos independientes entre
-            // sí) + puntos por producto. docs/fidelizacion.md.
+            // v15: fidelización (sellos/puntos). `loyaltyPointsValue` de
+            // Products NO se agrega aquí — se movió a v16 (mismo motivo que
+            // el alcance de arriba). docs/fidelizacion.md.
             await m.addColumn(customers, customers.loyaltyStamps);
             await m.addColumn(customers, customers.loyaltyPoints);
+          }
+          if (from < 16) {
+            // v16: rediseño de Promociones/Fidelización tras feedback de VM
+            // (2026-07-22) — alcance por producto en vez de categoría, y
+            // puntos por producto. Migración NUEVA (no reusa v13/v15) porque
+            // esas dos YA se habían aplicado en la VM con el diseño viejo
+            // (`categoryScope`, sin `loyaltyPointsValue`); si esto se
+            // hubiera metido de vuelta en v13/v15, una base ya migrada a
+            // v15 se habría quedado sin `schemaVersion` nuevo que disparara
+            // la migración, y una base fresca habría intentado agregar la
+            // columna dos veces. La columna vieja `category_scope` de
+            // Discounts queda huérfana en las bases que ya la tenían — no
+            // estorba (Drift no la referencia) y no vale la pena migrarle el
+            // dato: significaba "categoría", no "producto", así que
+            // copiarlo tal cual daría un alcance que no matchea nada; mejor
+            // que el cajero/dueño lo vuelva a configurar por producto.
+            // docs/promociones.md, docs/fidelizacion.md.
+            await m.addColumn(discounts, discounts.productScope);
             await m.addColumn(products, products.loyaltyPointsValue);
           }
         },
